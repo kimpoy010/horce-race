@@ -17,7 +17,7 @@ for (let i = 0; i < 2000; i++) {
   // monotonic progress and crossing order matches finishing order
   r.list.forEach((h) => {
     let prev = 0;
-    for (let t = 0; t <= 43; t += 0.05) { const p = C.progress(h, t); assert(p >= prev - 1e-9); prev = p; }
+    for (let t = 0; t <= 59; t += 0.05) { const p = C.progress(h, t); assert(p >= prev - 1e-9); prev = p; }
     assert(Math.abs(C.progress(h, h.time) - 1) < 1e-9);
   });
   for (let k = 1; k < r.list.length; k++) assert(r.list[k].time > r.list[k - 1].time);

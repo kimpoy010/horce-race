@@ -16,21 +16,21 @@
   // The world is bigger than the screen; a camera follows the pack. Horses start top-left, run right along the
   // top straight, round the curve on the right, and come back left along the bottom straight to the finish.
   var VW = 544, VH = 306;                                   // camera view (logical px)
-  var LANES = 6, LANE_W = 16, R_IN = 54, R_OUT = R_IN + LANE_W * LANES, RMID = R_IN + LANE_W * LANES / 2;
-  var CY = 230, XL = 260, XR = 1700, X_MIN = 140;
+  var LANES = 6, LANE_W = 16, R_IN = 190, R_OUT = R_IN + LANE_W * LANES, RMID = R_IN + LANE_W * LANES / 2;   // a wide, long curve
+  var CY = R_OUT + 80, XL = 260, XR = 1700, X_MIN = 140;
   var WW = XR + R_OUT + 90, WH = CY + R_OUT + 60;
   var S = XR - XL, ARC = Math.PI * RMID, TOTAL = 2 * S + ARC;
   var SP = window.HorseSprites, PAL = SP.COLORS;
 
   // u = 0 is the start gate (top-left), u = 1 the finish line (bottom-left).
   function trackPos(u, lane) {
-    var r = R_IN + LANE_W * (lane + 0.5), d = u * TOTAL, x, y, dir;
+    var r = R_IN + LANE_W * (lane + 0.5), d = u * TOTAL, x, y, dir, hd = 0;
     if (d < S) { x = XL + d; y = CY - r; dir = 1; }
     else if (d < S + ARC) {
       var th = (d - S) / RMID;
-      x = XR + r * Math.sin(th); y = CY - r * Math.cos(th); dir = th < Math.PI / 2 ? 1 : -1;
-    } else { x = XR - (d - S - ARC); y = CY + r; dir = -1; }
-    return { x: x, y: y, dir: dir };
+      x = XR + r * Math.sin(th); y = CY - r * Math.cos(th); dir = th < Math.PI / 2 ? 1 : -1; hd = th;
+    } else { x = XR - (d - S - ARC); y = CY + r; dir = -1; hd = Math.PI; }
+    return { x: x, y: y, dir: dir, hd: hd };
   }
 
   var DIGITS = {
@@ -126,8 +126,7 @@
       var c, h = hash(x, y);
       if (inTrack(x, y)) {
         // distance (px) to the nearest track edge
-        var e = 9;
-        for (var k = 1; k <= 8 && e === 9; k++) if (!inTrack(x - k, y) || !inTrack(x + k, y) || !inTrack(x, y - k) || !inTrack(x, y + k)) e = k;
+        var rr0 = radial(x, y), e = Math.floor(Math.min(rr0 - R_IN, R_OUT - rr0, x <= XR ? x - X_MIN : 99)) + 1;
         if (e === 1 || e === 2) c = RAIL;
         else if (e <= 5) c = (((x >> 3) + (y >> 3)) & 1) ? CURB_A : CURB_B;
         else if (e <= 7) c = RAIL_S;
@@ -158,8 +157,13 @@
     // infield decoration under the top straight: flower beds and a pond
     var nn = 0;
     for (x = X_MIN; x < XR - 120; x += 21, nn++) (nn % 2 ? flowers : bush)(g, x, CY - R_IN + 8);
-    g.fillStyle = '#2c78d8'; g.beginPath(); g.ellipse(XR + 6, CY, 34, 24, 0, 0, 7); g.fill();
-    g.fillStyle = '#58a8f0'; g.beginPath(); g.ellipse(XR, CY - 6, 22, 10, 0, 0, 7); g.fill();
+    g.fillStyle = '#2c78d8'; g.beginPath(); g.ellipse(XR - 260, CY - 10, 330, 85, 0, 0, 7); g.fill();
+    g.fillStyle = '#58a8f0'; g.beginPath(); g.ellipse(XR - 290, CY - 30, 230, 40, 0, 0, 7); g.fill();
+    for (var tr = 0; tr < 40; tr++) { // trees on the infield around the lake
+      var tx = XR - 560 + hash(tr, 1) * 700, ty = CY - 120 + hash(tr, 2) * 240;
+      if (Math.abs(tx - (XR - 260)) < 345 && Math.abs(ty - (CY - 10)) < 95) continue;
+      g.fillStyle = '#175a2c'; g.fillRect(tx, ty, 18, 14); g.fillStyle = '#2c9a4a'; g.fillRect(tx + 2, ty - 8, 14, 12);
+    }
     // hedges + flower beds around the curve (outer side) and below the bottom straight
     var step = 18 / (R_OUT + 12);
     for (var th = step * 0.5; th < Math.PI - step * 0.3; th += step, nn++) {
@@ -193,9 +197,18 @@
   }
 
   /* ================= horses ================= */
-  function drawHorse(g, cx, cy, dir, phase, standing, no) {
-    g.fillStyle = 'rgba(50,30,10,.30)'; g.fillRect(cx - 30, cy - 1, 62, 3); g.fillRect(cx - 22, cy + 2, 46, 1);
-    g.drawImage(SP.get(no, dir, phase, standing), cx - SP.OX, cy - SP.OY);
+  // On the curve the horse turns with the track: its side view narrows as it turns towards the camera
+  // (heading straight down the screen) and widens again facing the other way, so there is no sudden flip.
+  var TURN_STEPS = 16;
+  function drawHorse(g, cx, cy, dir, phase, standing, no, hd) {
+    var k = Math.round(hd / (Math.PI / TURN_STEPS)), turning = !standing && k > 0 && k < TURN_STEPS;
+    var sc = turning ? Math.max(0.34, Math.abs(Math.cos(k * Math.PI / TURN_STEPS))) : 1;
+    var d = turning ? (k <= TURN_STEPS / 2 ? 1 : -1) : dir;
+    g.fillStyle = 'rgba(50,30,10,.30)'; g.fillRect(Math.round(cx - 30 * sc), cy - 1, Math.round(62 * sc), 3); g.fillRect(Math.round(cx - 22 * sc), cy + 2, Math.round(46 * sc), 1);
+    var spr = SP.get(no, d, phase, standing);
+    if (!turning) { g.drawImage(spr, cx - SP.OX, cy - SP.OY); return; }
+    g.imageSmoothingEnabled = false;
+    g.drawImage(spr, 0, 0, spr.width, spr.height, Math.round(cx - SP.OX * sc), cy - SP.OY, Math.round(spr.width * sc), spr.height);
   }
   function drawDust(g, cx, cy, dir, phase) {
     for (var i = 0; i < 4; i++) {
@@ -205,7 +218,7 @@
     }
   }
 
-  var MS = 0.055, MW = Math.round(WW * MS), MH = Math.round(WH * MS), MX = 4, MY = VH - 14 - MH - 4;
+  var MS = 0.05, MW = Math.round(WW * MS), MH = Math.round(WH * MS), MX = 4, MY = VH - 14 - MH - 4;
   function drawMini(g, items, camX, camY) {
     g.fillStyle = 'rgba(8,20,40,.72)'; g.fillRect(MX - 2, MY - 2, MW + 4, MH + 4);
     for (var u = 0; u <= 1; u += 0.004) { var p = trackPos(u, LANES / 2 - 0.5); rect(g, MX + p.x * MS, MY + p.y * MS, 2, 2, '#8a7048'); }
@@ -384,8 +397,8 @@
       var hx = Math.round(it.pos.x) - camX, hy = Math.round(it.pos.y) - camY + 6;
       if (hx < -70 || hx > VW + 70) return;
       var phs = it.u * TOTAL / 34 * Math.PI * 2;
-      if (!it.standing) drawDust(g, hx, hy, it.pos.dir, phs);
-      drawHorse(g, hx, hy, it.pos.dir, phs, it.standing, it.no);
+      if (!it.standing && !(it.pos.hd > 0.2 && it.pos.hd < 2.9)) drawDust(g, hx, hy, it.pos.dir, phs);
+      drawHorse(g, hx, hy, it.pos.dir, phs, it.standing, it.no, it.pos.hd);
     });
     drawMini(g, items, camX, camY);
     if (phase === 'racing' && nowMs - lastHoof > 170) { lastHoof = nowMs; Sound.hoof(); }
