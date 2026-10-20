@@ -115,7 +115,7 @@
   }
 
   /* ================= horse sprites: slim, long-legged racers (cached per pose) ================= */
-  var SPR_W = 48, SPR_H = 40, OX = 24, OY = 34;
+  var SPR_W = 48, SPR_H = 42, OX = 24, OY = 36;
   var POSES = [ // [kneeX, kneeY, hoofX, hoofY] for frontNear, frontFar, backNear, backFar (facing right)
     [[10, -5, 16, -3], [8, -4, 13, -1], [-11, -5, -16, -2], [-9, -4, -14, 0]],   // fully stretched
     [[9, -4, 7, 0], [7, -4, 11, -1], [-8, -4, -6, 0], [-10, -4, -10, -1]],        // gathering
@@ -153,7 +153,7 @@
     }
     function glyph(x, y) {
       var gl = DIGITS[no];
-      for (var py = 0; py < 5; py++) for (var px = 0; px < 3; px++) if (gl[py][px] === '1') R(x + (dir > 0 ? px : 2 - px), y + py, 1, 1, '#1a1a1a');
+      for (var py = 0; py < 5; py++) for (var px = 0; px < 3; px++) if (gl[py][px] === '1') R(x + (dir > 0 ? px : 2 - px), y + py, 1, 1, '#000');
     }
 
     // far legs + tail
@@ -170,13 +170,13 @@
     leg(5, -7, pose[0], p.coat); leg(-6, -7, pose[2], p.coat);
     commit();
     // number tag
-    R(-5, -15, 7, 8, '#f0a020'); glyph(-3, -14);
+    R(-5, -15, 7, 8, '#ffc830'); glyph(-3, -14);
     commit();
     // jockey: white pants, coloured silks and helmet, leaning over the neck
-    R(-3, -16, 6, 3, '#ffffff'); R(2, -13, 2, 3, DARK);
-    R(-2, -20, 5, 5, p.silk); R(2, -21, 4, 3, p.silk);
-    line(4, -18, 9, -16, 1, p.silk); R(9, -17, 1, 1, SKIN);
-    R(4, -24, 4, 3, p.cap); R(6, -21, 2, 2, SKIN);
+    R(-3, -17, 6, 3, '#ffffff');
+    R(-2, -22, 5, 5, p.silk); R(2, -23, 4, 3, p.silk);
+    line(4, -20, 9, -17, 1, p.silk); R(9, -18, 1, 1, SKIN);
+    R(4, -26, 4, 3, p.cap); R(6, -23, 2, 2, SKIN);
     commit();
     return cv;
   }
