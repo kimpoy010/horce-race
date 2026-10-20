@@ -194,8 +194,8 @@
     $('mode').textContent = 'LIVE MODE';
     var pct = function (x) { return x == null ? '-' : (x * 100).toFixed(2) + '%'; };
     var st = [['RTP setting', pct(r.rtpSetting)], ['RTP of the current race', pct(r.rtpOfCurrentRace)], ['Best bets return', pct(r.bestBetRtp)], ['3 cheapest pairs return', pct(r.cheapPairsRtp)],
-      ['Stake fee', pct(r.feeRate)], ['Actual RTP so far', pct(r.actualRtp)], ['Rounds', r.rounds], ['Bets', r.bets], ['Odds', r.shuffleOdds ? 'shuffled every race' : 'fixed layout'],
-      ['Total staked', money(r.staked, r.currency)], ['Fees', money(r.fees, r.currency)], ['Total paid', money(r.paid, r.currency)], ['House win', money(r.houseWin, r.currency)],
+      ['Actual RTP so far', pct(r.actualRtp)], ['Rounds', r.rounds], ['Bets', r.bets], ['Odds', r.shuffleOdds ? 'shuffled every race' : 'fixed layout'],
+      ['Total staked', money(r.staked, r.currency)], ['Total paid', money(r.paid, r.currency)], ['House win', money(r.houseWin, r.currency)],
       ['Credits pending', r.pendingCredits], ['Active sessions', r.activeSessions], ['Min / max bet', money(r.limits.minBet) + ' / ' + money(r.limits.maxBet)], ['Max per race', money(r.limits.maxRoundStake)]];
     $('stats').innerHTML = st.map(function (x) { return '<div class="stat"><span class="small">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
     $('combos').innerHTML = Object.keys(r.wins).map(function (c) {
@@ -216,12 +216,11 @@
   var previewTimer = null;
   function previewRtp() {
     var v = parseFloat($('rtpIn').value);
-    if (!(v >= 80 && v <= 99)) { $('rtpSum').textContent = 'Enter a value from 80 to 99.'; return; }
+    if (!(v >= 88 && v <= 99)) { $('rtpSum').textContent = 'Enter a value from 88 to 99.'; return; }
     backend.command({ cmd: 'previewRtp', rtp: v / 100 }).then(function (p) {
       if (!p.ok) { $('rtpSum').textContent = p.error; return; }
       var pc = function (x) { return (x * 100).toFixed(2) + '%'; };
-      $('rtpSum').textContent = 'Best bets return ' + pc(p.bestRtp) + (p.cheapRtp < p.bestRtp - 0.0005 ? ', the 3 cheapest pairs ' + pc(p.cheapRtp) : '') + ', average over an even spread ' + pc(p.evenSpreadRtp) +
-        (p.fee ? '. Stake fee ' + pc(p.fee) + ' on top of every stake (the odds alone give ' + pc(p.uniformRtp) + ').' : '.');
+      $('rtpSum').textContent = 'Best bets return ' + pc(p.bestRtp) + (p.cheapRtp < p.bestRtp - 0.0005 ? ', the 3 cheapest pairs ' + pc(p.cheapRtp) : '') + ', average over an even spread ' + pc(p.evenSpreadRtp) + '.';
       $('rtpPrev').querySelector('tbody').innerHTML = p.rows.map(function (x) {
         return '<tr><td>x' + x.odds + '</td><td>' + pc(x.probability) + '</td><td>' + pc(x.rtp) + '</td><td>' + (x.cheap && x.rtp < p.bestRtp - 0.0005 ? 'lower (3 cheapest)' : '') + '</td></tr>';
       }).join('');
@@ -230,7 +229,7 @@
   $('rtpIn').addEventListener('input', function () { clearTimeout(previewTimer); previewTimer = setTimeout(previewRtp, 250); });
   $('rtpApply').addEventListener('click', function () {
     var v = parseFloat($('rtpIn').value);
-    if (!(v >= 80 && v <= 99)) { $('rtpMsg').textContent = 'RTP must be 80 to 99.'; return; }
+    if (!(v >= 88 && v <= 99)) { $('rtpMsg').textContent = 'RTP must be 88 to 99.'; return; }
     backend.command({ cmd: 'setRtp', rtp: v / 100 }).then(function (res) {
       $('rtpMsg').textContent = res.ok ? 'Saved: ' + (res.rtp * 100).toFixed(1) + '% from race ' + res.appliesFromRace + ' (race ' + (res.appliesFromRace - 1) + ' keeps ' + (res.currentRaceRtp * 100).toFixed(1) + '%)' : 'Rejected: ' + res.error;
       $('rtpIn').dataset.set = String(res.rtp);

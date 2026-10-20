@@ -16,19 +16,18 @@ GAME_MODE=live WALLET=mock node server.js                  # local test with pla
 race**: the layout is derived from the round seed, shown to the players when betting opens, and fixed for that race.
 Set `shuffleOdds: false` in the engine config to keep a fixed layout instead.
 
-**Editable RTP (80% to 99%), odds unchanged.** The RTP is a setting in the controller (or `RTP=90` at start-up). It applies
-from the next race (the race in progress keeps its RTP), is saved in `data/settings.json` and recorded in the ledger.
-The payout odds never change; the setting changes how often each pair is drawn (and, below 86.84%, adds a fee):
+**Editable RTP (88% to 99%), odds unchanged, no fees.** The RTP is a setting in the controller (or `RTP=90` at start-up,
+default 90). It applies from the next race (the race in progress keeps its RTP), is saved in `data/settings.json` and
+recorded in the ledger. The payout odds never change; the setting changes how often each pair is drawn:
 
-* **86.84% to 99%:** the 12 pairs with the higher odds each return **exactly the setting** (drawn with probability
-  `setting / odds`). The probability that is left over is shared by the **three cheapest pairs** (the cells showing
-  odds 3, 4 and 5 that race), which return a bit less: 85.4% at a 90% setting, 83.0% at 95%, 81.1% at 99%. No bet
-  returns more than the setting, so the real RTP can never exceed it. The three cells are marked in the betting panel.
-* **80% to 86.84%:** all pairs are drawn with probability proportional to `1/odds` (86.84% each) and a **fee** is added
-  on top of every stake: `fee = 86.84% / setting - 1` (8.55% at 80%, 2.2% at 85%). The player pays stake + fee, the
-  payout is still stake x odds, so every bet returns exactly the setting of what the player pays.
+* The 12 pairs with the higher odds each return **exactly the setting** (drawn with probability `setting / odds`).
+* The probability that is left over is shared by the **three cheapest pairs** (the cells showing odds 3, 4 and 5 that
+  race), which return a bit less: 85.4% at a 90% setting, 83.0% at 95%, 81.1% at 99% (about 86.8% at 88%).
+* No bet returns more than the setting, so the real RTP can never exceed it. The three cells are marked in the
+  betting panel. Players only ever pay their stake: there is no fee.
+* 86.84% is `1 / sum(1/odds)`, the highest RTP all pairs can share without extra payments, which is why the minimum
+  setting is 88%.
 
-86.84% is `1 / sum(1/odds)` for the 15 odds values: the highest RTP all pairs can share without extra payments.
 RTP is a long-run average; short runs wander a lot because of the 1000x odds. `npm test` and
 `node scripts/simulate-rtp.js [races] [rtp%]` check the weights and the payout maths.
 

@@ -25,8 +25,7 @@ Mark the token as used. An invalid or used token must return `ok:false` (HTTP 40
 Request: `{ "playerId": "p-123" }` -> Reply: `{ "ok": true, "balance": 250000 }`
 
 ### `POST /wallet/debit`  (a bet)
-Request: `{ "playerId": "p-123", "amount": 5000, "txId": "bet:42:9f2c...", "meta": { "raceNo": 42, "kind": "bet", "stake": 5000, "fee": 0 } }`
-`amount` is stake + fee (the fee is only used when the RTP setting is below 86.84%).
+Request: `{ "playerId": "p-123", "amount": 5000, "txId": "bet:42:9f2c...", "meta": { "raceNo": 42, "kind": "bet" } }`
 Reply: `{ "ok": true, "balance": 245000 }`. If the balance is too low: HTTP 402 / `{ "ok": false, "error": "INSUFFICIENT_FUNDS" }`.
 
 ### `POST /wallet/credit`  (a win or a refund)

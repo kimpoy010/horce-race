@@ -28,38 +28,31 @@ function build(odds) {
   return { odds, weights, total, prob, rtpBy, rtpMin: Math.min.apply(null, rtps), rtpMax: Math.max.apply(null, rtps), rtp: 1 / COMBOS.reduce((a, c) => a + 1 / odds[c], 0) };
 }
 
-const MIN_RTP = 0.80, MAX_RTP = 0.99, CHEAP_PAIRS = 3;
+const MIN_RTP = 0.88, MAX_RTP = 0.99, CHEAP_PAIRS = 3;
 
 /*
- * Draw weights for an RTP setting between 80% and 99%, with the odds themselves unchanged.
- *
- *  - rtp >= uniform RTP (86.84% for the default odds): the 12 pairs with the higher odds all return exactly `rtp`.
- *    The probability that is left over is shared by the three cheapest pairs, which therefore return a bit less
- *    (about 85.4% at a 90% setting). No bet returns more than the setting.
- *  - rtp < uniform RTP: every pair is drawn with probability proportional to 1/odds (all bets 86.84%) and each stake
- *    carries a fee on top, fee = uniform / rtp - 1, so every bet returns exactly `rtp` of what the player pays.
- * rtpBy is the return per unit paid (stake + fee).
+ * Draw weights for an RTP setting between 88% and 99%, with the odds themselves unchanged and no fees.
+ * The 12 pairs with the higher odds all return exactly `rtp` (drawn with probability rtp / odds). The probability that
+ * is left over is shared by the three cheapest pairs, which therefore return a bit less (about 85.4% at a 90% setting).
+ * No bet returns more than the setting. rtpBy is the return per unit staked.
+ * The setting must be at least the RTP the odds give when every pair is drawn with probability 1 / odds
+ * (86.84% for the default odds), otherwise it is rejected.
  */
 function buildForRtp(odds, rtp) {
   odds = odds || DEFAULT_ODDS;
-  if (!(rtp >= MIN_RTP - 1e-9 && rtp <= MAX_RTP + 1e-9)) throw new Error('RTP must be between 80% and 99%');
+  if (!(rtp >= MIN_RTP - 1e-9 && rtp <= MAX_RTP + 1e-9)) throw new Error('RTP must be between 88% and 99%');
   const S = COMBOS.reduce((a, c) => a + 1 / odds[c], 0), uniform = 1 / S;
+  if (rtp < uniform - 1e-9) throw new Error('these odds cannot give an RTP below ' + (uniform * 100).toFixed(2) + '%');
   const order = COMBOS.slice().sort((a, b) => odds[a] - odds[b] || (a < b ? -1 : 1));
   const cheap = order.slice(0, CHEAP_PAIRS), isCheap = new Set(cheap), prob = {};
-  let fee = 0;
-  if (rtp >= uniform) {
-    const a = cheap.reduce((s, c) => s + 1 / odds[c], 0), r = (1 - rtp * (S - a)) / a;       // RTP of the cheap pairs
-    COMBOS.forEach((c) => { prob[c] = (isCheap.has(c) ? r : rtp) / odds[c]; });
-  } else {
-    COMBOS.forEach((c) => { prob[c] = (1 / odds[c]) / S; });
-    fee = uniform / rtp - 1;
-  }
-  const weights = COMBOS.map((c) => Math.round(prob[c] * 1e9)), total = weights.reduce((a, b) => a + b, 0), rtpBy = {};
-  COMBOS.forEach((c, i) => { prob[c] = weights[i] / total; rtpBy[c] = prob[c] * odds[c] / (1 + fee); });
+  const a = cheap.reduce((s2, c) => s2 + 1 / odds[c], 0), r = (1 - rtp * (S - a)) / a;       // RTP of the cheap pairs
+  COMBOS.forEach((c) => { prob[c] = (isCheap.has(c) ? r : rtp) / odds[c]; });
+  const weights = COMBOS.map((c) => Math.round(prob[c] * 1e9)), total = weights.reduce((x, y) => x + y, 0), rtpBy = {};
+  COMBOS.forEach((c, i) => { prob[c] = weights[i] / total; rtpBy[c] = prob[c] * odds[c]; });
   const rts = COMBOS.map((c) => rtpBy[c]);
   return {
-    odds, weights, total, prob, rtpBy, setting: rtp, fee, uniform, cheap,
-    cheapRtp: Math.min.apply(null, cheap.map((c) => rtpBy[c])), bestRtp: Math.max.apply(null, rts), evenSpread: rts.reduce((a, b) => a + b, 0) / rts.length
+    odds, weights, total, prob, rtpBy, setting: rtp, uniform, cheap,
+    cheapRtp: Math.min.apply(null, cheap.map((c) => rtpBy[c])), bestRtp: Math.max.apply(null, rts), evenSpread: rts.reduce((x, y) => x + y, 0) / rts.length
   };
 }
 

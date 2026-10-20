@@ -137,11 +137,11 @@
       if (S.raceNo != null && Object.keys(S.pending).length) { S.pending = {}; say('New race, new odds. Please pick your bets again.', true); }
       S.raceNo = round.raceNo;
     }
-    var placed = placedBy(), cells = el.grid.querySelectorAll('.cell'), i, total = 0, fees = 0, feeRate = (round && round.fee) || 0;
-    Object.keys(S.pending).forEach(function (c) { total += S.pending[c]; fees += Math.round(S.pending[c] * feeRate); });
+    var placed = placedBy(), cells = el.grid.querySelectorAll('.cell'), i, total = 0;
+    Object.keys(S.pending).forEach(function (c) { total += S.pending[c]; });
     var lowSet = {}; if (round && round.cheapPairs && round.cheapRtp < round.rtp - 0.0005) round.cheapPairs.forEach(function (c) { lowSet[c] = true; });
     if (round && round.rtp) {
-      el.info.textContent = 'RTP ' + (round.rtp * 100).toFixed(1) + '%' + (feeRate ? ' - A FEE OF ' + (feeRate * 100).toFixed(2) + '% IS ADDED TO EACH STAKE' : '') +
+      el.info.textContent = 'RTP ' + (round.rtp * 100).toFixed(1) + '%' + 
         (Object.keys(lowSet).length ? ' - THE 3 CELLS MARKED \u25BE (LOWEST ODDS) RETURN ' + (round.cheapRtp * 100).toFixed(1) + '%' : '');
     }
     for (i = 0; i < cells.length; i++) {
@@ -156,7 +156,7 @@
       if (p && !mn) { mn = document.createElement('span'); mn.className = 'minus'; mn.textContent = '-'; tl.appendChild(mn); }
       if (!p && mn) mn.remove();
     }
-    el.total.textContent = total ? (fees ? '(' + fmt(total) + ' + FEE ' + fmt(fees) + ' = ' + fmt(total + fees) + ')' : '(' + fmt(total) + ')') : '';
+    el.total.textContent = total ? '(' + fmt(total) + ')' : '';
     el.place.disabled = !betting || !total || S.busy || !S.session;
     el.clear.disabled = !total;
     el.rebet.disabled = !betting || !(me && me.last && me.last.bets.length);

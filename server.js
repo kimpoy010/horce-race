@@ -60,7 +60,7 @@ async function startLive() {
   await engine.recover();
   setInterval(() => engine.tick().catch((e) => console.error('tick failed:', e.message)), 250);
   const pv = engine.previewRtp(engine.rtp);
-  console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', RTP setting ' + (engine.rtp * 100).toFixed(2) + '% (best bets ' + (pv.bestRtp * 100).toFixed(2) + '%, three cheapest pairs ' + (pv.cheapRtp * 100).toFixed(2) + '%, stake fee ' + (pv.fee * 100).toFixed(2) + '%). Editable 80-99% in the controller.');
+  console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', RTP setting ' + (engine.rtp * 100).toFixed(2) + '% (best bets ' + (pv.bestRtp * 100).toFixed(2) + '%, three cheapest pairs ' + (pv.cheapRtp * 100).toFixed(2) + '%). Editable 88-99% in the controller.');
 }
 
 /* ---------- http helpers ---------- */
