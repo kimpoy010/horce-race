@@ -246,7 +246,7 @@
 
   /* ================= sound (WebAudio chiptune) ================= */
   var Sound = (function () {
-    var ctx = null, on = false, musicBuf = null, musicSrc = null, musicKey = null, loading = false, MUSIC_VOL = 0.38, chingBuf = null, chingLoading = false;
+    var ctx = null, on = false, musicBuf = null, musicSrc = null, musicKey = null, loading = false, MUSIC_VOL = 0.38, chingBuf = null, chingLoading = false, vicBuf = null, vicLoading = false, vicSrc = null, vicKey = null, VIC_VOL = 0.5;
     function stopMusic(keepKey) {
       if (musicSrc) { try { musicSrc.stop(); } catch (e) { /* already ended */ } musicSrc = null; }
       if (!keepKey) musicKey = null;
@@ -256,6 +256,16 @@
       fetch('audio/theme.mp3').then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
         return new Promise(function (ok, bad) { ctx.decodeAudioData(ab, ok, bad); });      // callback form also works on older Safari
       }).then(function (buf) { musicBuf = buf; }).catch(function () { /* no music, the other sounds still work */ }).then(function () { loading = false; });
+    }
+    function loadVictory() {
+      if (vicBuf || vicLoading) return; vicLoading = true;
+      fetch('audio/victory.mp3').then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+        return new Promise(function (ok, bad) { ctx.decodeAudioData(ab, ok, bad); });
+      }).then(function (buf) { vicBuf = buf; }).catch(function () { /* no victory theme */ }).then(function () { vicLoading = false; });
+    }
+    function stopVictory(keepKey) {
+      if (vicSrc) { try { vicSrc.stop(); } catch (e) { /* already ended */ } vicSrc = null; }
+      if (!keepKey) vicKey = null;
     }
     function loadChing() {
       if (chingBuf || chingLoading) return; chingLoading = true;
@@ -278,7 +288,7 @@
         if (!ctx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; ctx = new AC(); }
         if (ctx.state === 'suspended') ctx.resume();
         on = !on;
-        if (on) { loadMusic(); loadChing(); } else stopMusic();
+        if (on) { loadMusic(); loadChing(); loadVictory(); } else { stopMusic(); stopVictory(); }
         return on;
       },
       // the theme starts 3 s before betting closes and plays on top of the other sounds; viewers who join later hear it from the right place
@@ -292,6 +302,18 @@
         src.buffer = musicBuf; g.gain.setValueAtTime(MUSIC_VOL, t0); g.gain.setValueAtTime(MUSIC_VOL, t0 + Math.max(0, left - 2)); g.gain.linearRampToValueAtTime(0.0001, t0 + left);
         src.connect(g); g.connect(ctx.destination); src.start(t0, off);
         musicSrc = src;
+      },
+      // victory fanfare: starts with the winner banner, fades out and stops at stopAtMs (5 s before the next betting close)
+      victory: function (key, startAtMs, stopAtMs, nowMs) {
+        if (!on || !vicBuf || key === vicKey || nowMs < startAtMs || nowMs >= stopAtMs - 500) return;
+        vicKey = key;
+        var off = (nowMs - startAtMs) / 1000, len = Math.min(vicBuf.duration - off, (stopAtMs - nowMs) / 1000);
+        if (len < 0.5) return;
+        stopVictory(true);
+        var src = ctx.createBufferSource(), g = ctx.createGain(), t0 = ctx.currentTime, fade = Math.min(1.5, len);
+        src.buffer = vicBuf; g.gain.setValueAtTime(VIC_VOL, t0); g.gain.setValueAtTime(VIC_VOL, t0 + len - fade); g.gain.linearRampToValueAtTime(0.0001, t0 + len);
+        src.connect(g); g.connect(ctx.destination); src.start(t0, off); src.stop(t0 + len + 0.05);
+        vicSrc = src;
       },
       ching: function () {        // PLACE BET button
         if (!on || !chingBuf) return;
@@ -476,6 +498,12 @@
     var MUSIC_LEAD_MS = 3000;
     var mAt = st && st.round && st.round.betCloseAt ? st.round.betCloseAt - MUSIC_LEAD_MS : race && st && st.timings ? race.startAt - (st.timings.countdown || 6000) - MUSIC_LEAD_MS : null;
     if (mAt !== null) Sound.music(st && st.round ? st.round.raceNo : race.raceNo, mAt, nowMs);
+
+    // victory fanfare: from the winner banner until 5 s before the next betting close (live); until the results end (demo)
+    if (race && race.order) {
+      var resAt = race.startAt + T.race, resEnd = resAt + T.results, rnd0 = st.round;
+      Sound.victory(race.raceNo, resAt, rnd0 && rnd0.betCloseAt ? resEnd + (rnd0.betCloseAt - rnd0.openAt) - 5000 : resEnd, nowMs);
+    }
 
     // ---- HUD ----
     var betting = !!(st && st.round && st.round.phase === 'betting' && phase === 'idle'), betSecs = betting ? Math.max(0, Math.ceil((st.round.betCloseAt - nowMs) / 1000)) : 0;
