@@ -210,10 +210,28 @@
     g.drawImage(SP.getTurn(no, idx, phase, false), cx - SP.TURN.OX, cy - SP.TURN.OY);
   }
   function drawDust(g, cx, cy, dir, phase) {
-    for (var i = 0; i < 4; i++) {
-      var ox = 38 + i * 9 + ((phase * 2 + i * 5) % 5 | 0), oy = 1 + i * 2 + ((phase + i * 3) % 3 | 0), s = 5 - i;
-      g.fillStyle = 'rgba(222,192,142,' + (0.75 - i * 0.17) + ')';
-      g.fillRect(Math.round(cx - dir * ox), Math.round(cy - oy), s, s - 1);
+    for (var i = 0; i < 7; i++) {
+      var ox = 34 + i * 10 + ((phase * 3 + i * 5) % 6 | 0), oy = 1 + i * 2 + ((phase * 2 + i * 3) % 4 | 0), s = 7 - (i >> 1) * 2 + 1;
+      g.fillStyle = 'rgba(224,194,144,' + Math.max(0.12, 0.8 - i * 0.11) + ')';
+      g.fillRect(Math.round(cx - dir * ox), Math.round(cy - oy), s, Math.max(2, s - 2));
+    }
+  }
+
+  // speed lines that streak past while the camera is moving fast, and a slight camera shake
+  var streak = { px: 0, py: 0 };
+  function frac(v) { return v - Math.floor(v); }
+  function mod(a, n) { return ((a % n) + n) % n; }
+  function drawStreaks(g, cam, dt) {
+    var sp = Math.sqrt(cam.vx * cam.vx + cam.vy * cam.vy);
+    if (sp < 30) return;
+    streak.px -= cam.vx * dt * 1.7; streak.py -= cam.vy * dt * 1.7;
+    var L = Math.min(54, 10 + sp * 0.22), ux = cam.vx / sp, uy = cam.vy / sp;
+    g.lineWidth = 1;
+    for (var i = 0; i < 26; i++) {
+      var x = mod(frac(Math.sin(i * 12.9898) * 43758.5453) * (VW + 160) + streak.px, VW + 160) - 80;
+      var y = mod(frac(Math.sin(i * 78.233) * 12345.678) * VH + streak.py, VH);
+      g.strokeStyle = 'rgba(255,255,255,' + (0.14 + frac(i * 0.37) * 0.22).toFixed(2) + ')';
+      g.beginPath(); g.moveTo(Math.round(x), Math.round(y)); g.lineTo(Math.round(x + ux * L), Math.round(y + uy * L)); g.stroke();
     }
   }
 
@@ -388,15 +406,19 @@
     var ty = Math.min(WH - VH, Math.max(0, tp.y - 34 * Math.cos(Math.PI * arcT) - VH / 2));
     var perf = performance.now(), dt = Math.min(0.1, (perf - (cam.t || perf)) / 1000); cam.t = perf;
     if (cam.key !== rk || cam.x == null) { cam.key = rk; cam.x = tx; cam.y = ty; }
-    else { var k = 1 - Math.exp(-dt * 4); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; }
-    var camX = Math.round(cam.x), camY = Math.round(cam.y);
+    else { var k = 1 - Math.exp(-dt * 5); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; }
+    if (dt > 0) { var ivx = (cam.x - (cam.px == null ? cam.x : cam.px)) / dt, ivy = (cam.y - (cam.py == null ? cam.y : cam.py)) / dt; cam.vx = (cam.vx || 0) * 0.8 + ivx * 0.2; cam.vy = (cam.vy || 0) * 0.8 + ivy * 0.2; }
+    cam.px = cam.x; cam.py = cam.y;
+    var racing = phase === 'racing', shake = racing && Math.abs(cam.vx || 0) + Math.abs(cam.vy || 0) > 60 ? Math.round(Math.sin(perf / 41)) : 0;
+    var camX = Math.round(cam.x), camY = Math.round(cam.y) + shake;
 
     g.drawImage(bg, camX, camY, VW, VH, 0, 0, VW, VH);
+    if (racing) drawStreaks(g, cam, dt);
     items.sort(function (a, b) { return a.pos.y - b.pos.y; });
     items.forEach(function (it) {
       var hx = Math.round(it.pos.x) - camX, hy = Math.round(it.pos.y) - camY + 6;
       if (hx < -70 || hx > VW + 70) return;
-      var phs = it.u * TOTAL / 34 * Math.PI * 2;
+      var phs = it.u * TOTAL / 26 * Math.PI * 2;
       if (!it.standing && !(it.pos.hd > 0.2 && it.pos.hd < 2.9)) drawDust(g, hx, hy, it.pos.dir, phs);
       drawHorse(g, hx, hy, it.pos.dir, phs, it.standing, it.no, it.pos.hd);
     });

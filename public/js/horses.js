@@ -143,7 +143,7 @@
       legs.fn = [cl(legs.fn[0], -0.2, 0.95), cl(legs.fn[1], -0.5, 1.0)]; legs.ff = [cl(legs.ff[0], -0.2, 0.95), cl(legs.ff[1], -0.5, 1.0)];
     }
     if (standing) legs = { hf: [-0.05, -0.05], ff: [-0.08, -0.08], hn: [0.05, 0.05], fn: [0, 0] };
-    var bob = standing ? 0 : -Math.round(1.6 * Math.abs(Math.sin(phi * 0.5 + 0.4)));
+    var bob = standing ? 0 : -Math.round(2.6 * Math.abs(Math.sin(phi * 0.5 + 0.4)));
 
     // legs first (the body is painted over their tops)
     var V = window.HORSE_VARIANT | 0;
