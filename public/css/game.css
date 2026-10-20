@@ -72,8 +72,3 @@ body { display: flex; align-items: center; justify-content: center; }
 .results .combo { margin: calc(var(--u) * 1) 0; color: #7dff7d; display: flex; justify-content: center; align-items: center; gap: calc(var(--u) * 1.2); }
 .results .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * .8); font-size: .8em; }
 .results .cell { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .6); }
-
-/* canvas#mini */
-.stage #mini { inset: auto; left: 1.2%; bottom: 8.4%; width: 20%; height: auto; image-rendering: pixelated; border: calc(var(--u) * .25) solid #fff; box-sizing: border-box; }
-.nogl { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; }
-.nogl[hidden] { display: none; }
