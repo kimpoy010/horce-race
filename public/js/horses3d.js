@@ -96,7 +96,7 @@
     // saddle cloth on both flanks, number on the outside
     var gl = DIGITS[m.no];
     [1, -1].forEach(function (side) {
-      m.box(-6, 3.2, 21.2 + b, 30.6 + b, side * 6.5, side * 7.2, function (x, y) {
+      m.box(-6, 3.2, 21.2 + b, 30.6 + b, Math.min(side * 6.5, side * 7.2), Math.max(side * 6.5, side * 7.2), function (x, y) {
         var c = Math.floor((x + 4.6) / 1.2), r = Math.floor((30.0 + b - y) / 1.2);
         if (side < 0) c = 4 - c;
         return (c >= 0 && c < 5 && r >= 0 && r < 7 && gl[r][c] === '#') ? C_DIGIT : C_CLOTH;
