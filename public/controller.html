@@ -20,7 +20,17 @@
     <span id="keyErr" class="err"></span>
   </section>
 
-  <section class="panel">
+  <section id="report" class="panel" hidden>
+    <h2>Live game report <span class="small">(results are drawn by the server; the controller cannot change them)</span></h2>
+    <div class="stats" id="stats"></div>
+    <h2 style="margin-top:14px">Wins per combination <span class="small">(expected 6.67% each)</span></h2>
+    <div class="combos" id="combos"></div>
+    <h2 style="margin-top:14px">Recent races</h2>
+    <table id="recent"><thead><tr><th>Race</th><th>Winning pair</th><th>Finish order</th><th>Bets</th><th>Staked</th><th>Paid</th></tr></thead><tbody></tbody></table>
+    <p class="small" id="commit"></p>
+  </section>
+
+  <section class="panel" data-demo>
     <div class="row">
       <div>
         <div class="small">NEXT RACE</div>
@@ -37,7 +47,7 @@
     <div id="current" class="small"></div>
   </section>
 
-  <section class="panel">
+  <section class="panel" data-demo>
     <h2>Winning combination for next race <span id="padRace"></span></h2>
     <div class="pad" id="pad"></div>
     <div class="row">
@@ -47,7 +57,7 @@
     <div id="padText" class="small"></div>
   </section>
 
-  <section class="panel">
+  <section class="panel" data-demo>
     <h2>Race plan</h2>
     <table id="plan">
       <thead><tr><th>#</th><th>Horse A</th><th>Horse B</th><th>Exact order</th><th>Result</th><th></th></tr></thead>

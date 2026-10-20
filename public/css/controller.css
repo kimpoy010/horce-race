@@ -30,6 +30,11 @@ button.danger { background: #5a2030; border-color: #b04060; }
 .h4 { background: #4a78ff; color: #fff; } .h5 { background: #ffe83a; } .h6 { background: #2fbf6a; }
 .padbtn:hover:not(:disabled) { filter: brightness(1.1); }
 
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.stat { background: #10131c; border: 1px solid #2c3550; padding: 8px 10px; }
+.stat b { display: block; font-size: 18px; color: #fff; }
+.combos { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.combos div { background: #10131c; border: 1px solid #2c3550; padding: 4px 6px; font-size: 12px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 4px 6px; text-align: left; border-bottom: 1px solid #263050; }
 th { font-size: 12px; color: #9aa6c4; }

@@ -1,38 +1,54 @@
-# Retro Horse Race
+# Retro Horse Race (video karera)
 
-1980s-style 8-bit horse race for the web. Six numbered horses run a closed track shaped like a "U" lying on its side (opening to the left): they start at the
-top-left, run right along the top straight, round the curve, and race back left along the bottom straight to the finish line,
-also on the left. A close-up camera follows the pack the whole way (a minimap shows the full track).
-Every race has **two winning numbers** (the horses that finish 1st and 2nd) chosen on the **controller page**.
+An 8-bit style horse race with six numbered horses. Each race has a **winning combination**: the two horses that finish
+1st and 2nd, always written low-high (1-2, 1-3 ... 5-6, 15 pairs). The game runs in two modes.
 
-## Run
+## Live mode: fixed-odds betting (RTP 90%)
 
 ```
-CONTROLLER_KEY=mysecret PORT=8080 node server.js     # no dependencies, Node 16+
+GAME_MODE=live WALLET=http WALLET_URL=... WALLET_KEY=... CONTROLLER_KEY=... node server.js     # see .env.example
+GAME_MODE=live WALLET=mock node server.js                  # local test with play money: http://localhost:8080/?token=demo-alice
 ```
-* Game: `http://localhost:8080/`  * Controller: `http://localhost:8080/controller`
-* `npm test` runs the core tests.
 
-### Controller
-* Pad/table to set horse A / horse B per race; "exact order" = A wins, B second, otherwise random order of the two.
-* Empty rows are fully random. **START RACE** (6 s countdown) or **AUTO-RUN** (races chain automatically).
-* The plan is private: viewers only receive the finishing order ~2 s before the gun (`GET /api/public`).
-  Controller endpoints (`/api/admin`, `/api/command`) require the `x-controller-key` header.
+**How the 90% RTP works.** Every race is drawn by the server: each of the 15 pairs has probability 1/15. A winning
+bet pays **13.5x the stake** (stake included): (1/15) x 13.5 = 0.90. Change it with `RTP=` (multiplier = RTP x 15) or
+`PAYOUT_MULTIPLIER=`. Payouts are rounded down to the minor unit. RTP is a long-run average: over a few hundred
+races the measured value will wander (about +-2.5% after 40,000 single bets). `npm test` and
+`node scripts/simulate-rtp.js` check the draw and the payout maths.
 
-### Without a server (static hosting)
-Host `public/` anywhere. Open `controller.html` and `index.html` in the **same browser** (same origin); they share state
-through localStorage and the controller tab must stay open. Browsers partition storage in cross-site iframes, so real
-embedding needs the server mode.
+**Rules of the draw (do not change for real money).**
+* The outcome comes from a secret 256-bit seed made with `crypto.randomBytes`, *before* bets open; its SHA-256 hash
+  (the *commit*) is shown to players, and the seed is revealed after the race so anyone can re-run `rng.draw(seed, raceNo)`.
+* The result is drawn when betting closes; no bet can be placed after that.
+* The controller **cannot** change, pick or steer results in live mode (`/api/command` is refused). It only shows the
+  report: stakes, payouts, actual vs theoretical RTP, wins per pair, recent races.
 
-## Embedding in another platform
-```html
-<iframe src="https://YOUR-HOST/index.html" allow="autoplay" style="width:100%;aspect-ratio:16/9;border:0"></iframe>
-```
-Query params: `?api=https://host` (race server), `?mode=local`, `?sound=0`, `?hud=0`.
-The game posts events to the parent window: `{source:'horse-race', type:'countdown'|'start'|'result', raceNo, order, combination}`
-and accepts `{target:'horse-race', type:'setSound', on:true}`. See `public/embed-example.html`.
+**Flow.** Your platform redirects the player to `https://GAME_HOST/?token=<launch token>`. The game exchanges the token
+(`POST /session/validate` on your platform), keeps a session, removes the token from the URL, and shows the race with the
+betting panel (balance, the 15 pairs, chips, rebet, results). Bets debit the wallet immediately; wins are credited at
+the end of each race. See **docs/WALLET_API.md** for the four endpoints your platform implements and the idempotency
+rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> race (52 s) -> results (10 s) -> next round.
 
-All viewers stay in sync (race is a pure function of a server seed + start time), including late joiners.
+**Operations.**
+* `data/ledger.jsonl` is the append-only audit log (rounds, seeds, bets, draws, settlements, credits). It contains
+  secret seeds: restrict file permissions and back it up. After a crash the game settles a drawn race and refunds bets on
+  an undrawn one, and retries unpaid credits.
+* Limits: `MIN_BET`, `MAX_BET` (per pair), `MAX_ROUND_STAKE` (per player per race), in minor units.
+* Run behind HTTPS (the launch token is in the URL; pages send `Referrer-Policy: no-referrer`).
+* This build keeps state in memory plus the ledger file: run **one** server instance. For several instances or high
+  volume, move rounds, bets and sessions to a shared database.
+* Real-money gaming is regulated. Licensing, independent RNG/RTP certification, age and responsible-gaming controls are
+  the operator's responsibility.
 
-Note: the controller deliberately predetermines outcomes. Use it for entertainment, demos and giveaways; do not
-present a rigged race as a game of chance for real-money wagering.
+## Demo mode (default): controller picks the winners
+
+`node server.js` -> game at `/`, controller at `/controller` (key printed at start or `CONTROLLER_KEY`). The controller
+sets the winning pair per race and starts races (or auto-run). Use for demos and promotions only, never for wagering.
+
+## Game
+
+Closed "U" track lying on its side (opens to the left): start top-left, curve on the right, finish bottom-left; a close-up
+camera follows the pack, a minimap shows the whole track. Pixel-art horses (traced reference design with generated gallop
+legs, angled sprites on the curve). Needs only a browser; no external requests.
+
+`npm test` runs the logic, draw and engine tests.

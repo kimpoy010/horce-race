@@ -1,0 +1,184 @@
+/*
+ * Betting panel (live mode only). The game is opened from the operator's platform as a redirect:
+ *   https://GAME_HOST/?token=<launch token>
+ * The token is exchanged for a game session (POST /api/auth), removed from the URL, and kept in sessionStorage.
+ * All money handling happens on the server: this panel only sends bets and shows what the server reports.
+ */
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var qs = new URLSearchParams(location.search);
+  var S = { session: null, rules: null, me: null, pending: {}, chip: 0, busy: false, msgTimer: null, built: false };
+  var el = { bet: $('bet'), layout: $('layout'), player: $('bPlayer'), balance: $('bBalance'), round: $('bRound'), timer: $('bTimer'),
+    prog: $('bProg'), pay: $('bPay'), msg: $('bMsg'), grid: $('bGrid'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
+    place: $('bPlace'), total: $('bTotal'), placed: $('bPlaced'), last: $('bLast'), fair: $('bFair'), back: $('bBack') };
+
+  var ERRORS = {
+    BETTING_CLOSED: 'Betting is closed for this race.', INSUFFICIENT_FUNDS: 'Not enough balance for that bet.',
+    MAX_BET_EXCEEDED: 'That is above the maximum bet for one combination.', MAX_ROUND_STAKE_EXCEEDED: 'That is above the maximum total bet for one race.',
+    BAD_BET: 'That bet is not allowed (check the minimum and maximum).', TOO_MANY_REQUESTS: 'Slow down a little and try again.',
+    WALLET_UNAVAILABLE: 'The wallet is not responding. Your balance was not changed, please try again.', WALLET_REJECTED: 'The wallet rejected the bet.',
+    SESSION_EXPIRED: 'Your session has expired. Please open the game again from the lobby.', INVALID_TOKEN: 'This launch link is invalid or has expired. Please open the game again from the lobby.'
+  };
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmt(minor) { return (minor / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function money(minor) { return (S.currency ? S.currency + ' ' : '') + fmt(minor); }
+  function chip(n) { return '<span class="chip h' + n + '">' + n + '</span>'; }
+
+  function api(method, path, body) {
+    var opts = { method: method, cache: 'no-store', headers: {} };
+    if (S.session) opts.headers.Authorization = 'Bearer ' + S.session;
+    if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    return fetch(path, opts).then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { status: r.status, data: d }; }); });
+  }
+
+  function say(text, ok) {
+    clearTimeout(S.msgTimer);
+    el.msg.hidden = !text; el.msg.textContent = text || ''; el.msg.className = 'msg' + (ok ? ' ok' : '');
+    if (text && ok) S.msgTimer = setTimeout(function () { el.msg.hidden = true; }, 4000);
+  }
+
+  function needLaunch(text) {
+    S.session = null; try { sessionStorage.removeItem('hr.session'); } catch (e) { /* ignore */ }
+    el.grid.hidden = el.chips.hidden = el.clear.parentNode.hidden = true;
+    el.placed.innerHTML = el.last.innerHTML = '';
+    say(text || ERRORS.SESSION_EXPIRED);
+  }
+
+  /* ---------- build ---------- */
+  function build() {
+    if (S.built) return; S.built = true;
+    var r = S.rules, rows = {}, html = '';
+    r.combos.forEach(function (c) { var a = c.split('-')[0]; (rows[a] = rows[a] || []).push(c); });
+    Object.keys(rows).forEach(function (a) {
+      rows[a].forEach(function (c) {
+        var p = c.split('-');
+        html += '<button type="button" class="tile" data-c="' + c + '"><span class="pair">' + chip(p[0]) + '-' + chip(p[1]) + '</span><span class="amt"></span></button>';
+      });
+      for (var i = rows[a].length; i < 5; i++) html += '<span></span>';
+    });
+    el.grid.innerHTML = html;
+    var base = r.minBet, vals = [1, 5, 10, 50, 100, 500].map(function (m) { return m * base; }).filter(function (v) { return v <= r.maxBet; });
+    S.chip = vals[0];
+    el.chips.innerHTML = vals.map(function (v, i) { return '<button type="button" class="chipbtn' + (i ? '' : ' sel') + '" data-v="' + v + '">' + fmt(v) + '</button>'; }).join('');
+    el.pay.textContent = 'ANY ORDER · EACH WINNING PAIR PAYS ' + r.payoutMultiplier + 'x THE STAKE';
+
+    el.grid.addEventListener('click', function (ev) {
+      var minus = ev.target.closest('.minus'), t = ev.target.closest('.tile'); if (!t || t.disabled) return;
+      var c = t.dataset.c, cur = S.pending[c] || 0, placed = placedBy()[c] || 0;
+      if (minus) { cur = Math.max(0, cur - S.chip); } else { cur = Math.min(cur + S.chip, S.rules.maxBet - placed); }
+      if (cur > 0) S.pending[c] = cur; else delete S.pending[c];
+      render();
+    });
+    el.chips.addEventListener('click', function (ev) {
+      var b = ev.target.closest('.chipbtn'); if (!b) return;
+      S.chip = +b.dataset.v; [].forEach.call(el.chips.children, function (x) { x.classList.toggle('sel', x === b); });
+    });
+    el.clear.addEventListener('click', function () { S.pending = {}; render(); });
+    el.rebet.addEventListener('click', function () {
+      var l = S.me && S.me.last; if (!l) return;
+      S.pending = {}; l.bets.forEach(function (b) { S.pending[b.combo] = Math.min((S.pending[b.combo] || 0) + b.stake, S.rules.maxBet); }); render();
+    });
+    el.place.addEventListener('click', placeBets);
+  }
+
+  /* ---------- actions ---------- */
+  function placeBets() {
+    var list = Object.keys(S.pending).map(function (c) { return { combo: c, stake: S.pending[c] }; });
+    if (!list.length || S.busy) return;
+    S.busy = true; render();
+    api('POST', 'api/bet', { bets: list }).then(function (res) {
+      S.busy = false;
+      if (res.data.ok) { S.pending = {}; if (S.me) S.me.balance = res.data.balance; say('Bet placed. Good luck!', true); refresh(); }
+      else { var code = res.data.error; if (code === 'SESSION_EXPIRED') return needLaunch(); say(ERRORS[code] || 'The bet could not be placed.'); refresh(); }
+      render();
+    }).catch(function () { S.busy = false; say('Connection problem. Please try again.'); render(); });
+  }
+
+  function placedBy() {
+    var o = {}; ((S.me && S.me.bets) || []).forEach(function (b) { o[b.combo] = (o[b.combo] || 0) + b.stake; }); return o;
+  }
+
+  function refresh() {
+    if (!S.session) return Promise.resolve();
+    return api('GET', 'api/me').then(function (res) {
+      if (res.status === 401) return needLaunch();
+      if (res.data.ok) { S.me = res.data; S.currency = res.data.currency || S.currency; }
+      render();
+    }).catch(function () { /* offline: keep what we have */ });
+  }
+
+  /* ---------- render ---------- */
+  function render() {
+    var G = window.HorseGame, st = G && G.state(), me = S.me;
+    if (me) {
+      el.player.textContent = me.playerId; el.balance.textContent = money(me.balance);
+      if (me.returnUrl) { el.back.hidden = false; el.back.href = me.returnUrl; }
+    }
+    var round = st && st.round, t = G ? G.now() : Date.now(), betting = !!(round && round.phase === 'betting' && t < round.betCloseAt);
+    if (round) {
+      el.round.textContent = 'RACE ' + round.raceNo;
+      if (betting) {
+        var left = Math.max(0, round.betCloseAt - t), total = (st.timings && st.timings.bet) || 25000;
+        el.timer.textContent = 'BETS CLOSE IN ' + Math.ceil(left / 1000) + 'S';
+        el.prog.style.width = (100 * left / total) + '%'; el.prog.className = 'bar-fill' + (left < 5000 ? ' low' : '');
+      } else {
+        el.timer.textContent = round.phase === 'closed' ? 'BETS CLOSED - OFF SOON' : round.phase === 'racing' ? 'RACE IN PROGRESS' : 'OFFICIAL RESULT';
+        el.prog.style.width = '0';
+      }
+      el.fair.textContent = 'Round commit (SHA-256 of the secret seed): ' + round.commit + (st.reveals && st.reveals.length ? '  |  Last race ' + st.reveals[st.reveals.length - 1].raceNo + ' seed: ' + st.reveals[st.reveals.length - 1].seed : '');
+    }
+    var placed = placedBy(), tiles = el.grid.children, i, total = 0;
+    Object.keys(S.pending).forEach(function (c) { total += S.pending[c]; });
+    for (i = 0; i < tiles.length; i++) {
+      var tl = tiles[i]; if (!tl.dataset || !tl.dataset.c) continue;
+      var c = tl.dataset.c, p = S.pending[c] || 0, pl = placed[c] || 0;
+      tl.disabled = !betting || !S.session || S.busy;
+      tl.classList.toggle('on', p > 0 || pl > 0);
+      var amt = tl.querySelector('.amt'), txt = (pl ? '<span class="pl">' + fmt(pl) + '</span>' : '') + (p ? (pl ? ' +' : '') + fmt(p) : '');
+      if (amt.dataset.h !== txt) { amt.dataset.h = txt; amt.innerHTML = txt; }
+      var mn = tl.querySelector('.minus');
+      if (p && !mn) { mn = document.createElement('span'); mn.className = 'minus'; mn.textContent = '-'; tl.appendChild(mn); }
+      if (!p && mn) mn.remove();
+    }
+    el.total.textContent = total ? '(' + fmt(total) + ')' : '';
+    el.place.disabled = !betting || !total || S.busy || !S.session;
+    el.clear.disabled = !total;
+    el.rebet.disabled = !betting || !(me && me.last && me.last.bets.length);
+
+    var mine = (me && me.bets) || [];
+    el.placed.innerHTML = mine.length ? '<div class="ttl">YOUR BETS - RACE ' + me.raceNo + '</div>' + mine.map(function (b) {
+      var p = b.combo.split('-');
+      return '<div class="row"><span>' + chip(p[0]) + '-' + chip(p[1]) + '</span><span>' + fmt(b.stake) + '</span></div>';
+    }).join('') : '';
+    var last = me && me.last, settled = last && last.bets.every(function (b) { return b.status !== 'open'; });
+    if (last && settled) {
+      var lp = last.combo.split('-'), won = last.bets.filter(function (b) { return b.status === 'won'; }), sum = won.reduce(function (a, b) { return a + b.payout; }, 0);
+      el.last.innerHTML = '<div class="ttl">RESULT - RACE ' + last.raceNo + ' - WINNING PAIR ' + chip(lp[0]) + '-' + chip(lp[1]) + '</div>' +
+        (won.length ? '<div class="row won"><span>YOU WON</span><span>+' + fmt(sum) + '</span></div>' : '<div class="row lost"><span>NO WINNING BET</span><span></span></div>');
+    } else el.last.innerHTML = '';
+  }
+
+  /* ---------- start ---------- */
+  function start(st) {
+    S.rules = st.rules; S.currency = st.rules.currency;
+    el.layout.classList.add('live'); document.body.classList.add('live'); el.bet.hidden = false;
+    build(); render();
+    var token = qs.get('token');
+    if (token) {
+      history.replaceState(null, '', location.pathname);                  // never leave the launch token in the address bar
+      api('POST', 'api/auth', { token: token }).then(function (res) {
+        if (res.data.ok) { S.session = res.data.session; S.currency = res.data.currency || S.currency; try { sessionStorage.setItem('hr.session', S.session); } catch (e) { /* ignore */ } refresh(); }
+        else needLaunch(ERRORS[res.data.error] || ERRORS.INVALID_TOKEN);
+      }).catch(function () { needLaunch('Cannot reach the game server.'); });
+    } else {
+      try { S.session = sessionStorage.getItem('hr.session'); } catch (e) { /* ignore */ }
+      if (S.session) refresh(); else needLaunch('Open this game from the lobby to place bets. You can still watch the races.');
+    }
+    setInterval(refresh, 1500);
+    setInterval(render, 250);
+  }
+
+  fetch('api/public', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (st) { if (st && st.mode === 'live') start(st); }).catch(function () { /* demo / offline */ });
+})();

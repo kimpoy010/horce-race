@@ -404,10 +404,12 @@
     if (phase === 'racing' && nowMs - lastHoof > 170) { lastHoof = nowMs; Sound.hoof(); }
 
     // ---- HUD ----
-    var raceNo = race && phase !== 'idle' ? race.raceNo : (st ? st.nextRaceNo : '--');
+    var betting = !!(st && st.round && st.round.phase === 'betting' && phase === 'idle'), betSecs = betting ? Math.max(0, Math.ceil((st.round.betCloseAt - nowMs) / 1000)) : 0;
+    var raceNo = betting ? st.round.raceNo : race && phase !== 'idle' ? race.raceNo : (st ? st.nextRaceNo : '--');
     setHTML(el.race, 'race', 'RACE ' + (raceNo < 10 ? '0' + raceNo : raceNo));
     var status = { connecting: 'CONNECTING...', idle: 'WAITING FOR NEXT RACE', sync: 'SYNCING...', results: 'OFFICIAL RESULT',
       countdown: 'POST TIME ' + Math.ceil(-t) + 's', racing: t < 1.5 ? "THEY'RE OFF!" : 'RACE IN PROGRESS' }[phase];
+    if (betting) status = 'PLACE YOUR BETS - ' + betSecs + 'S';
     setHTML(el.status, 'status', status);
 
     var hist = (st && st.history) || [];
@@ -427,7 +429,7 @@
     } else if (phase === 'countdown') {
       tote = '<span class="label blink">HORSES AT THE GATE</span>';
     } else if (phase === 'idle') {
-      tote = '<span class="label blink">NEXT: RACE ' + (st ? st.nextRaceNo : '--') + '</span>';
+      tote = betting ? '<span class="label blink">BETS OPEN - ' + betSecs + 'S</span>' : '<span class="label blink">NEXT: RACE ' + (st ? st.nextRaceNo : '--') + '</span>';
     } else tote = '<span class="label">' + status + '</span>';
     setHTML(el.tote, 'tote', tote);
 
@@ -447,6 +449,7 @@
     requestAnimationFrame(frame);
   }
 
+  window.HorseGame = { state: function () { return Sync.state; }, now: now };
   detectMode();
   if (SP.warm) setTimeout(SP.warm, 800);
   requestAnimationFrame(frame);

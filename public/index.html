@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/game.css">
 </head>
 <body>
+<div class="layout" id="layout">
 <div class="stage" id="stage">
   <canvas id="screen" width="544" height="306"></canvas>
 
@@ -26,10 +27,37 @@
     <span id="conn" class="conn">...</span>
   </div>
 </div>
+
+<aside class="bet" id="bet" hidden>
+  <div class="bet-head">
+    <div><div class="lbl">PLAYER</div><div id="bPlayer" class="val">-</div></div>
+    <div class="bal"><div class="lbl">BALANCE</div><div id="bBalance" class="val big">-</div></div>
+  </div>
+  <div class="bet-round">
+    <div id="bRound" class="rnd">RACE --</div>
+    <div id="bTimer" class="timer">--</div>
+    <div class="bar-track"><div id="bProg" class="bar-fill"></div></div>
+    <div id="bPay" class="pay"></div>
+  </div>
+  <div id="bMsg" class="msg" hidden></div>
+  <div id="bGrid" class="combo-grid"></div>
+  <div class="chips" id="bChips"></div>
+  <div class="bet-actions">
+    <button id="bClear" type="button">CLEAR</button>
+    <button id="bRebet" type="button">REBET</button>
+    <button id="bPlace" type="button" class="primary">PLACE BET <span id="bTotal"></span></button>
+  </div>
+  <div id="bPlaced" class="placed"></div>
+  <div id="bLast" class="last-result"></div>
+  <div id="bFair" class="fair"></div>
+  <a id="bBack" class="back" href="#" hidden>&larr; BACK TO LOBBY</a>
+</aside>
+</div>
 <noscript>This game needs JavaScript.</noscript>
 <script src="js/core.js"></script>
 <script src="js/horses.js"></script>
 <script src="js/horses3d.js"></script>
 <script src="js/game.js"></script>
+<script src="js/bet.js"></script>
 </body>
 </html>

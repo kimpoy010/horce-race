@@ -73,3 +73,60 @@ body { display: flex; align-items: center; justify-content: center; }
 .results .combo { margin: calc(var(--u) * 1) 0; color: #7dff7d; display: flex; justify-content: center; align-items: center; gap: calc(var(--u) * 1.2); }
 .results .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * .8); font-size: .8em; }
 .results .cell { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .6); }
+
+/* ===== live mode: betting panel next to (or below) the race ===== */
+.layout { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
+body.live { display: block; overflow: auto; }
+.layout.live { display: grid; grid-template-columns: minmax(0, 1fr) 350px; align-items: start; height: auto; min-height: 100%; }
+.layout.live .stage { width: 100%; }
+@media (max-width: 1000px) { .layout.live { grid-template-columns: 1fr; } }
+
+.bet {
+  box-sizing: border-box; padding: 12px; background: #10172c; color: #e8ecf5; border-left: 3px solid #2c3a66;
+  font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700; font-size: 14px; min-height: 100%;
+}
+.bet[hidden] { display: none; }
+.bet .lbl { font-size: 11px; color: #8d9bc4; letter-spacing: 1px; }
+.bet .val { color: #fff; }
+.bet .big { font-size: 22px; color: #7dff7d; }
+.bet-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
+.bet-head .bal { text-align: right; }
+.bet-round { background: #182246; border: 2px solid #2c3a66; padding: 8px; margin-bottom: 8px; }
+.bet-round .rnd { color: #ffd23c; }
+.bet-round .timer { font-size: 26px; color: #fff; }
+.bar-track { height: 8px; background: #0a0f20; margin: 4px 0; }
+.bar-fill { height: 100%; width: 0; background: #7dff7d; }
+.bar-fill.low { background: #ff6a5a; }
+.bet-round .pay { font-size: 12px; color: #ffd23c; }
+.msg { margin: 6px 0; padding: 6px 8px; background: #4a1e28; border: 2px solid #b04a5a; color: #ffd0d6; font-size: 13px; }
+.msg.ok { background: #1c4a2a; border-color: #4ab06a; color: #d6ffe0; }
+
+.combo-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 8px 0; }
+.tile {
+  position: relative; background: #1b2650; border: 2px solid #3a4a82; color: #fff; padding: 5px 2px 4px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; font: inherit; min-height: 52px;
+}
+.tile:hover:not(:disabled) { border-color: #ffd23c; }
+.tile:disabled { opacity: .55; cursor: not-allowed; }
+.tile.on { border-color: #7dff7d; background: #1c3a34; }
+.tile .pair { display: flex; align-items: center; gap: 1px; font-size: 10px; }
+.tile .amt { font-size: 11px; min-height: 13px; color: #ffd23c; }
+.tile .amt .pl { color: #7dff7d; }
+.tile .minus { position: absolute; top: -7px; right: -7px; width: 18px; height: 18px; border-radius: 9px; background: #b04a5a; color: #fff; font-size: 12px; line-height: 16px; text-align: center; border: 0; cursor: pointer; padding: 0; }
+.bet .chip { width: 18px; height: 18px; font-size: 11px; border-width: 2px; margin: 0; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.chipbtn { font: inherit; background: #223062; color: #fff; border: 2px solid #3a4a82; border-radius: 20px; padding: 6px 10px; cursor: pointer; }
+.chipbtn.sel { background: #ffd23c; color: #111; border-color: #fff; }
+.bet-actions { display: flex; gap: 6px; }
+.bet-actions button { font: inherit; flex: 0 0 auto; background: #2a3768; color: #fff; border: 2px solid #46537f; padding: 8px 10px; cursor: pointer; }
+.bet-actions button.primary { flex: 1; background: #1e8a3c; border-color: #4fe07a; }
+.bet-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.placed, .last-result, .fair { margin-top: 10px; font-size: 12px; }
+.placed .row, .last-result .row { display: flex; justify-content: space-between; gap: 6px; padding: 2px 0; border-bottom: 1px solid #263256; }
+.placed .ttl, .last-result .ttl { color: #8d9bc4; font-size: 11px; letter-spacing: 1px; margin-bottom: 2px; }
+.last-result .won { color: #7dff7d; } .last-result .lost { color: #ff9a9a; }
+.fair { color: #6f7aa0; word-break: break-all; font-size: 10px; }
+.back { display: inline-block; margin-top: 12px; color: #7ab8ff; }
+.launch-needed { padding: 16px; text-align: center; line-height: 1.5; }
+.back[hidden] { display: none; }
