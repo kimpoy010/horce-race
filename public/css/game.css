@@ -51,6 +51,7 @@ body { display: flex; align-items: center; justify-content: center; }
   display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .8);
   text-align: center; white-space: nowrap; overflow: hidden;
 }
+.dash { margin: 0 .15em; }
 .tote .label { color: #ffd23c; }
 .tote .rank { display: flex; flex-direction: column; align-items: center; font-size: .7em; color: #cde; gap: calc(var(--u) * .1); }
 .tote .win { color: #7dff7d; }

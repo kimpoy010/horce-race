@@ -120,7 +120,7 @@
     [].forEach.call(document.querySelectorAll('#plan tbody tr'), function (tr, i) {
       var h = results[i + 1], running = h && now < h.startAt + tm.race;
       tr.className = i === admin.index ? 'next' : h ? (running ? 'running' : 'done') : '';
-      tr.querySelector('.res').innerHTML = h ? (running ? 'running...' : chip(h.order[0]) + chip(h.order[1])) : '';
+      tr.querySelector('.res').innerHTML = h ? (running ? 'running...' : (function (c) { return chip(c[0]) + '-' + chip(c[1]); })(C.combination(h.order))) : '';
     });
 
     $('nextNo').textContent = admin.index + 1;

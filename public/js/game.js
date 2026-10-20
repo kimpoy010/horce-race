@@ -302,6 +302,7 @@
   var cache = {};
   function setHTML(node, key, html) { if (cache[key] !== html) { cache[key] = html; node.innerHTML = html; } }
   function chip(n, cls) { return '<span class="chip ' + (cls || '') + ' h' + n + '">' + n + '</span>'; }
+  function comboHTML(order, cls) { var c = C.combination(order); return chip(c[0], cls) + '<span class="dash">-</span>' + chip(c[1], cls); }
   var ORD = ['1ST', '2ND', '3RD', '4TH', '5TH', '6TH'];
 
   function resize() { el.stage.style.setProperty('--u', (el.stage.clientWidth / 100) + 'px'); }
@@ -358,7 +359,7 @@
       if (rc) {
         once('fin', t >= rc.firstTime, Sound.fanfare, t - rc.firstTime);
         once('res', t * 1000 >= T.race, function () {
-          emit('result', { raceNo: race.raceNo, order: race.order, combination: [race.order[0], race.order[1]] });
+          emit('result', { raceNo: race.raceNo, order: race.order, combination: C.combination(race.order) });
         }, t - T.race / 1000);
       }
     }
@@ -411,9 +412,9 @@
 
     var hist = (st && st.history) || [];
     var lastRes = hist[hist.length - 1];
-    setHTML(el.last, 'last', lastRes ? 'LAST ' + chip(lastRes.order[0]) + chip(lastRes.order[1]) : '');
+    setHTML(el.last, 'last', lastRes ? 'LAST ' + comboHTML(lastRes.order) : '');
     setHTML(el.hist, 'hist', hist.slice(-6).reverse().map(function (r) {
-      return '<span class="item">R' + r.raceNo + ' ' + chip(r.order[0]) + chip(r.order[1]) + '</span>';
+      return '<span class="item">R' + r.raceNo + ' ' + comboHTML(r.order) + '</span>';
     }).join(''));
     el.conn.textContent = Sync.online ? 'LIVE' : 'OFFLINE'; el.conn.className = 'conn' + (Sync.online ? '' : ' off');
 
@@ -422,7 +423,7 @@
       live.sort(function (a, b) { return (b.done - a.done) || (a.done ? a.time - b.time : b.u - a.u); });
       tote = live.map(function (l, i) { return '<span class="rank">' + ORD[i] + chip(l.no) + '</span>'; }).join('');
     } else if ((phase === 'racing' || phase === 'results') && rc) {
-      tote = '<span class="label">WINNING COMBINATION</span>' + chip(race.order[0], 'big') + chip(race.order[1], 'big');
+      tote = '<span class="label">WINNING COMBINATION</span>' + comboHTML(race.order);
     } else if (phase === 'countdown') {
       tote = '<span class="label blink">HORSES AT THE GATE</span>';
     } else if (phase === 'idle') {
@@ -440,7 +441,7 @@
     el.res.hidden = phase !== 'results';
     if (phase === 'results' && race.order) {
       setHTML(el.res, 'res', '<div class="title">RACE ' + race.raceNo + ' RESULT</div>' +
-        '<div class="combo">' + chip(race.order[0], 'big') + '<span>-</span>' + chip(race.order[1], 'big') + '</div>' +
+        '<div class="combo">' + comboHTML(race.order, 'big') + '</div>' +
         '<div class="grid">' + race.order.map(function (n, i) { return '<div class="cell">' + ORD[i] + chip(n) + '</div>'; }).join('') + '</div>');
     }
     requestAnimationFrame(frame);

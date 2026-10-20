@@ -32,3 +32,13 @@ assert(!d.startRace(2000).ok);
 d.auto = true; d.tick(1000 + C.COUNTDOWN_MS + C.RACE_MS + C.RESULTS_MS + 1);
 assert.strictEqual(d.current.raceNo, 2);
 console.log('core tests passed');
+
+// winning combinations: only the 15 pairs 1-2 ... 5-6, always written low-high
+{
+  const allowed = new Set(['1-2','1-3','1-4','1-5','1-6','2-3','2-4','2-5','2-6','3-4','3-5','3-6','4-5','4-6','5-6']);
+  for (let i = 0; i < 2000; i++) {
+    const d = new C.Director(); d.startRace(0);
+    assert(allowed.has(C.combination(d.current.order).join('-')));
+  }
+  console.log('combination tests passed');
+}

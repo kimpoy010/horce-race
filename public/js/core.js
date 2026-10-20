@@ -69,6 +69,9 @@
 
   /* ---------- plan helpers ---------- */
 
+  // The winning combination is the pair that finished 1st and 2nd, always written low-high: 1-2 ... 5-6.
+  function combination(order) { return order[0] < order[1] ? [order[0], order[1]] : [order[1], order[0]]; }
+
   function toNo(v) { v = parseInt(v, 10); return v >= 1 && v <= HORSES ? v : null; }
 
   function normEntry(e) {
@@ -192,6 +195,6 @@
   return {
     HORSES: HORSES, COUNTDOWN_MS: COUNTDOWN_MS, RACE_MS: RACE_MS, RESULTS_MS: RESULTS_MS,
     MAX_PLAN: MAX_PLAN, mulberry32: mulberry32, buildRace: buildRace, progress: progress,
-    normEntry: normEntry, resolveOrder: resolveOrder, Director: Director, execCommand: execCommand
+    normEntry: normEntry, combination: combination, resolveOrder: resolveOrder, Director: Director, execCommand: execCommand
   };
 });
