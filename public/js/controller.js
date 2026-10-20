@@ -193,12 +193,12 @@
     [].forEach.call(document.querySelectorAll('[data-demo]'), function (n) { n.hidden = true; });
     $('mode').textContent = 'LIVE MODE';
     var pct = function (x) { return x == null ? '-' : (x * 100).toFixed(2) + '%'; };
-    var st = [['Theoretical RTP', pct(r.theoreticalRtp)], ['Actual RTP', pct(r.actualRtp)], ['Payout multiplier', r.payoutMultiplier + 'x'], ['Rounds', r.rounds], ['Bets', r.bets],
+    var st = [['Theoretical RTP', pct(r.theoreticalRtp)], ['Actual RTP', pct(r.actualRtp)], ['House edge', pct(1 - r.theoreticalRtp)], ['Rounds', r.rounds], ['Bets', r.bets],
       ['Total staked', money(r.staked, r.currency)], ['Total paid', money(r.paid, r.currency)], ['House win', money(r.houseWin, r.currency)],
       ['Credits pending', r.pendingCredits], ['Active sessions', r.activeSessions], ['Min / max bet', money(r.limits.minBet) + ' / ' + money(r.limits.maxBet)], ['Max per race', money(r.limits.maxRoundStake)]];
     $('stats').innerHTML = st.map(function (x) { return '<div class="stat"><span class="small">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
     $('combos').innerHTML = Object.keys(r.wins).map(function (c) {
-      var p = c.split('-'); return '<div>' + chip(p[0]) + '-' + chip(p[1]) + ' ' + r.wins[c] + (r.rounds ? ' (' + (100 * r.wins[c] / r.rounds).toFixed(1) + '%)' : '') + '</div>';
+      var p = c.split('-'); return '<div>' + chip(p[0]) + '-' + chip(p[1]) + ' x' + r.odds[c] + '<br>' + r.wins[c] + (r.rounds ? ' (' + (100 * r.wins[c] / r.rounds).toFixed(1) + '%)' : '') + ' / exp. ' + (100 * r.prob[c]).toFixed(2) + '%</div>';
     }).join('');
     $('recent').querySelector('tbody').innerHTML = r.recent.map(function (x) {
       var p = x.combo.split('-');

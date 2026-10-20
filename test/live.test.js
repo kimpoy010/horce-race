@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const rng = require('../server/rng.js');
+const oddsLib = require('../server/odds.js');
 const { Engine } = require('../server/engine.js');
 const { MockWallet } = require('../server/wallet.js');
 
@@ -23,7 +24,14 @@ const { MockWallet } = require('../server/wallet.js');
   }
   const exp = N / 15; let chi = 0; rng.COMBOS.forEach((c) => { chi += Math.pow(counts[c] - exp, 2) / exp; });
   assert(chi < 36.1, 'chi-square too large: ' + chi);            // 14 degrees of freedom, p = 0.001
-  console.log('rng ok (chi-square ' + chi.toFixed(1) + ')');
+  // weighted draw (probability proportional to 1/odds) and the RTP it gives
+  const tab = oddsLib.build();
+  assert(Math.abs(tab.rtp - 0.868397) < 1e-5 && tab.rtpMax - tab.rtpMin < 1e-6);          // the same RTP for every pair
+  const wc = {}; rng.COMBOS.forEach((c) => { wc[c] = 0; });
+  for (let i = 0; i < N; i++) wc[rng.draw(rng.newSeed(), i, tab.weights).combo]++;
+  let chi2 = 0; rng.COMBOS.forEach((c) => { const e = N * tab.prob[c]; chi2 += Math.pow(wc[c] - e, 2) / e; });
+  assert(chi2 < 36.1, 'weighted chi-square too large: ' + chi2);
+  console.log('rng ok (chi-square ' + chi.toFixed(1) + ' uniform, ' + chi2.toFixed(1) + ' weighted)');
 
   // ---- engine with a fake clock and the mock wallet ----
   let clock = 1000000;
@@ -31,9 +39,10 @@ const { MockWallet } = require('../server/wallet.js');
   const wallet = new MockWallet({ startBalance: 100000 });
   const mk = () => new Engine({ wallet, now: () => clock, ledgerFile: ledger, config: { betMs: 20000, minBet: 100, maxBet: 10000, maxRoundStake: 15000 } });
   let eng = mk();
-  assert.strictEqual(eng.theoreticalRtp, 0.9);
-  assert.strictEqual(eng.payoutFor(100), 1350);
-  assert.strictEqual(eng.payoutFor(101), 1363);                    // rounded down
+  assert(Math.abs(eng.theoreticalRtp - 0.868397) < 1e-5);
+  assert.strictEqual(eng.payoutFor(100, '1-3'), 2000);
+  assert.strictEqual(eng.payoutFor(101, '5-6'), 25250);
+  assert.strictEqual(eng.payoutFor(100, '1-6'), 300);
 
   await eng.tick();
   const a = await eng.auth('demo-alice'), b = await eng.auth('demo-bob');
@@ -69,12 +78,12 @@ const { MockWallet } = require('../server/wallet.js');
   clock += 4500; st = eng.publicState(); assert.notStrictEqual(st.race.order, null);
   clock = eng.cur.startAt + eng.cfg.raceMs + 1; await eng.tick();
   assert.strictEqual(eng.cur.status, 'settled');
-  const aliceWon = combo === '1-2' || combo === '3-4', bobWon = combo === '5-6';
-  assert.strictEqual(await wallet.balance('alice'), 90000 + (aliceWon ? 6750 : 0));
-  assert.strictEqual(await wallet.balance('bob'), 90000 + (bobWon ? 2 * 5000 * 13.5 : 0));
+  const aliceWin = combo === '1-2' ? 5000 * 60 : combo === '3-4' ? 5000 * 10 : 0, bobWin = combo === '5-6' ? 2 * 5000 * 250 : 0;
+  assert.strictEqual(await wallet.balance('alice'), 90000 + aliceWin);
+  assert.strictEqual(await wallet.balance('bob'), 90000 + bobWin);
   const rep = eng.report(); assert.strictEqual(rep.rounds, 1); assert.strictEqual(rep.staked, 10000 + 10000);
   assert.strictEqual(eng.reveals[0].commit, rng.commitOf(eng.reveals[0].seed));
-  assert.deepStrictEqual(rng.draw(eng.reveals[0].seed, rn).order, eng.reveals[0].order);   // players can verify the draw
+  assert.deepStrictEqual(rng.draw(eng.reveals[0].seed, rn, oddsLib.build().weights).order, eng.reveals[0].order);   // players can verify the draw
 
   // ---- restart in the middle of a round: bets are refunded, a drawn race is settled ----
   clock = eng.cur.startAt + eng.cfg.raceMs + eng.cfg.resultsMs + 1; await eng.tick();        // next round opens
@@ -86,21 +95,21 @@ const { MockWallet } = require('../server/wallet.js');
   assert(eng.cur.raceNo > rn + 1);
   console.log('engine ok');
 
-  // ---- RTP over a long run: fixed odds, random bettors ----
-  clock = 0; const w2 = new MockWallet({ startBalance: 1e12 });
-  const e2 = new Engine({ wallet: w2, now: () => clock, config: { betMs: 1000, minBet: 100, maxBet: 100000, maxRoundStake: 1e9, sessionTtlMs: 1e15 } });
+  // ---- RTP over a long run: a player who bets every pair each race ----
+  clock = 0; const w2 = new MockWallet({ startBalance: 1e13 });
+  const e2 = new Engine({ wallet: w2, now: () => clock, config: { betMs: 1000, minBet: 100, maxBet: 100000, maxRoundStake: 1e12, sessionTtlMs: 1e15 } });
   await e2.tick(); const s2 = (await e2.auth('demo-sim')).session;
-  const R = 40000;
+  const R = 20000, all = rng.COMBOS.map((c) => ({ combo: c, stake: 100 }));
   for (let i = 0; i < R; i++) {
-    await e2.placeBets(s2, [{ combo: rng.COMBOS[Math.floor(Math.random() * 15)], stake: 1000 }]);
+    await e2.placeBets(s2, all);
     clock += 1001; await e2.tick();
     clock = e2.cur.startAt + e2.cfg.raceMs + 1; await e2.tick();
     clock = e2.cur.startAt + e2.cfg.raceMs + e2.cfg.resultsMs + 1; await e2.tick();
     e2.sessions.get(s2).calls = [];
   }
   const rtp = e2.report().actualRtp;
-  console.log('simulated RTP over ' + R + ' rounds: ' + (rtp * 100).toFixed(2) + '%');
-  assert(Math.abs(rtp - 0.9) < 0.09, 'RTP drifted: ' + rtp);       // standard deviation at 40k single bets is about 2.4%
+  console.log('simulated RTP over ' + R + ' rounds betting every pair: ' + (rtp * 100).toFixed(2) + '% (theory ' + (e2.theoreticalRtp * 100).toFixed(2) + '%)');
+  assert(Math.abs(rtp - e2.theoreticalRtp) < 0.07, 'RTP drifted: ' + rtp);   // standard deviation about 1.5%
   try { fs.unlinkSync(ledger); } catch (e) { /* ignore */ }
   console.log('live tests passed');
 })().catch((e) => { console.error(e); process.exit(1); });

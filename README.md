@@ -10,15 +10,29 @@ GAME_MODE=live WALLET=http WALLET_URL=... WALLET_KEY=... CONTROLLER_KEY=... node
 GAME_MODE=live WALLET=mock node server.js                  # local test with play money: http://localhost:8080/?token=demo-alice
 ```
 
-**How the 90% RTP works.** Every race is drawn by the server: each of the 15 pairs has probability 1/15. A winning
-bet pays **13.5x the stake** (stake included): (1/15) x 13.5 = 0.90. Change it with `RTP=` (multiplier = RTP x 15) or
-`PAYOUT_MULTIPLIER=`. Payouts are rounded down to the minor unit. RTP is a long-run average: over a few hundred
-races the measured value will wander (about +-2.5% after 40,000 single bets). `npm test` and
-`node scripts/simulate-rtp.js` check the draw and the payout maths.
+**Odds and RTP.** The board is the video karera chart (rows 1-5, columns 6-2). A winning bet pays **stake x odds**
+(stake included); each pair has its own odds (`server/odds.js`, override with `ODDS='{"1-2":60,...}'` or `ODDS_FILE=`):
+
+| pair | odds | pair | odds | pair | odds |
+|---|---|---|---|---|---|
+| 1-2 | 60 | 2-3 | 8 | 3-6 | 5 |
+| 1-3 | 20 | 2-4 | 500 | 4-5 | 100 |
+| 1-4 | 80 | 2-5 | 30 | 4-6 | 4 |
+| 1-5 | 175 | 2-6 | 1000 | 5-6 | 250 |
+| 1-6 | 3 | 3-4 | 10 | | |
+| | | 3-5 | 125 | | |
+
+A pair with odds `o` is drawn with probability proportional to `1/o` (e.g. 1-6 about 29%, 2-6 about 0.09%). Then **every bet
+on every pair has the same RTP = 1 / sum(1/odds) = 86.84%** (house edge 13.16%) and no pair is a better bet than another.
+For this odds table 86.84% is the highest RTP that all pairs can share: sum(1/odds) is 1.1515, and a 90% RTP would need
+1.1111. To reach 90% raise some odds (for example 1:3 to 1:3.5) or accept 86.84%. The server prints the RTP at start-up
+and warns if `RTP=` is set and differs. RTP is a long-run average; short runs wander a lot because of the 1000x pair.
+`npm test` and `node scripts/simulate-rtp.js` check the draw weights and the payout maths.
 
 **Rules of the draw (do not change for real money).**
 * The outcome comes from a secret 256-bit seed made with `crypto.randomBytes`, *before* bets open; its SHA-256 hash
-  (the *commit*) is shown to players, and the seed is revealed after the race so anyone can re-run `rng.draw(seed, raceNo)`.
+  (the *commit*) is shown to players, and the seed is revealed after the race so anyone can re-run
+  `rng.draw(seed, raceNo, weights)` (the weights follow from the published odds).
 * The result is drawn when betting closes; no bet can be placed after that.
 * The controller **cannot** change, pick or steer results in live mode (`/api/command` is refused). It only shows the
   report: stakes, payouts, actual vs theoretical RTP, wins per pair, recent races.

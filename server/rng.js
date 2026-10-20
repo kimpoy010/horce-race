@@ -4,7 +4,8 @@
  *   - the seed is generated with crypto.randomBytes when the round opens,
  *   - its SHA-256 hash ("commit") is published before bets are taken,
  *   - the seed is revealed after the race, so anyone can re-run draw() and check the result.
- * All 15 winning pairs (1-2 ... 5-6) are equally likely: 1/15 each (uniform, rejection sampling, no modulo bias).
+ * The pair is drawn with the integer weights from server/odds.js (probability proportional to 1 / odds), with rejection
+ * sampling so there is no modulo bias. Without weights all 15 pairs are equally likely.
  */
 const crypto = require('crypto');
 
@@ -36,9 +37,17 @@ class Stream {
 }
 
 // returns the full finishing order (all six horses) and the winning combination (the pair that finishes 1st + 2nd)
-function draw(seedHex, raceNo) {
+function pickPair(s, weights) {
+  if (!weights) return PAIRS[s.int(PAIRS.length)];
+  let total = 0; for (const w of weights) total += w;
+  let r = s.int(total);
+  for (let i = 0; i < weights.length; i++) { if (r < weights[i]) return PAIRS[i]; r -= weights[i]; }
+  return PAIRS[PAIRS.length - 1];
+}
+
+function draw(seedHex, raceNo, weights) {
   const s = new Stream(seedHex, 'race:' + raceNo);
-  const pair = PAIRS[s.int(PAIRS.length)];
+  const pair = pickPair(s, weights);
   const top = s.int(2) ? [pair[1], pair[0]] : [pair[0], pair[1]];
   const rest = [1, 2, 3, 4, 5, 6].filter((n) => n !== pair[0] && n !== pair[1]);
   for (let i = rest.length - 1; i > 0; i--) { const j = s.int(i + 1); const t = rest[i]; rest[i] = rest[j]; rest[j] = t; }

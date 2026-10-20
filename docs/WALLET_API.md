@@ -29,7 +29,7 @@ Request: `{ "playerId": "p-123", "amount": 5000, "txId": "bet:42:9f2c...", "meta
 Reply: `{ "ok": true, "balance": 245000 }`. If the balance is too low: HTTP 402 / `{ "ok": false, "error": "INSUFFICIENT_FUNDS" }`.
 
 ### `POST /wallet/credit`  (a win or a refund)
-Request: `{ "playerId": "p-123", "amount": 67500, "txId": "win:42:p-123", "meta": { "raceNo": 42, "kind": "win" } }`
+Request: `{ "playerId": "p-123", "amount": 1250000, "txId": "win:42:p-123", "meta": { "raceNo": 42, "kind": "win" } }`
 Reply: `{ "ok": true, "balance": 312500 }`. `kind` is `win` or `refund`.
 
 ## Rules your wallet must follow

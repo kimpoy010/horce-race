@@ -40,20 +40,27 @@ if (!LIVE) {
 }
 
 /* ---------- live mode: fixed odds, wallet, ledger ---------- */
+function loadOdds() {          // ODDS='{"1-2":60,...}' or ODDS_FILE=path.json; default: the video karera board in server/odds.js
+  if (env.ODDS_FILE) return JSON.parse(fs.readFileSync(env.ODDS_FILE, 'utf8'));
+  if (env.ODDS) return JSON.parse(env.ODDS);
+  return null;
+}
+
 async function startLive() {
   const num = (v, d) => (v === undefined || v === '' ? d : Number(v));
   engine = new Engine({
     wallet: walletFactory.create(env),
     ledgerFile: path.join(DATA_DIR, 'ledger.jsonl'),
     config: {
-      rtp: num(env.RTP, 0.9), payoutMultiplier: env.PAYOUT_MULTIPLIER ? Number(env.PAYOUT_MULTIPLIER) : null,
+      odds: loadOdds(),
       betMs: num(env.BET_MS, 25000), minBet: num(env.MIN_BET, 100), maxBet: num(env.MAX_BET, 100000),
       maxRoundStake: num(env.MAX_ROUND_STAKE, 500000), currency: env.CURRENCY || 'PHP'
     }
   });
   await engine.recover();
   setInterval(() => engine.tick().catch((e) => console.error('tick failed:', e.message)), 250);
-  console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', payout x' + engine.rules().payoutMultiplier + ', theoretical RTP ' + (engine.theoreticalRtp * 100).toFixed(2) + '%');
+  console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', RTP of every bet ' + (engine.theoreticalRtp * 100).toFixed(2) + '% (house edge ' + (100 - engine.theoreticalRtp * 100).toFixed(2) + '%)');
+  if (env.RTP && Math.abs(Number(env.RTP) - engine.theoreticalRtp) > 0.005) console.warn('WARNING: RTP=' + env.RTP + ' requested but this odds table gives ' + engine.theoreticalRtp.toFixed(4) + '. Change the odds to change the RTP.');
 }
 
 /* ---------- http helpers ---------- */

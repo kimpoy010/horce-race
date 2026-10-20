@@ -10,7 +10,7 @@
   var qs = new URLSearchParams(location.search);
   var S = { session: null, rules: null, me: null, pending: {}, chip: 0, busy: false, msgTimer: null, built: false };
   var el = { bet: $('bet'), layout: $('layout'), player: $('bPlayer'), balance: $('bBalance'), round: $('bRound'), timer: $('bTimer'),
-    prog: $('bProg'), pay: $('bPay'), msg: $('bMsg'), grid: $('bGrid'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
+    prog: $('bProg'), pay: $('bPay'), msg: $('bMsg'), grid: $('bGrid'), legend: $('bLegend'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
     place: $('bPlace'), total: $('bTotal'), placed: $('bPlaced'), last: $('bLast'), fair: $('bFair'), back: $('bBack') };
 
   var ERRORS = {
@@ -47,38 +47,42 @@
   }
 
   /* ---------- build ---------- */
+  function short(minor) { return minor % 100 === 0 ? String(minor / 100) : (minor / 100).toFixed(2); }
+
+  // the board of the video karera chart: rows 1-5, columns 6 down to 2; every cell shows its odds (gold) and your bet (red)
   function build() {
     if (S.built) return; S.built = true;
-    var r = S.rules, rows = {}, html = '';
-    r.combos.forEach(function (c) { var a = c.split('-')[0]; (rows[a] = rows[a] || []).push(c); });
-    Object.keys(rows).forEach(function (a) {
-      rows[a].forEach(function (c) {
-        var p = c.split('-');
-        html += '<button type="button" class="tile" data-c="' + c + '"><span class="pair">' + chip(p[0]) + '-' + chip(p[1]) + '</span><span class="amt"></span></button>';
-      });
-      for (var i = rows[a].length; i < 5; i++) html += '<span></span>';
-    });
+    var r = S.rules, html = '<span class="bc"></span>', a, b;
+    for (b = 6; b >= 2; b--) html += '<span class="bh">' + b + '</span>';
+    for (a = 1; a <= 5; a++) {
+      html += '<span class="bl">' + a + '</span>';
+      for (b = 6; b >= 2; b--) {
+        if (b > a) { var c = a + '-' + b; html += '<button type="button" class="cell" data-c="' + c + '" title="' + a + ' and ' + b + ' (any order)"><span class="odds">' + r.odds[c] + '</span><span class="bt">0</span></button>'; }
+        else html += '<span class="blank"></span>';
+      }
+    }
     el.grid.innerHTML = html;
+    el.legend.innerHTML = '<span class="lo">ODDS</span> <span class="lb">BET</span>';
     var base = r.minBet, vals = [1, 5, 10, 50, 100, 500].map(function (m) { return m * base; }).filter(function (v) { return v <= r.maxBet; });
     S.chip = vals[0];
     el.chips.innerHTML = vals.map(function (v, i) { return '<button type="button" class="chipbtn' + (i ? '' : ' sel') + '" data-v="' + v + '">' + fmt(v) + '</button>'; }).join('');
-    el.pay.textContent = 'ANY ORDER · EACH WINNING PAIR PAYS ' + r.payoutMultiplier + 'x THE STAKE';
+    el.pay.textContent = 'ANY ORDER - A WINNING PAIR PAYS STAKE x ODDS (STAKE INCLUDED)';
 
     el.grid.addEventListener('click', function (ev) {
-      var minus = ev.target.closest('.minus'), t = ev.target.closest('.tile'); if (!t || t.disabled) return;
+      var minus = ev.target.closest('.minus'), t = ev.target.closest('.cell'); if (!t || t.disabled) return;
       var c = t.dataset.c, cur = S.pending[c] || 0, placed = placedBy()[c] || 0;
       if (minus) { cur = Math.max(0, cur - S.chip); } else { cur = Math.min(cur + S.chip, S.rules.maxBet - placed); }
       if (cur > 0) S.pending[c] = cur; else delete S.pending[c];
       render();
     });
     el.chips.addEventListener('click', function (ev) {
-      var b = ev.target.closest('.chipbtn'); if (!b) return;
-      S.chip = +b.dataset.v; [].forEach.call(el.chips.children, function (x) { x.classList.toggle('sel', x === b); });
+      var b2 = ev.target.closest('.chipbtn'); if (!b2) return;
+      S.chip = +b2.dataset.v; [].forEach.call(el.chips.children, function (x) { x.classList.toggle('sel', x === b2); });
     });
     el.clear.addEventListener('click', function () { S.pending = {}; render(); });
     el.rebet.addEventListener('click', function () {
       var l = S.me && S.me.last; if (!l) return;
-      S.pending = {}; l.bets.forEach(function (b) { S.pending[b.combo] = Math.min((S.pending[b.combo] || 0) + b.stake, S.rules.maxBet); }); render();
+      S.pending = {}; l.bets.forEach(function (b2) { S.pending[b2.combo] = Math.min((S.pending[b2.combo] || 0) + b2.stake, S.rules.maxBet); }); render();
     });
     el.place.addEventListener('click', placeBets);
   }
@@ -129,15 +133,14 @@
       }
       el.fair.textContent = 'Round commit (SHA-256 of the secret seed): ' + round.commit + (st.reveals && st.reveals.length ? '  |  Last race ' + st.reveals[st.reveals.length - 1].raceNo + ' seed: ' + st.reveals[st.reveals.length - 1].seed : '');
     }
-    var placed = placedBy(), tiles = el.grid.children, i, total = 0;
+    var placed = placedBy(), cells = el.grid.querySelectorAll('.cell'), i, total = 0;
     Object.keys(S.pending).forEach(function (c) { total += S.pending[c]; });
-    for (i = 0; i < tiles.length; i++) {
-      var tl = tiles[i]; if (!tl.dataset || !tl.dataset.c) continue;
-      var c = tl.dataset.c, p = S.pending[c] || 0, pl = placed[c] || 0;
+    for (i = 0; i < cells.length; i++) {
+      var tl = cells[i], c = tl.dataset.c, p = S.pending[c] || 0, pl = placed[c] || 0;
       tl.disabled = !betting || !S.session || S.busy;
-      tl.classList.toggle('on', p > 0 || pl > 0);
-      var amt = tl.querySelector('.amt'), txt = (pl ? '<span class="pl">' + fmt(pl) + '</span>' : '') + (p ? (pl ? ' +' : '') + fmt(p) : '');
-      if (amt.dataset.h !== txt) { amt.dataset.h = txt; amt.innerHTML = txt; }
+      tl.classList.toggle('on', p > 0 || pl > 0); tl.classList.toggle('pend', p > 0);
+      var bt = tl.querySelector('.bt'), txt = short(pl + p);
+      if (bt.textContent !== txt) bt.textContent = txt;
       var mn = tl.querySelector('.minus');
       if (p && !mn) { mn = document.createElement('span'); mn.className = 'minus'; mn.textContent = '-'; tl.appendChild(mn); }
       if (!p && mn) mn.remove();
@@ -150,7 +153,7 @@
     var mine = (me && me.bets) || [];
     el.placed.innerHTML = mine.length ? '<div class="ttl">YOUR BETS - RACE ' + me.raceNo + '</div>' + mine.map(function (b) {
       var p = b.combo.split('-');
-      return '<div class="row"><span>' + chip(p[0]) + '-' + chip(p[1]) + '</span><span>' + fmt(b.stake) + '</span></div>';
+      return '<div class="row"><span>' + chip(p[0]) + '-' + chip(p[1]) + ' @ ' + S.rules.odds[b.combo] + '</span><span>' + fmt(b.stake) + ' &rarr; ' + fmt(b.stake * S.rules.odds[b.combo]) + '</span></div>';
     }).join('') : '';
     var last = me && me.last, settled = last && last.bets.every(function (b) { return b.status !== 'open'; });
     if (last && settled) {
