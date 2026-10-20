@@ -217,7 +217,7 @@
     }
   }
 
-  // speed lines that streak past while the camera is moving fast, and a slight camera shake
+  // speed lines that streak past while the camera is moving fast
   var streak = { px: 0, py: 0 };
   function frac(v) { return v - Math.floor(v); }
   function mod(a, n) { return ((a % n) + n) % n; }
@@ -275,7 +275,7 @@
         if (on) loadMusic(); else stopMusic();
         return on;
       },
-      // the theme starts 5 s before betting closes and plays on top of the other sounds; viewers who join later hear it from the right place
+      // the theme starts 6 s before betting closes and plays on top of the other sounds; viewers who join later hear it from the right place
       music: function (key, startAtMs, nowMs) {
         if (!on || !musicBuf || key === musicKey || nowMs < startAtMs) return;
         musicKey = key;
@@ -446,8 +446,8 @@
     else { var k = 1 - Math.exp(-dt * 5); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; }
     if (dt > 0) { var ivx = (cam.x - (cam.px == null ? cam.x : cam.px)) / dt, ivy = (cam.y - (cam.py == null ? cam.y : cam.py)) / dt; cam.vx = (cam.vx || 0) * 0.8 + ivx * 0.2; cam.vy = (cam.vy || 0) * 0.8 + ivy * 0.2; }
     cam.px = cam.x; cam.py = cam.y;
-    var racing = phase === 'racing', shake = racing && Math.abs(cam.vx || 0) + Math.abs(cam.vy || 0) > 60 ? Math.round(Math.sin(perf / 41)) : 0;
-    var camX = Math.round(cam.x), camY = Math.round(cam.y) + shake;
+    var racing = phase === 'racing';
+    var camX = Math.round(cam.x), camY = Math.round(cam.y);
 
     g.drawImage(bg, camX, camY, VW, VH, 0, 0, VW, VH);
     if (racing) drawStreaks(g, cam, dt);
@@ -461,8 +461,9 @@
     });
     drawMini(g, items, camX, camY);
     if (phase === 'racing' && nowMs - lastHoof > 170) { lastHoof = nowMs; Sound.hoof(); }
-    // background theme: 5 s before betting closes (live), or 5 s before the countdown starts (demo, no betting)
-    var mAt = st && st.round && st.round.betCloseAt ? st.round.betCloseAt - 5000 : race && st && st.timings ? race.startAt - (st.timings.countdown || 6000) - 5000 : null;
+    // background theme: MUSIC_LEAD_MS before betting closes (live), or before the countdown starts (demo, no betting)
+    var MUSIC_LEAD_MS = 6000;
+    var mAt = st && st.round && st.round.betCloseAt ? st.round.betCloseAt - MUSIC_LEAD_MS : race && st && st.timings ? race.startAt - (st.timings.countdown || 6000) - MUSIC_LEAD_MS : null;
     if (mAt !== null) Sound.music(st && st.round ? st.round.raceNo : race.raceNo, mAt, nowMs);
 
     // ---- HUD ----
