@@ -71,9 +71,22 @@
 
   // lowest kept body row for each column; everything below is replaced by the generated legs
   function cut(c) {
+    var V = window.HORSE_VARIANT | 0;
+    if (V === 0) {
+      if (c <= 18) return 33;
+      if (c <= 35) return 37;
+      if (c <= 54) return 34;
+      if (c <= 67) return 38;
+      return 33;
+    }
+    // visible, tucked-up belly between the thigh and the elbow
     if (c <= 18) return 33;
     if (c <= 35) return 37;
-    if (c <= 54) return 34;
+    if (c <= 38) return 36;
+    if (c <= 41) return 35;
+    if (c <= 50) return 33;
+    if (c <= 53) return 35;
+    if (c <= 56) return 37;
     if (c <= 67) return 38;
     return 33;
   }
@@ -126,10 +139,18 @@
     var bob = standing ? 0 : -Math.round(1.6 * Math.abs(Math.sin(phi * 0.5 + 0.4)));
 
     // legs first (the body is painted over their tops)
-    paintLeg(out, PADX + 41, PADY + 33 + bob, legs.hf, 5, 10, 11);
-    paintLeg(out, PADX + 53, PADY + 33 + bob, legs.ff, 5, 10, 11);
-    paintLeg(out, PADX + 29, PADY + 34 + bob, legs.hn, 7, 10, 11);
-    paintLeg(out, PADX + 61, PADY + 35 + bob, legs.fn, 7, 10, 11);
+    var V = window.HORSE_VARIANT | 0;
+    if (V === 0) {
+      paintLeg(out, PADX + 41, PADY + 33 + bob, legs.hf, 5, 10, 11);
+      paintLeg(out, PADX + 53, PADY + 33 + bob, legs.ff, 5, 10, 11);
+      paintLeg(out, PADX + 29, PADY + 34 + bob, legs.hn, 7, 10, 11);
+      paintLeg(out, PADX + 61, PADY + 35 + bob, legs.fn, 7, 10, 11);
+    } else { // legs grow out of the thigh and the elbow, leaving the belly open between them
+      paintLeg(out, PADX + 33, PADY + 34 + bob, legs.hf, 5, 10, 11);
+      paintLeg(out, PADX + 57, PADY + 35 + bob, legs.ff, 5, 10, 11);
+      paintLeg(out, PADX + 28, PADY + 34 + bob, legs.hn, 7, 10, 11);
+      paintLeg(out, PADX + 62, PADY + 35 + bob, legs.fn, 7, 10, 11);
+    }
 
     // body from the reference (shifted by the bob), recoloured
     var kept = grid();
@@ -142,19 +163,36 @@
       else if (ch === 'Y' && false) ch = 'Y';
       kept[r][c] = ch;
     }
+    if (V === 2) { // deeper barrel: round belly under the saddle
+      for (c = 34; c <= 58; c++) {
+        var bot = 41 - Math.floor(((c - 46) * (c - 46)) / 11);
+        for (r = cut(c) + 1; r <= bot; r++) if (r > 0 && r < BODY.length + 8) { if (!kept[r]) kept[r] = []; kept[r][c] = r >= bot - 1 ? 'D' : 'W'; }
+      }
+    }
+    if (V === 3) { // muscle definition: thigh and shoulder contour lines
+      [[24, 29], [25, 31], [26, 33], [27, 35], [28, 36], [29, 36]].forEach(function (q) { if (kept[q[1]][q[0]] === 'W') kept[q[1]][q[0]] = 'K'; });
+      [[58, 30], [59, 32], [60, 34], [61, 36], [62, 37]].forEach(function (q) { if (kept[q[1]][q[0]] === 'W') kept[q[1]][q[0]] = 'K'; });
+    }
     // number on the saddle cloth
     var gl = DIGITS[no];
     for (r = 23; r <= 31; r++) for (c = 37; c <= 44; c++) kept[r][c] = 'Y';
     for (r = 0; r < 7; r++) for (c = 0; c < 5; c++) if (gl[r][c] === '#') kept[24 + r][38 + c] = 'N';
     var yy, xx;
-    for (r = 0; r < BODY.length; r++) for (c = 0; c < COLS; c++) {
-      if (kept[r][c] !== ' ') { yy = r + PADY + bob; xx = c + PADX; if (yy >= 0 && yy < SH) out[yy][xx] = kept[r][c]; }
+    for (r = 0; r < kept.length; r++) for (c = 0; c < COLS; c++) {
+      if (kept[r][c] !== ' ' && kept[r][c] !== undefined) { yy = r + PADY + bob; xx = c + PADX; if (yy >= 0 && yy < SH) out[yy][xx] = kept[r][c]; }
     }
-    // contour along the cut-away belly (never over a leg)
-    for (r = 0; r < BODY.length + 1; r++) for (c = 0; c < COLS; c++) {
-      if (kept[r] && kept[r][c] !== ' ') continue;
-      var near = (r > 0 && kept[r - 1][c] !== ' ' && kept[r - 1][c] !== 'K') || (c > 0 && kept[r][c - 1] && kept[r][c - 1] !== ' ' && kept[r][c - 1] !== 'K' && r > cut(c - 1)) ;
-      if (r > cut(c) && r <= cut(c) + 1 && kept[r - 1] && kept[r - 1][c] !== ' ' && kept[r - 1][c] !== 'K' && out[r + PADY + bob][c + PADX] === ' ') out[r + PADY + bob][c + PADX] = 'K';
+    // contour along the cut-away / added belly (never over a leg)
+    if (V === 0) {
+      for (r = 0; r < BODY.length + 1; r++) for (c = 0; c < COLS; c++) {
+        if (r > cut(c) && r <= cut(c) + 1 && kept[r - 1] && kept[r - 1][c] !== ' ' && kept[r - 1][c] !== 'K' && out[r + PADY + bob][c + PADX] === ' ') out[r + PADY + bob][c + PADX] = 'K';
+      }
+    } else {
+      var lim = SH - PADY - 2;
+      function solid(rr, cc) { return rr >= 0 && rr < lim && cc >= 0 && cc < COLS && kept[rr][cc] !== ' ' && kept[rr][cc] !== 'K'; }
+      for (r = 0; r < lim; r++) for (c = 0; c < COLS; c++) {
+        if (kept[r][c] !== ' ') continue;
+        if ((solid(r - 1, c) || solid(r + 1, c) || solid(r, c - 1) || solid(r, c + 1)) && out[r + PADY + bob] && out[r + PADY + bob][c + PADX] === ' ') out[r + PADY + bob][c + PADX] = 'K';
+      }
     }
 
     var cols = { K: '#000000', W: P.coat, D: P.shade, M: P.muzzle, L: P.sock, H: '#10184a', C: P.cap, R: P.silk, Y: P.cloth, S: '#f8aa8c', N: '#000000' };
@@ -179,7 +217,7 @@
   function get(no, dir, phase, standing) {
     var step = standing ? 0 : Math.floor(phase / (Math.PI * 2) * STEPS) % STEPS;
     if (step < 0) step += STEPS;
-    var key = no + (dir > 0 ? 'r' : 'l') + (standing ? 's' : step);
+    var key = (window.HORSE_VARIANT | 0) + '' + no + (dir > 0 ? 'r' : 'l') + (standing ? 's' : step);
     return cache[key] || (cache[key] = makeSprite(no, dir, step, standing));
   }
 
