@@ -359,6 +359,18 @@
     el.snd.textContent = on ? 'SOUND ON' : 'SOUND OFF'; el.snd.className = on ? 'on' : '';
   });
 
+  // sound starts by itself on the first tap / click / key press anywhere (browsers only allow audio after a gesture);
+  // a player who turns it off afterwards keeps it off
+  if (qs.get('sound') !== '0') {
+    var autoEvents = ['pointerup', 'touchend', 'click', 'keydown'];
+    var autoSound = function (ev) {
+      autoEvents.forEach(function (n) { document.removeEventListener(n, autoSound, true); });
+      if (ev.target && ev.target.closest && ev.target.closest('#snd')) return;          // the button does its own toggle
+      if (!Sound.on) el.snd.click();
+    };
+    autoEvents.forEach(function (n) { document.addEventListener(n, autoSound, true); });
+  }
+
   // host platform integration
   function emit(type, data) {
     if (window.parent === window) return;

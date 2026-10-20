@@ -63,7 +63,9 @@ installed web app, see `manifest.webmanifest`) also goes full screen and locks l
 cannot lock the orientation, so there the cover screen is the only mechanism. The betting panel has a compact layout for
 phones held sideways. Races keep running while the cover screen is shown.
 
-**Sound.** The SOUND button (browsers need a tap first) turns on the chiptune effects and the background theme
+**Sound.** Sound turns on by itself at the first tap, click or key press anywhere on the page (browsers allow audio only
+after a gesture; `?sound=0` disables this). The SOUND button switches it off and on again; once a player turns it off it
+stays off. The sound is the chiptune effects and the background theme
 (`public/audio/theme.mp3`, 34.6 s, 128 kbps). The theme starts 5 seconds before betting closes and plays on top of the
 galloping sound through the countdown and the race; a viewer who joins late hears it from the right position. Replace the
 file to change the music. Make sure you hold the rights to the recording you use in a commercial game.
