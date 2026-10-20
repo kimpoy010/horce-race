@@ -35,12 +35,12 @@
 
   /* ================= palette ================= */
   var HORSE = {
-    1: { coat: '#f4f4f4', shade: '#b9bac8', mane: '#6c6c7c', silk: '#e03030', cap: '#ffffff' },
-    2: { coat: '#ff6ee0', shade: '#c03cae', mane: '#58306c', silk: '#3050e0', cap: '#ffe83a' },
-    3: { coat: '#ff4040', shade: '#b02020', mane: '#40181c', silk: '#2f9bff', cap: '#ffffff' },
-    4: { coat: '#2f5cf0', shade: '#1c3aa8', mane: '#0c1440', silk: '#ffe83a', cap: '#e03030' },
-    5: { coat: '#ffe83a', shade: '#c4aa14', mane: '#8a5420', silk: '#a444dc', cap: '#ffffff' },
-    6: { coat: '#2f9f66', shade: '#17683f', mane: '#3a2810', silk: '#ff7eb6', cap: '#ffffff' }
+    1: { coat: '#f4f4f4', shade: '#b4b6c8', mane: '#6a6a80', line: '#34346a', silk: '#e03030', cap: '#2848d8' },
+    2: { coat: '#e84ccc', shade: '#a82c98', mane: '#4a2060', line: '#4a1050', silk: '#3858e8', cap: '#ffe83a' },
+    3: { coat: '#e83030', shade: '#a01818', mane: '#401010', line: '#500808', silk: '#8a8ad8', cap: '#8a8ad8' },
+    4: { coat: '#2848d8', shade: '#1830a0', mane: '#0c1038', line: '#080850', silk: '#ff9a9a', cap: '#ff6aa0' },
+    5: { coat: '#f0e030', shade: '#b8a410', mane: '#7a5018', line: '#584400', silk: '#b060e0', cap: '#b060e0' },
+    6: { coat: '#1f8858', shade: '#14603c', mane: '#302008', line: '#083820', silk: '#f090c0', cap: '#d8d8f0' }
   };
   var SKIN = '#f0b080', DARK = '#1c1c1c';
   var DIGITS = {
@@ -114,43 +114,83 @@
     return cv;
   }
 
-  /* ================= horse sprite ================= */
-  function drawHorse(g, cx, cy, dir, phase, standing, no) {
-    var p = HORSE[no], bob = standing ? 0 : Math.round(Math.sin(phase * 2));
-    function r(lx, ly, w, h, col) {
-      g.fillStyle = col; g.fillRect(Math.round(dir > 0 ? cx + lx : cx - lx - w), Math.round(cy + ly), w, h);
+  /* ================= horse sprites: slim, long-legged racers (cached per pose) ================= */
+  var SPR_W = 48, SPR_H = 40, OX = 24, OY = 34;
+  var POSES = [ // [kneeX, kneeY, hoofX, hoofY] for frontNear, frontFar, backNear, backFar (facing right)
+    [[10, -5, 16, -3], [8, -4, 13, -1], [-11, -5, -16, -2], [-9, -4, -14, 0]],   // fully stretched
+    [[9, -4, 7, 0], [7, -4, 11, -1], [-8, -4, -6, 0], [-10, -4, -10, -1]],        // gathering
+    [[6, -3, 4, 0], [8, -3, 9, 0], [-5, -3, -7, 0], [-7, -3, -4, -1]],            // legs under
+    [[8, -5, 13, -2], [6, -3, 5, 0], [-9, -4, -14, -3], [-6, -3, -9, 0]],         // push off
+    [[5, -3, 5, 0], [4, -3, 4, 0], [-6, -3, -6, 0], [-5, -3, -5, 0]]              // standing
+  ];
+  var sprites = {};
+
+  function makeSprite(no, dir, frame) {
+    var p = HORSE[no], pose = POSES[frame];
+    var cv = document.createElement('canvas'); cv.width = SPR_W; cv.height = SPR_H;
+    var g = cv.getContext('2d');
+    var layer = document.createElement('canvas'); layer.width = SPR_W; layer.height = SPR_H;
+    var lg = layer.getContext('2d');
+    function R(lx, ly, w, h, col) { lg.fillStyle = col; lg.fillRect(OX + (dir > 0 ? lx : -lx - w), OY + ly, w, h); }
+    function line(x0, y0, x1, y1, w, col) {
+      var n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1, o = (w - 1) >> 1;
+      for (var i = 0; i <= n; i++) R(Math.round(x0 + (x1 - x0) * i / n) - o, Math.round(y0 + (y1 - y0) * i / n) - o, w, w, col);
     }
-    function leg(lx, off, col) {
-      var s = standing ? 0 : Math.sin(phase + off), sw = Math.round(s * 3), lift = !standing && s > 0.4 ? 1 : 0;
-      r(lx, -6, 2, 3, col); r(lx + sw, -3 - lift, 2, 2, col); r(lx + sw, -1 - lift, 2, 1, DARK);
+    // paints the current layer over the sprite with a 1px outline around it
+    function commit() {
+      var d = lg.getImageData(0, 0, SPR_W, SPR_H).data;
+      function on(x, y) { return x >= 0 && y >= 0 && x < SPR_W && y < SPR_H && d[(y * SPR_W + x) * 4 + 3] > 0; }
+      g.fillStyle = p.line;
+      for (var y = 0; y < SPR_H; y++) for (var x = 0; x < SPR_W; x++) {
+        if (!on(x, y) && (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1))) g.fillRect(x, y, 1, 1);
+      }
+      g.drawImage(layer, 0, 0); lg.clearRect(0, 0, SPR_W, SPR_H);
     }
-    // far legs, tail
-    leg(3, 0.6, p.shade); leg(-7, Math.PI + 0.6, p.shade);
-    r(-13, -13 + bob, 4, 2, p.mane); r(-14, -11 + bob, 3, 5, p.mane);
-    // body
-    r(-9, -13 + bob, 15, 7, p.coat); r(-9, -7 + bob, 15, 1, p.shade); r(-9, -13 + bob, 15, 1, p.coat);
+    function leg(hx, hy, k, col) {
+      line(hx, hy, k[0], k[1], 2, col);
+      line(k[0], k[1], k[2], k[3] - 1, 1, col);
+      R(k[2] - 1, k[3] - 1, 2, 1, DARK);
+    }
+    function glyph(x, y) {
+      var gl = DIGITS[no];
+      for (var py = 0; py < 5; py++) for (var px = 0; px < 3; px++) if (gl[py][px] === '1') R(x + (dir > 0 ? px : 2 - px), y + py, 1, 1, '#1a1a1a');
+    }
+
+    // far legs + tail
+    leg(4, -7, pose[1], p.shade); leg(-5, -7, pose[3], p.shade);
+    line(-8, -11, -12, -10, 2, p.mane); line(-12, -10, -15, -7, 1, p.mane);
+    commit();
+    // slim body, long neck, small head
+    R(-7, -12, 13, 1, p.coat); R(-8, -11, 16, 3, p.coat); R(-7, -8, 14, 1, p.shade);
+    line(6, -10, 10, -16, 3, p.coat); line(11, -16, 15, -14, 2, p.coat);
+    R(11, -18, 1, 2, p.coat); R(15, -14, 2, 2, p.shade); R(13, -16, 1, 1, DARK);
+    line(5, -12, 9, -18, 1, p.mane);
+    commit();
     // near legs
-    leg(5, 0, p.coat); leg(-9, Math.PI, p.coat);
-    // saddle cloth with number
-    r(-5, -13 + bob, 7, 7, '#f0a020'); r(-5, -13 + bob, 7, 1, '#ffd060');
-    var gl = DIGITS[no];
-    for (var py = 0; py < 5; py++) for (var px = 0; px < 3; px++) {
-      if (gl[py][px] === '1') r(-3 + (dir > 0 ? px : 2 - px), -12 + py + bob, 1, 1, '#000');
-    }
-    // neck, head, mane
-    r(5, -16 + bob, 3, 4, p.coat); r(7, -19 + bob, 3, 5, p.coat); r(9, -19 + bob, 5, 3, p.coat);
-    r(13, -18 + bob, 1, 2, p.shade); r(9, -21 + bob, 1, 2, p.coat); r(11, -18 + bob, 1, 1, DARK);
-    r(5, -19 + bob, 2, 5, p.mane);
-    // jockey
-    r(-2, -16 + bob, 2, 3, DARK);
-    r(-4, -21 + bob, 6, 6, HORSE[no].silk); r(-4, -21 + bob, 6, 1, p.cap);
-    r(1, -20 + bob, 6, 2, HORSE[no].silk); r(7, -20 + bob, 2, 2, SKIN);
-    r(0, -25 + bob, 5, 4, p.cap); r(4, -23 + bob, 2, 2, SKIN); r(5, -25 + bob, 2, 2, DARK);
+    leg(5, -7, pose[0], p.coat); leg(-6, -7, pose[2], p.coat);
+    commit();
+    // number tag
+    R(-5, -15, 7, 8, '#f0a020'); glyph(-3, -14);
+    commit();
+    // jockey: white pants, coloured silks and helmet, leaning over the neck
+    R(-3, -16, 6, 3, '#ffffff'); R(2, -13, 2, 3, DARK);
+    R(-2, -20, 5, 5, p.silk); R(2, -21, 4, 3, p.silk);
+    line(4, -18, 9, -16, 1, p.silk); R(9, -17, 1, 1, SKIN);
+    R(4, -24, 4, 3, p.cap); R(6, -21, 2, 2, SKIN);
+    commit();
+    return cv;
+  }
+
+  function drawHorse(g, cx, cy, dir, phase, standing, no) {
+    var frame = standing ? 4 : Math.floor(phase / (Math.PI * 2) * 4) & 3;
+    var key = no + (dir > 0 ? 'r' : 'l') + frame;
+    var spr = sprites[key] || (sprites[key] = makeSprite(no, dir, frame));
+    g.drawImage(spr, cx - OX, cy - OY - (!standing && frame === 0 ? 1 : 0));
   }
 
   function drawDust(g, cx, cy, dir, phase) {
     for (var i = 0; i < 3; i++) {
-      var ox = 13 + i * 5 + ((phase * 3 + i * 7) % 4 | 0), oy = 1 + ((phase * 2 + i * 3) % 4 | 0);
+      var ox = 18 + i * 5 + ((phase * 3 + i * 7) % 4 | 0), oy = 1 + ((phase * 2 + i * 3) % 4 | 0);
       rect(g, cx - dir * ox - 1, cy - oy, 2, 1, i % 2 ? '#d9b886' : '#c9a46c');
     }
   }
@@ -333,7 +373,7 @@
     items.forEach(function (it) {
       var hx = Math.round(it.pos.x) - camX, hy = Math.round(it.pos.y) - camY + 4;
       if (hx < -40 || hx > VW + 40) return;
-      var phs = it.u * TOTAL / 11 * Math.PI * 2;
+      var phs = it.u * TOTAL / 26 * Math.PI * 2;
       if (!it.standing) drawDust(g, hx, hy, it.pos.dir, phs);
       drawHorse(g, hx, hy, it.pos.dir, phs, it.standing, it.no);
     });
