@@ -275,7 +275,7 @@
         if (on) loadMusic(); else stopMusic();
         return on;
       },
-      // the theme starts 4 s before betting closes and plays on top of the other sounds; viewers who join later hear it from the right place
+      // the theme starts 3 s before betting closes and plays on top of the other sounds; viewers who join later hear it from the right place
       music: function (key, startAtMs, nowMs) {
         if (!on || !musicBuf || key === musicKey || nowMs < startAtMs) return;
         musicKey = key;
@@ -462,7 +462,7 @@
     drawMini(g, items, camX, camY);
     if (phase === 'racing' && nowMs - lastHoof > 170) { lastHoof = nowMs; Sound.hoof(); }
     // background theme: MUSIC_LEAD_MS before betting closes (live), or before the countdown starts (demo, no betting)
-    var MUSIC_LEAD_MS = 4000;
+    var MUSIC_LEAD_MS = 3000;
     var mAt = st && st.round && st.round.betCloseAt ? st.round.betCloseAt - MUSIC_LEAD_MS : race && st && st.timings ? race.startAt - (st.timings.countdown || 6000) - MUSIC_LEAD_MS : null;
     if (mAt !== null) Sound.music(st && st.round ? st.round.raceNo : race.raceNo, mAt, nowMs);
 
