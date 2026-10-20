@@ -199,16 +199,15 @@
   /* ================= horses ================= */
   // On the curve the horse turns with the track: its side view narrows as it turns towards the camera
   // (heading straight down the screen) and widens again facing the other way, so there is no sudden flip.
-  var TURN_STEPS = 16;
+  // Through the curve the horse uses angled sprites: side view -> 45 degrees facing right -> straight on ->
+  // 45 degrees facing left -> side view facing left.
   function drawHorse(g, cx, cy, dir, phase, standing, no, hd) {
-    var k = Math.round(hd / (Math.PI / TURN_STEPS)), turning = !standing && k > 0 && k < TURN_STEPS;
-    var sc = turning ? Math.max(0.34, Math.abs(Math.cos(k * Math.PI / TURN_STEPS))) : 1;
-    var d = turning ? (k <= TURN_STEPS / 2 ? 1 : -1) : dir;
+    var q = Math.PI / 8, idx = 0;
+    if (!standing) idx = hd < q ? 0 : hd < 3 * q ? 1 : hd < 5 * q ? 2 : hd < 7 * q ? 3 : 0;
+    var sc = idx === 2 ? 0.5 : idx ? 0.8 : 1;
     g.fillStyle = 'rgba(50,30,10,.30)'; g.fillRect(Math.round(cx - 30 * sc), cy - 1, Math.round(62 * sc), 3); g.fillRect(Math.round(cx - 22 * sc), cy + 2, Math.round(46 * sc), 1);
-    var spr = SP.get(no, d, phase, standing);
-    if (!turning) { g.drawImage(spr, cx - SP.OX, cy - SP.OY); return; }
-    g.imageSmoothingEnabled = false;
-    g.drawImage(spr, 0, 0, spr.width, spr.height, Math.round(cx - SP.OX * sc), cy - SP.OY, Math.round(spr.width * sc), spr.height);
+    if (!idx) { g.drawImage(SP.get(no, dir, phase, standing), cx - SP.OX, cy - SP.OY); return; }
+    g.drawImage(SP.getTurn(no, idx, phase, false), cx - SP.TURN.OX, cy - SP.TURN.OY);
   }
   function drawDust(g, cx, cy, dir, phase) {
     for (var i = 0; i < 4; i++) {
@@ -448,5 +447,6 @@
   }
 
   detectMode();
+  if (SP.warm) setTimeout(SP.warm, 800);
   requestAnimationFrame(frame);
 })();
