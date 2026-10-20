@@ -246,7 +246,17 @@
 
   /* ================= sound (WebAudio chiptune) ================= */
   var Sound = (function () {
-    var ctx = null, on = false;
+    var ctx = null, on = false, musicBuf = null, musicSrc = null, musicKey = null, loading = false, MUSIC_VOL = 0.38;
+    function stopMusic(keepKey) {
+      if (musicSrc) { try { musicSrc.stop(); } catch (e) { /* already ended */ } musicSrc = null; }
+      if (!keepKey) musicKey = null;
+    }
+    function loadMusic() {
+      if (musicBuf || loading) return; loading = true;
+      fetch('audio/theme.mp3').then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+        return new Promise(function (ok, bad) { ctx.decodeAudioData(ab, ok, bad); });      // callback form also works on older Safari
+      }).then(function (buf) { musicBuf = buf; }).catch(function () { /* no music, the other sounds still work */ }).then(function () { loading = false; });
+    }
     function tone(f, at, dur, type, vol) {
       var o = ctx.createOscillator(), g = ctx.createGain();
       o.type = type || 'square'; o.frequency.value = f;
@@ -257,10 +267,25 @@
     function seq(notes) { var t = ctx.currentTime + 0.02; notes.forEach(function (n) { tone(n[0], t, n[1] * 0.95, 'square', 0.07); t += n[1]; }); }
     return {
       get on() { return on; },
+      state: function () { return { on: on, loaded: !!musicBuf, playing: !!musicSrc, key: musicKey, ctx: ctx && ctx.state }; },
       toggle: function () {
         if (!ctx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; ctx = new AC(); }
         if (ctx.state === 'suspended') ctx.resume();
-        on = !on; return on;
+        on = !on;
+        if (on) loadMusic(); else stopMusic();
+        return on;
+      },
+      // the theme starts 5 s before betting closes and plays on top of the other sounds; viewers who join later hear it from the right place
+      music: function (key, startAtMs, nowMs) {
+        if (!on || !musicBuf || key === musicKey || nowMs < startAtMs) return;
+        musicKey = key;
+        var off = (nowMs - startAtMs) / 1000;
+        if (off > musicBuf.duration - 1) return;
+        stopMusic(true);
+        var src = ctx.createBufferSource(), g = ctx.createGain(), t0 = ctx.currentTime, left = musicBuf.duration - off;
+        src.buffer = musicBuf; g.gain.setValueAtTime(MUSIC_VOL, t0); g.gain.setValueAtTime(MUSIC_VOL, t0 + Math.max(0, left - 2)); g.gain.linearRampToValueAtTime(0.0001, t0 + left);
+        src.connect(g); g.connect(ctx.destination); src.start(t0, off);
+        musicSrc = src;
       },
       beep: function () { if (on) tone(660, ctx.currentTime, 0.12, 'square', 0.06); },
       bugle: function () { if (on) seq([[392, .14], [523, .14], [659, .14], [784, .5]]); },
@@ -424,6 +449,9 @@
     });
     drawMini(g, items, camX, camY);
     if (phase === 'racing' && nowMs - lastHoof > 170) { lastHoof = nowMs; Sound.hoof(); }
+    // background theme: 5 s before betting closes (live), or 5 s before the countdown starts (demo, no betting)
+    var mAt = st && st.round && st.round.betCloseAt ? st.round.betCloseAt - 5000 : race && st && st.timings ? race.startAt - (st.timings.countdown || 6000) - 5000 : null;
+    if (mAt !== null) Sound.music(st && st.round ? st.round.raceNo : race.raceNo, mAt, nowMs);
 
     // ---- HUD ----
     var betting = !!(st && st.round && st.round.phase === 'betting' && phase === 'idle'), betSecs = betting ? Math.max(0, Math.ceil((st.round.betCloseAt - nowMs) / 1000)) : 0;
@@ -471,7 +499,7 @@
     requestAnimationFrame(frame);
   }
 
-  window.HorseGame = { state: function () { return Sync.state; }, now: now };
+  window.HorseGame = { state: function () { return Sync.state; }, now: now, sound: Sound };
   detectMode();
   if (SP.warm) setTimeout(SP.warm, 800);
   requestAnimationFrame(frame);

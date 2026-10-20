@@ -63,6 +63,11 @@ installed web app, see `manifest.webmanifest`) also goes full screen and locks l
 cannot lock the orientation, so there the cover screen is the only mechanism. The betting panel has a compact layout for
 phones held sideways. Races keep running while the cover screen is shown.
 
+**Sound.** The SOUND button (browsers need a tap first) turns on the chiptune effects and the background theme
+(`public/audio/theme.mp3`, 34.6 s, 128 kbps). The theme starts 5 seconds before betting closes and plays on top of the
+galloping sound through the countdown and the race; a viewer who joins late hears it from the right position. Replace the
+file to change the music. Make sure you hold the rights to the recording you use in a commercial game.
+
 ## Demo mode (default): controller picks the winners
 
 `node server.js` -> game at `/`, controller at `/controller` (key printed at start or `CONTROLLER_KEY`). The controller
