@@ -19,6 +19,7 @@ const walletFactory = require('./server/wallet.js');
 
 const env = process.env;
 const PORT = env.PORT || 8080;
+const HOST = env.HOST || '0.0.0.0';          // use HOST=127.0.0.1 behind a reverse proxy
 const LIVE = env.GAME_MODE === 'live';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = path.join(__dirname, 'data');
@@ -160,14 +161,15 @@ const server = http.createServer(async (req, res) => {
       return fail(res, e);
     }
   }
+  if (url.pathname === '/healthz') return json(res, 200, { ok: true, mode: LIVE ? 'live' : 'demo' });
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
   serveStatic(req, res, decodeURIComponent(url.pathname));
 });
 
 (async () => {
   if (LIVE) await startLive();
-  server.listen(PORT, () => {
-    console.log('Horse Race (' + (LIVE ? 'LIVE' : 'demo') + ') running on http://localhost:' + PORT);
+  server.listen(PORT, HOST, () => {
+    console.log('Horse Race (' + (LIVE ? 'LIVE' : 'demo') + ') running on http://' + HOST + ':' + PORT);
     console.log('  game       http://localhost:' + PORT + '/' + (LIVE && (env.WALLET || 'mock') === 'mock' ? '?token=demo-alice' : ''));
     console.log('  controller http://localhost:' + PORT + '/controller');
     console.log('  controller key: ' + KEY + (generatedKey ? '  (random - set CONTROLLER_KEY to keep it fixed)' : ''));

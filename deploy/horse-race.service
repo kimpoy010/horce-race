@@ -1,0 +1,21 @@
+# /etc/systemd/system/horse-race.service   (sudo systemctl enable --now horse-race)
+[Unit]
+Description=Retro Horse Race (live)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=horse
+WorkingDirectory=/opt/horse-race
+EnvironmentFile=/etc/horse-race.env
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/opt/horse-race/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

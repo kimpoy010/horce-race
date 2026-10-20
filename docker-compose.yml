@@ -1,0 +1,13 @@
+# docker compose up -d --build      (copy .env.example to .env first and fill it in)
+services:
+  horse-race:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+    ports:
+      - "127.0.0.1:8080:8080"        # only the reverse proxy (nginx) talks to it
+    volumes:
+      - ./data:/app/data             # ledger, seeds and the RTP setting: back this up, keep it private

@@ -56,6 +56,8 @@ rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> ra
 * Real-money gaming is regulated. Licensing, independent RNG/RTP certification, age and responsible-gaming controls are
   the operator's responsibility.
 
+**Deploying to a server:** see **docs/DEPLOY.md** (Docker or systemd, nginx with HTTPS, go-live checklist).
+
 ## Demo mode (default): controller picks the winners
 
 `node server.js` -> game at `/`, controller at `/controller` (key printed at start or `CONTROLLER_KEY`). The controller
