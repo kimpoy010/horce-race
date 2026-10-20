@@ -16,7 +16,7 @@
   // The world is bigger than the screen; a camera follows the pack. Horses start top-left, run right along the
   // top straight, round the curve on the right, and come back left along the bottom straight to the finish.
   var VW = 544, VH = 306;                                   // camera view (logical px)
-  var LANES = 6, LANE_W = 16, R_IN = 190, R_OUT = R_IN + LANE_W * LANES, RMID = R_IN + LANE_W * LANES / 2;   // a wide, long curve
+  var LANES = 6, LANE_W = 24, R_IN = 238 - 3 * 24, R_OUT = R_IN + LANE_W * LANES, RMID = R_IN + LANE_W * LANES / 2;   // a wide, long curve
   var CY = R_OUT + 80, XL = 260, XR = 1700, X_MIN = 140;
   var WW = XR + R_OUT + 90, WH = CY + R_OUT + 60;
   var S = XR - XL, ARC = Math.PI * RMID, TOTAL = 2 * S + ARC;
