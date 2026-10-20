@@ -11,19 +11,14 @@ GAME_MODE=live WALLET=mock node server.js                  # local test with pla
 ```
 
 **Odds and RTP.** The board is the video karera chart (rows 1-5, columns 6-2). A winning bet pays **stake x odds**
-(stake included); each pair has its own odds (`server/odds.js`, override with `ODDS='{"1-2":60,...}'` or `ODDS_FILE=`):
+(stake included). The 15 odds values are **3, 4, 5, 8, 10, 20, 30, 60, 80, 100, 125, 175, 250, 500, 1000**
+(`server/odds.js`, override with `ODDS=` / `ODDS_FILE=`) and they are **shuffled randomly over the 15 pairs before every
+race**: the layout is derived from the round seed, shown to the players when betting opens, and fixed for that race.
+Set `shuffleOdds: false` in the engine config to keep a fixed layout instead.
 
-| pair | odds | pair | odds | pair | odds |
-|---|---|---|---|---|---|
-| 1-2 | 60 | 2-3 | 8 | 3-6 | 5 |
-| 1-3 | 20 | 2-4 | 500 | 4-5 | 100 |
-| 1-4 | 80 | 2-5 | 30 | 4-6 | 4 |
-| 1-5 | 175 | 2-6 | 1000 | 5-6 | 250 |
-| 1-6 | 3 | 3-4 | 10 | | |
-| | | 3-5 | 125 | | |
-
-A pair with odds `o` is drawn with probability proportional to `1/o` (e.g. 1-6 about 29%, 2-6 about 0.09%). Then **every bet
-on every pair has the same RTP = 1 / sum(1/odds) = 86.84%** (house edge 13.16%) and no pair is a better bet than another.
+In each race a pair with odds `o` is drawn with probability proportional to `1/o` (the pair that carries odds 3 wins
+about 29% of the time, the one with 1000 about 0.09%). Because the layout is random, every pair still wins 1 race in 15
+in the long run. **Every bet on every pair has the same RTP = 1 / sum(1/odds) = 86.84%** (house edge 13.16%) and no pair is a better bet than another.
 For this odds table 86.84% is the highest RTP that all pairs can share: sum(1/odds) is 1.1515, and a 90% RTP would need
 1.1111. To reach 90% raise some odds (for example 1:3 to 1:3.5) or accept 86.84%. The server prints the RTP at start-up
 and warns if `RTP=` is set and differs. RTP is a long-run average; short runs wander a lot because of the 1000x pair.
@@ -32,7 +27,7 @@ and warns if `RTP=` is set and differs. RTP is a long-run average; short runs wa
 **Rules of the draw (do not change for real money).**
 * The outcome comes from a secret 256-bit seed made with `crypto.randomBytes`, *before* bets open; its SHA-256 hash
   (the *commit*) is shown to players, and the seed is revealed after the race so anyone can re-run
-  `rng.draw(seed, raceNo, weights)` (the weights follow from the published odds).
+  `rng.oddsLayout(seed, raceNo, values)` and `rng.draw(seed, raceNo, weights)` (the weights follow from the odds layout).
 * The result is drawn when betting closes; no bet can be placed after that.
 * The controller **cannot** change, pick or steer results in live mode (`/api/command` is refused). It only shows the
   report: stakes, payouts, actual vs theoretical RTP, wins per pair, recent races.

@@ -23,8 +23,10 @@
   <section id="report" class="panel" hidden>
     <h2>Live game report <span class="small">(results are drawn by the server; the controller cannot change them)</span></h2>
     <div class="stats" id="stats"></div>
-    <h2 style="margin-top:14px">Wins per pair <span class="small">(odds, actual share, expected share = (1/odds) / sum(1/odds))</span></h2>
+    <h2 style="margin-top:14px">Wins per pair <span class="small">(each pair wins 6.67% of races in the long run)</span></h2>
     <div class="combos" id="combos"></div>
+    <h2 style="margin-top:14px">Wins by odds value <span class="small">(expected = (1/odds) / sum(1/odds): cheap odds win often, big odds rarely)</span></h2>
+    <div class="combos" id="byodds"></div>
     <h2 style="margin-top:14px">Recent races</h2>
     <table id="recent"><thead><tr><th>Race</th><th>Winning pair</th><th>Finish order</th><th>Bets</th><th>Staked</th><th>Paid</th></tr></thead><tbody></tbody></table>
     <p class="small" id="commit"></p>

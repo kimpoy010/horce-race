@@ -54,4 +54,13 @@ function draw(seedHex, raceNo, weights) {
   return { combo: pair[0] + '-' + pair[1], order: top.concat(rest), animSeed: s.uint32() };
 }
 
-module.exports = { PAIRS, COMBOS, newSeed, commitOf, draw, Stream };
+// The odds of each race: the same 15 odds values shuffled over the 15 pairs. Derived from the round seed with its own
+// label, so it is public from the start of betting without telling anything about the draw ('race:' stream).
+function oddsLayout(seedHex, raceNo, values) {
+  const s = new Stream(seedHex, 'odds:' + raceNo), v = values.slice();
+  for (let i = v.length - 1; i > 0; i--) { const j = s.int(i + 1); const t = v[i]; v[i] = v[j]; v[j] = t; }
+  const out = {}; COMBOS.forEach((c, i) => { out[c] = v[i]; });
+  return out;
+}
+
+module.exports = { PAIRS, COMBOS, newSeed, commitOf, draw, oddsLayout, Stream };

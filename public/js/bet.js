@@ -57,7 +57,7 @@
     for (a = 1; a <= 5; a++) {
       html += '<span class="bl">' + a + '</span>';
       for (b = 6; b >= 2; b--) {
-        if (b > a) { var c = a + '-' + b; html += '<button type="button" class="cell" data-c="' + c + '" title="' + a + ' and ' + b + ' (any order)"><span class="odds">' + r.odds[c] + '</span><span class="bt">0</span></button>'; }
+        if (b > a) { var c = a + '-' + b; html += '<button type="button" class="cell" data-c="' + c + '" title="' + a + ' and ' + b + ' (any order)"><span class="odds">-</span><span class="bt">0</span></button>'; }
         else html += '<span class="blank"></span>';
       }
     }
@@ -66,7 +66,7 @@
     var base = r.minBet, vals = [1, 5, 10, 50, 100, 500].map(function (m) { return m * base; }).filter(function (v) { return v <= r.maxBet; });
     S.chip = vals[0];
     el.chips.innerHTML = vals.map(function (v, i) { return '<button type="button" class="chipbtn' + (i ? '' : ' sel') + '" data-v="' + v + '">' + fmt(v) + '</button>'; }).join('');
-    el.pay.textContent = 'ANY ORDER - A WINNING PAIR PAYS STAKE x ODDS (STAKE INCLUDED)';
+    el.pay.textContent = 'ANY ORDER - A WINNING PAIR PAYS STAKE x ODDS (STAKE INCLUDED). THE ODDS ARE SHUFFLED EVERY RACE.';
 
     el.grid.addEventListener('click', function (ev) {
       var minus = ev.target.closest('.minus'), t = ev.target.closest('.cell'); if (!t || t.disabled) return;
@@ -133,12 +133,18 @@
       }
       el.fair.textContent = 'Round commit (SHA-256 of the secret seed): ' + round.commit + (st.reveals && st.reveals.length ? '  |  Last race ' + st.reveals[st.reveals.length - 1].raceNo + ' seed: ' + st.reveals[st.reveals.length - 1].seed : '');
     }
+    if (round && round.raceNo !== S.raceNo) {            // a new race has new odds: stakes picked for the old odds are dropped
+      if (S.raceNo != null && Object.keys(S.pending).length) { S.pending = {}; say('New race, new odds. Please pick your bets again.', true); }
+      S.raceNo = round.raceNo;
+    }
     var placed = placedBy(), cells = el.grid.querySelectorAll('.cell'), i, total = 0;
     Object.keys(S.pending).forEach(function (c) { total += S.pending[c]; });
     for (i = 0; i < cells.length; i++) {
       var tl = cells[i], c = tl.dataset.c, p = S.pending[c] || 0, pl = placed[c] || 0;
       tl.disabled = !betting || !S.session || S.busy;
       tl.classList.toggle('on', p > 0 || pl > 0); tl.classList.toggle('pend', p > 0);
+      var od = tl.querySelector('.odds'), ov = round && round.odds ? String(round.odds[c]) : '-';
+      if (od.textContent !== ov) od.textContent = ov;
       var bt = tl.querySelector('.bt'), txt = short(pl + p);
       if (bt.textContent !== txt) bt.textContent = txt;
       var mn = tl.querySelector('.minus');
@@ -153,7 +159,7 @@
     var mine = (me && me.bets) || [];
     el.placed.innerHTML = mine.length ? '<div class="ttl">YOUR BETS - RACE ' + me.raceNo + '</div>' + mine.map(function (b) {
       var p = b.combo.split('-');
-      return '<div class="row"><span>' + chip(p[0]) + '-' + chip(p[1]) + ' @ ' + S.rules.odds[b.combo] + '</span><span>' + fmt(b.stake) + ' &rarr; ' + fmt(b.stake * S.rules.odds[b.combo]) + '</span></div>';
+      return '<div class="row"><span>' + chip(p[0]) + '-' + chip(p[1]) + ' @ ' + b.odds + '</span><span>' + fmt(b.stake) + ' &rarr; ' + fmt(b.stake * b.odds) + '</span></div>';
     }).join('') : '';
     var last = me && me.last, settled = last && last.bets.every(function (b) { return b.status !== 'open'; });
     if (last && settled) {

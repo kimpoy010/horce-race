@@ -40,9 +40,15 @@ const { MockWallet } = require('../server/wallet.js');
   const mk = () => new Engine({ wallet, now: () => clock, ledgerFile: ledger, config: { betMs: 20000, minBet: 100, maxBet: 10000, maxRoundStake: 15000 } });
   let eng = mk();
   assert(Math.abs(eng.theoreticalRtp - 0.868397) < 1e-5);
-  assert.strictEqual(eng.payoutFor(100, '1-3'), 2000);
-  assert.strictEqual(eng.payoutFor(101, '5-6'), 25250);
-  assert.strictEqual(eng.payoutFor(100, '1-6'), 300);
+  const D = oddsLib.DEFAULT_ODDS;
+  assert.strictEqual(eng.payoutFor(100, '1-3', D), 2000);
+  assert.strictEqual(eng.payoutFor(101, '5-6', D), 25250);
+  assert.strictEqual(eng.payoutFor(100, '1-6', D), 300);
+  // every race gets its own layout of the same 15 odds, verifiable from the seed
+  const lay = rng.oddsLayout(seed, 1, eng.values), lay2 = rng.oddsLayout(seed, 2, eng.values);
+  assert.deepStrictEqual(Object.values(lay).sort((a, b) => a - b), eng.values);
+  assert.notDeepStrictEqual(lay, lay2);
+  assert.deepStrictEqual(lay, rng.oddsLayout(seed, 1, eng.values));
 
   await eng.tick();
   const a = await eng.auth('demo-alice'), b = await eng.auth('demo-bob');
@@ -78,12 +84,15 @@ const { MockWallet } = require('../server/wallet.js');
   clock += 4500; st = eng.publicState(); assert.notStrictEqual(st.race.order, null);
   clock = eng.cur.startAt + eng.cfg.raceMs + 1; await eng.tick();
   assert.strictEqual(eng.cur.status, 'settled');
-  const aliceWin = combo === '1-2' ? 5000 * 60 : combo === '3-4' ? 5000 * 10 : 0, bobWin = combo === '5-6' ? 2 * 5000 * 250 : 0;
+  const O = eng.cur.odds;
+  const aliceWin = combo === '1-2' ? 5000 * O['1-2'] : combo === '3-4' ? 5000 * O['3-4'] : 0, bobWin = combo === '5-6' ? 2 * 5000 * O['5-6'] : 0;
   assert.strictEqual(await wallet.balance('alice'), 90000 + aliceWin);
   assert.strictEqual(await wallet.balance('bob'), 90000 + bobWin);
   const rep = eng.report(); assert.strictEqual(rep.rounds, 1); assert.strictEqual(rep.staked, 10000 + 10000);
   assert.strictEqual(eng.reveals[0].commit, rng.commitOf(eng.reveals[0].seed));
-  assert.deepStrictEqual(rng.draw(eng.reveals[0].seed, rn, oddsLib.build().weights).order, eng.reveals[0].order);   // players can verify the draw
+  const rv = eng.reveals[0];
+  assert.deepStrictEqual(rng.oddsLayout(rv.seed, rn, eng.values), rv.odds);
+  assert.deepStrictEqual(rng.draw(rv.seed, rn, oddsLib.build(rv.odds).weights).order, rv.order);   // players can verify the draw
 
   // ---- restart in the middle of a round: bets are refunded, a drawn race is settled ----
   clock = eng.cur.startAt + eng.cfg.raceMs + eng.cfg.resultsMs + 1; await eng.tick();        // next round opens
