@@ -1,0 +1,11 @@
+{
+  "name": "retro-horse-race",
+  "version": "1.0.0",
+  "description": "8-bit retro horse race game with a controller page, embeddable via iframe",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/core.test.js"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,359 @@
+/*
+ * Retro Horse Race - renderer, sound and state sync.
+ *
+ * Query parameters (for embedding):
+ *   ?api=https://host   race server to use (default: same origin, else local mode)
+ *   ?mode=local         force local mode (controller in another tab of the same browser)
+ *   ?sound=0            hide the sound button
+ *   ?hud=0              hide the HTML overlay (top / bottom bars)
+ */
+(function () {
+  'use strict';
+  var C = window.HorseCore;
+  var qs = new URLSearchParams(location.search);
+
+  /* ================= geometry: a "C" shaped track (U rotated counter-clockwise) ================= */
+  var W = 384, H = 216, CY = 108, XL = 130, X_START = 330, X_END = 364;
+  var R_IN = 14, LANE_W = 11, LANES = 6;
+  var R_OUT = R_IN + LANE_W * LANES;
+  var RMID = R_IN + LANE_W * LANES / 2;
+  var S = X_START - XL, ARC = Math.PI * RMID, TOTAL = 2 * S + ARC;
+
+  // Horses run left along the top straight, round the left-hand curve, then right along the bottom
+  // straight to the finish line. u = 0 is the start gate, u = 1 the finish line.
+  function trackPos(u, lane) {
+    var r = R_IN + LANE_W * (lane + 0.5), d = u * TOTAL, x, y, dir;
+    if (d < S) { x = X_START - d; y = CY - r; dir = -1; }
+    else if (d < S + ARC) {
+      var th = (d - S) / RMID;
+      x = XL - r * Math.sin(th); y = CY - r * Math.cos(th); dir = th < Math.PI / 2 ? -1 : 1;
+    } else { x = XL + (d - S - ARC); y = CY + r; dir = 1; }
+    return { x: x, y: y, dir: dir };
+  }
+
+  /* ================= palette ================= */
+  var HORSE = {
+    1: { coat: '#f4f4f4', shade: '#b9bac8', mane: '#6c6c7c', silk: '#e03030', cap: '#ffffff' },
+    2: { coat: '#ff6ee0', shade: '#c03cae', mane: '#58306c', silk: '#3050e0', cap: '#ffe83a' },
+    3: { coat: '#ff4040', shade: '#b02020', mane: '#40181c', silk: '#2f9bff', cap: '#ffffff' },
+    4: { coat: '#2f5cf0', shade: '#1c3aa8', mane: '#0c1440', silk: '#ffe83a', cap: '#e03030' },
+    5: { coat: '#ffe83a', shade: '#c4aa14', mane: '#8a5420', silk: '#a444dc', cap: '#ffffff' },
+    6: { coat: '#2f9f66', shade: '#17683f', mane: '#3a2810', silk: '#ff7eb6', cap: '#ffffff' }
+  };
+  var SKIN = '#f0b080', DARK = '#1c1c1c';
+  var DIGITS = {
+    1: ['010', '110', '010', '010', '111'], 2: ['111', '001', '111', '100', '111'],
+    3: ['111', '001', '111', '001', '111'], 4: ['101', '101', '111', '001', '001'],
+    5: ['111', '100', '111', '001', '111'], 6: ['111', '100', '111', '101', '111']
+  };
+
+  /* ================= static background ================= */
+  function inTrack(x, y) {
+    var dy = y - CY;
+    if (x >= XL) { var a = Math.abs(dy); return x <= X_END && a >= R_IN && a < R_OUT; }
+    var dx = x - XL, d = Math.sqrt(dx * dx + dy * dy);
+    return d >= R_IN && d < R_OUT;
+  }
+  function hash(x, y) {
+    var h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+  function rgb(hex) { return [parseInt(hex.substr(1, 2), 16), parseInt(hex.substr(3, 2), 16), parseInt(hex.substr(5, 2), 16)]; }
+  function rect(g, x, y, w, h, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), w, h); }
+
+  function bush(g, x, y) {
+    rect(g, x + 1, y + 3, 11, 5, '#1b7236'); rect(g, x + 2, y + 1, 9, 5, '#2ea44e');
+    rect(g, x + 4, y, 5, 2, '#5bd26f'); rect(g, x, y + 5, 2, 3, '#2ea44e'); rect(g, x + 11, y + 5, 2, 3, '#2ea44e');
+    rect(g, x + 3, y + 5, 2, 2, '#f08a24'); rect(g, x + 8, y + 3, 2, 2, '#f08a24'); rect(g, x + 6, y + 6, 2, 1, '#ffd23c');
+  }
+  function flowers(g, x, y) {
+    rect(g, x, y + 3, 16, 5, '#2a4a9a');
+    for (var i = 0; i < 16; i += 2) { rect(g, x + i, y + 2, 2, 5, i % 4 ? '#f0602a' : '#ffa23c'); }
+    rect(g, x, y + 2, 16, 1, '#ffd23c');
+  }
+
+  function makeBackground() {
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    var g = cv.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+    var GRASS = rgb('#3dbb5f'), GRASS_D = rgb('#34a653'), GRASS_L = rgb('#4ccd6e');
+    var DIRT = rgb('#b9925a'), DIRT_D = rgb('#a47e49'), DIRT_L = rgb('#c9a46c');
+    var RAIL_A = rgb('#f4ead6'), RAIL_B = rgb('#c8bca2');
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      var c, h = hash(x, y);
+      if (inTrack(x, y)) {
+        var edge = !inTrack(x - 1, y) || !inTrack(x + 1, y) || !inTrack(x, y - 1) || !inTrack(x, y + 1);
+        c = edge ? (((x >> 2) + (y >> 2)) & 1 ? RAIL_A : RAIL_B) : (h < 0.07 ? DIRT_D : h > 0.95 ? DIRT_L : DIRT);
+      } else c = h < 0.08 ? GRASS_D : h > 0.97 ? GRASS_L : GRASS;
+      var i = (y * W + x) * 4; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+
+    // hedges + flower beds around the outside rail
+    var n = 0, x0;
+    for (x0 = XL; x0 < X_END - 8; x0 += 15, n++) {
+      (n % 2 ? flowers : bush)(g, x0, CY - R_OUT - 10);
+      (n % 2 ? flowers : bush)(g, x0, CY + R_OUT + 3);
+    }
+    var step = 15 / (R_OUT + 6);
+    for (var th = step * 0.6; th < Math.PI - step * 0.3; th += step, n++) {
+      var px = XL - (R_OUT + 8) * Math.sin(th), py = CY - (R_OUT + 8) * Math.cos(th);
+      (n % 2 ? flowers : bush)(g, px - 7, py - 4);
+    }
+    // finish line (bottom straight) and its posts
+    for (var yy = CY + R_IN + 1, k = 0; yy < CY + R_OUT - 1; yy += 3, k++) {
+      rect(g, X_START - 1, yy, 3, 3, k % 2 ? '#000' : '#fff'); rect(g, X_START + 2, yy, 3, 3, k % 2 ? '#fff' : '#000');
+    }
+    rect(g, X_START - 1, CY + R_IN - 4, 3, 5, '#e03030'); rect(g, X_START - 1, CY + R_OUT, 3, 4, '#e03030');
+    // starting gate (top straight)
+    rect(g, X_START + 15, CY - R_OUT, 4, R_OUT - R_IN, '#3c3c48');
+    for (var l = 0; l <= LANES; l++) rect(g, X_START - 9, CY - R_OUT + l * LANE_W - (l === LANES ? 1 : 0), 26, 1, '#555563');
+    return cv;
+  }
+
+  /* ================= horse sprite ================= */
+  function drawHorse(g, cx, cy, dir, phase, standing, no) {
+    var p = HORSE[no], bob = standing ? 0 : Math.round(Math.sin(phase * 2));
+    function r(lx, ly, w, h, col) {
+      g.fillStyle = col; g.fillRect(Math.round(dir > 0 ? cx + lx : cx - lx - w), Math.round(cy + ly), w, h);
+    }
+    function leg(lx, off, col) {
+      var s = standing ? 0 : Math.sin(phase + off), sw = Math.round(s * 3), lift = !standing && s > 0.4 ? 1 : 0;
+      r(lx, -6, 2, 3, col); r(lx + sw, -3 - lift, 2, 2, col); r(lx + sw, -1 - lift, 2, 1, DARK);
+    }
+    // far legs, tail
+    leg(3, 0.6, p.shade); leg(-7, Math.PI + 0.6, p.shade);
+    r(-13, -13 + bob, 4, 2, p.mane); r(-14, -11 + bob, 3, 5, p.mane);
+    // body
+    r(-9, -13 + bob, 15, 7, p.coat); r(-9, -7 + bob, 15, 1, p.shade); r(-9, -13 + bob, 15, 1, p.coat);
+    // near legs
+    leg(5, 0, p.coat); leg(-9, Math.PI, p.coat);
+    // saddle cloth with number
+    r(-5, -13 + bob, 7, 7, '#f0a020'); r(-5, -13 + bob, 7, 1, '#ffd060');
+    var gl = DIGITS[no];
+    for (var py = 0; py < 5; py++) for (var px = 0; px < 3; px++) {
+      if (gl[py][px] === '1') r(-3 + (dir > 0 ? px : 2 - px), -12 + py + bob, 1, 1, '#000');
+    }
+    // neck, head, mane
+    r(5, -16 + bob, 3, 4, p.coat); r(7, -19 + bob, 3, 5, p.coat); r(9, -19 + bob, 5, 3, p.coat);
+    r(13, -18 + bob, 1, 2, p.shade); r(9, -21 + bob, 1, 2, p.coat); r(11, -18 + bob, 1, 1, DARK);
+    r(5, -19 + bob, 2, 5, p.mane);
+    // jockey
+    r(-2, -16 + bob, 2, 3, DARK);
+    r(-4, -21 + bob, 6, 6, HORSE[no].silk); r(-4, -21 + bob, 6, 1, p.cap);
+    r(1, -20 + bob, 6, 2, HORSE[no].silk); r(7, -20 + bob, 2, 2, SKIN);
+    r(0, -25 + bob, 5, 4, p.cap); r(4, -23 + bob, 2, 2, SKIN); r(5, -25 + bob, 2, 2, DARK);
+  }
+
+  function drawDust(g, cx, cy, dir, phase) {
+    for (var i = 0; i < 3; i++) {
+      var ox = 13 + i * 5 + ((phase * 3 + i * 7) % 4 | 0), oy = 1 + ((phase * 2 + i * 3) % 4 | 0);
+      rect(g, cx - dir * ox - 1, cy - oy, 2, 1, i % 2 ? '#d9b886' : '#c9a46c');
+    }
+  }
+
+  /* ================= sound (WebAudio chiptune) ================= */
+  var Sound = (function () {
+    var ctx = null, on = false;
+    function tone(f, at, dur, type, vol) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type || 'square'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, at); g.gain.linearRampToValueAtTime(vol || 0.08, at + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      o.connect(g); g.connect(ctx.destination); o.start(at); o.stop(at + dur + 0.05);
+    }
+    function seq(notes) { var t = ctx.currentTime + 0.02; notes.forEach(function (n) { tone(n[0], t, n[1] * 0.95, 'square', 0.07); t += n[1]; }); }
+    return {
+      get on() { return on; },
+      toggle: function () {
+        if (!ctx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; ctx = new AC(); }
+        if (ctx.state === 'suspended') ctx.resume();
+        on = !on; return on;
+      },
+      beep: function () { if (on) tone(660, ctx.currentTime, 0.12, 'square', 0.06); },
+      bugle: function () { if (on) seq([[392, .14], [523, .14], [659, .14], [784, .5]]); },
+      go: function () { if (on) tone(1046, ctx.currentTime, 0.45, 'square', 0.07); },
+      hoof: function () { if (on) tone(70 + Math.random() * 25, ctx.currentTime, 0.07, 'triangle', 0.09); },
+      fanfare: function () { if (on) seq([[523, .12], [523, .12], [523, .12], [659, .3], [587, .12], [659, .12], [784, .5]]); }
+    };
+  })();
+
+  /* ================= state sync ================= */
+  var Sync = { mode: null, offset: 0, state: null, online: false };
+  function now() { return Date.now() + Sync.offset; }
+
+  function startServerMode(base) {
+    Sync.mode = 'server';
+    (function poll() {
+      var t0 = Date.now();
+      fetch(base + '/api/public', { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (p) {
+          var t1 = Date.now(), off = p.serverNow - (t0 + t1) / 2;
+          Sync.offset = Sync.state && Math.abs(off - Sync.offset) < 400 ? Sync.offset * 0.8 + off * 0.2 : off;
+          Sync.state = p; Sync.online = true;
+        })
+        .catch(function () { Sync.online = false; })
+        .then(function () { setTimeout(poll, 700); });
+    })();
+  }
+
+  function startLocalMode() {
+    Sync.mode = 'local'; Sync.offset = 0;
+    function read() {
+      try {
+        var raw = localStorage.getItem('horserace.public');
+        if (raw) { Sync.state = JSON.parse(raw); Sync.online = true; }
+      } catch (e) { Sync.online = false; }
+    }
+    read();
+    window.addEventListener('storage', read);
+    setInterval(read, 400);
+  }
+
+  function detectMode() {
+    var base = (qs.get('api') || '').replace(/\/$/, '');
+    if (qs.get('mode') === 'local') return startLocalMode();
+    if (base) return startServerMode(base);
+    fetch('api/public', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function () { startServerMode('.'); })
+      .catch(startLocalMode);
+  }
+
+  /* ================= DOM / HUD ================= */
+  var $ = function (id) { return document.getElementById(id); };
+  var el = { stage: $('stage'), race: $('hRace'), status: $('hStatus'), last: $('hLast'), tote: $('tote'),
+    cd: $('countdown'), res: $('results'), hist: $('hHistory'), snd: $('snd'), conn: $('conn') };
+  var cache = {};
+  function setHTML(node, key, html) { if (cache[key] !== html) { cache[key] = html; node.innerHTML = html; } }
+  function chip(n, cls) { return '<span class="chip ' + (cls || '') + ' h' + n + '">' + n + '</span>'; }
+  var ORD = ['1ST', '2ND', '3RD', '4TH', '5TH', '6TH'];
+
+  function resize() { el.stage.style.setProperty('--u', (el.stage.clientWidth / 100) + 'px'); }
+  window.addEventListener('resize', resize); resize();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(el.stage);
+
+  if (qs.get('sound') === '0') el.snd.style.display = 'none';
+  if (qs.get('hud') === '0') document.querySelectorAll('.bar').forEach(function (b) { b.style.display = 'none'; });
+  el.snd.addEventListener('click', function () {
+    var on = Sound.toggle();
+    el.snd.textContent = on ? 'SOUND ON' : 'SOUND OFF'; el.snd.className = on ? 'on' : '';
+  });
+
+  // host platform integration
+  function emit(type, data) {
+    if (window.parent === window) return;
+    var msg = { source: 'horse-race', type: type };
+    for (var k in data) msg[k] = data[k];
+    try { window.parent.postMessage(msg, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('message', function (ev) {
+    var m = ev.data;
+    if (m && m.target === 'horse-race' && m.type === 'setSound' && !!m.on !== Sound.on) el.snd.click();
+  });
+
+  /* ================= main loop ================= */
+  var bg = makeBackground();
+  var g = document.getElementById('screen').getContext('2d');
+  var fired = {}, firedRace = null, lastHoof = 0;
+
+  function once(key, cond, fn, lateness) {
+    if (fired[key] || !cond) return;
+    fired[key] = true;
+    if (lateness < 1.5) fn();
+  }
+
+  function frame() {
+    var nowMs = now(), st = Sync.state, race = st && st.race, T = (st && st.timings) || { race: C.RACE_MS, results: C.RESULTS_MS };
+    var phase = 'idle', t = -999, rc = null;
+    if (race) {
+      t = (nowMs - race.startAt) / 1000;
+      phase = t < 0 ? 'countdown' : t * 1000 < T.race ? 'racing' : t * 1000 < T.race + T.results ? 'results' : 'idle';
+      if (race.order && phase !== 'idle') rc = C.buildRace(race.seed, race.order);
+      if (!rc && (phase === 'racing' || phase === 'results')) phase = 'sync';
+    }
+    if (!st) phase = 'connecting';
+
+    var rk = race ? race.seed + ':' + race.startAt : null;
+    if (rk !== firedRace) { firedRace = rk; fired = {}; }
+    if (race && (phase !== 'idle')) {
+      once('cd', phase === 'countdown', function () { emit('countdown', { raceNo: race.raceNo }); Sound.bugle(); }, 0);
+      [3, 2, 1].forEach(function (n) { once('b' + n, t >= -n && t < 0, Sound.beep, t + n); });
+      once('go', t >= 0 && rc, function () { Sound.go(); emit('start', { raceNo: race.raceNo }); }, t);
+      if (rc) {
+        once('fin', t >= rc.firstTime, Sound.fanfare, t - rc.firstTime);
+        once('res', t * 1000 >= T.race, function () {
+          emit('result', { raceNo: race.raceNo, order: race.order, combination: [race.order[0], race.order[1]] });
+        }, t - T.race / 1000);
+      }
+    }
+
+    // ---- scene ----
+    g.drawImage(bg, 0, 0);
+    var tt = phase === 'racing' || phase === 'results' ? t : 0, items = [], live = [];
+    for (var no = 1; no <= C.HORSES; no++) {
+      var u = 0, standing = true, h = rc && rc.horses[no];
+      if (h) {
+        u = C.progress(h, tt);
+        standing = tt <= 0 || u - C.progress(h, tt - 0.1) < 0.0004;
+        live.push({ no: no, u: u, done: tt >= h.time, time: h.time });
+      }
+      var pos = trackPos(u, no - 1);
+      items.push({ no: no, pos: pos, u: u, standing: standing });
+    }
+    items.sort(function (a, b) { return a.pos.y - b.pos.y; });
+    items.forEach(function (it) {
+      var phs = it.u * TOTAL / 9 * Math.PI * 2;
+      if (!it.standing) drawDust(g, Math.round(it.pos.x), Math.round(it.pos.y), it.pos.dir, phs);
+      drawHorse(g, Math.round(it.pos.x), Math.round(it.pos.y) + 4, it.pos.dir, phs, it.standing, it.no);
+    });
+    if (phase === 'racing' && nowMs - lastHoof > 170) { lastHoof = nowMs; Sound.hoof(); }
+
+    // ---- HUD ----
+    var raceNo = race && phase !== 'idle' ? race.raceNo : (st ? st.nextRaceNo : '--');
+    setHTML(el.race, 'race', 'RACE ' + (raceNo < 10 ? '0' + raceNo : raceNo));
+    var status = { connecting: 'CONNECTING...', idle: 'WAITING FOR NEXT RACE', sync: 'SYNCING...', results: 'OFFICIAL RESULT',
+      countdown: 'POST TIME ' + Math.ceil(-t) + 's', racing: t < 1.5 ? "THEY'RE OFF!" : 'RACE IN PROGRESS' }[phase];
+    setHTML(el.status, 'status', status);
+
+    var hist = (st && st.history) || [];
+    var lastRes = hist[hist.length - 1];
+    setHTML(el.last, 'last', lastRes ? 'LAST ' + chip(lastRes.order[0]) + chip(lastRes.order[1]) : '');
+    setHTML(el.hist, 'hist', hist.slice(-6).reverse().map(function (r) {
+      return '<span class="item">R' + r.raceNo + ' ' + chip(r.order[0]) + chip(r.order[1]) + '</span>';
+    }).join(''));
+    el.conn.textContent = Sync.online ? 'LIVE' : 'OFFLINE'; el.conn.className = 'conn' + (Sync.online ? '' : ' off');
+
+    var tote = '';
+    if (phase === 'racing' && rc && t < rc.secondTime + 1.5) {
+      live.sort(function (a, b) { return (b.done - a.done) || (a.done ? a.time - b.time : b.u - a.u); });
+      tote = live.map(function (l, i) { return '<span class="rank">' + ORD[i] + chip(l.no) + '</span>'; }).join('');
+    } else if ((phase === 'racing' || phase === 'results') && rc) {
+      tote = '<span class="label">WINNING COMBINATION</span>' + chip(race.order[0], 'big') + chip(race.order[1], 'big');
+    } else if (phase === 'countdown') {
+      tote = '<span class="label blink">HORSES AT THE GATE</span>';
+    } else if (phase === 'idle') {
+      tote = '<span class="label blink">NEXT: RACE ' + (st ? st.nextRaceNo : '--') + '</span>';
+    } else tote = '<span class="label">' + status + '</span>';
+    setHTML(el.tote, 'tote', tote);
+
+    var showCd = phase === 'countdown' && t > -6 && t < 0 || (phase === 'racing' && t < 1.2);
+    el.cd.hidden = !showCd;
+    if (showCd) {
+      var txt = t < 0 ? String(Math.ceil(-t)) : 'GO!';
+      setHTML(el.cd, 'cd', txt); el.cd.className = 'countdown' + (t < 0 ? '' : ' go');
+    }
+
+    el.res.hidden = phase !== 'results';
+    if (phase === 'results' && race.order) {
+      setHTML(el.res, 'res', '<div class="title">RACE ' + race.raceNo + ' RESULT</div>' +
+        '<div class="combo">' + chip(race.order[0], 'big') + '<span>-</span>' + chip(race.order[1], 'big') + '</div>' +
+        '<div class="grid">' + race.order.map(function (n, i) { return '<div class="cell">' + ORD[i] + chip(n) + '</div>'; }).join('') + '</div>');
+    }
+    requestAnimationFrame(frame);
+  }
+
+  detectMode();
+  requestAnimationFrame(frame);
+})();

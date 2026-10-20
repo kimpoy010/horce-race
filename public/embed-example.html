@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Embed example</title>
+<style>body{margin:0;background:#222;color:#eee;font-family:sans-serif;padding:16px}iframe{width:100%;max-width:960px;aspect-ratio:16/9;border:0;display:block}</style>
+</head><body>
+<h3>Host platform page</h3>
+<!-- Replace src with your deployment; add ?api=https://your-server if the game is hosted elsewhere -->
+<iframe id="game" src="index.html" allow="autoplay"></iframe>
+<pre id="log">events from the game appear here...</pre>
+<script>
+window.addEventListener('message', function (e) {
+  if (!e.data || e.data.source !== 'horse-race') return;
+  document.getElementById('log').textContent += '\n' + JSON.stringify(e.data);
+});
+// optional: turn sound on from the host page
+// document.getElementById('game').contentWindow.postMessage({target:'horse-race', type:'setSound', on:true}, '*');
+</script>
+</body></html>

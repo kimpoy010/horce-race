@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retro Horse Race</title>
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<div class="stage" id="stage">
+  <canvas id="screen" width="384" height="216"></canvas>
+
+  <div class="bar top">
+    <div id="hRace" class="race-no">RACE --</div>
+    <div id="hStatus" class="status">CONNECTING...</div>
+    <div id="hLast" class="last"></div>
+  </div>
+
+  <div class="tote" id="tote"></div>
+  <div class="countdown" id="countdown" hidden></div>
+  <div class="results" id="results" hidden></div>
+
+  <div class="bar bottom">
+    <div id="hHistory" class="history"></div>
+    <button id="snd" type="button">SOUND OFF</button>
+    <span id="conn" class="conn">...</span>
+  </div>
+</div>
+<noscript>This game needs JavaScript.</noscript>
+<script src="js/core.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
