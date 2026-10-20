@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Retro Horse Race</title>
 <link rel="stylesheet" href="css/game.css">
 </head>
@@ -55,11 +58,18 @@
   <a id="bBack" class="back" href="#" hidden>&larr; BACK TO LOBBY</a>
 </aside>
 </div>
+<div class="rotate" id="rotate">
+  <div class="phone"></div>
+  <p class="big">ROTATE YOUR DEVICE</p>
+  <p>Retro Horse Race is played in landscape.</p>
+  <button id="fsBtn" type="button">FULL SCREEN</button>
+</div>
 <noscript>This game needs JavaScript.</noscript>
 <script src="js/core.js"></script>
 <script src="js/horses.js"></script>
 <script src="js/horses3d.js"></script>
 <script src="js/game.js"></script>
 <script src="js/bet.js"></script>
+<script src="js/orient.js"></script>
 </body>
 </html>

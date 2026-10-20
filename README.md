@@ -58,6 +58,11 @@ rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> ra
 
 **Deploying to a server:** see **docs/DEPLOY.md** (Docker or systemd, nginx with HTTPS, go-live checklist).
 
+**Landscape only.** On touch devices held in portrait a "rotate your device" screen covers the game. Android Chrome (and an
+installed web app, see `manifest.webmanifest`) also goes full screen and locks landscape on the first tap; iOS Safari
+cannot lock the orientation, so there the cover screen is the only mechanism. The betting panel has a compact layout for
+phones held sideways. Races keep running while the cover screen is shown.
+
 ## Demo mode (default): controller picks the winners
 
 `node server.js` -> game at `/`, controller at `/controller` (key printed at start or `CONTROLLER_KEY`). The controller
