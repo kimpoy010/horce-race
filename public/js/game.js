@@ -13,14 +13,14 @@
   var qs = new URLSearchParams(location.search);
 
   /* ================= geometry: a closed "U" track lying on its side, opening to the LEFT ================= */
-  // World is bigger than the screen; a camera follows the pack. Horses start top-left, run right along the
+  // The world is bigger than the screen; a camera follows the pack. Horses start top-left, run right along the
   // top straight, round the curve on the right, and come back left along the bottom straight to the finish.
-  var VW = 256, VH = 144;                                   // camera view (logical px)
-  var WW = 810, WH = 270, CY = 135, XL = 150, XR = 650, X_MIN = 70;
-  var R_IN = 30, LANE_W = 9, LANES = 6;
-  var R_OUT = R_IN + LANE_W * LANES;
-  var RMID = R_IN + LANE_W * LANES / 2;
+  var VW = 400, VH = 225;                                   // camera view (logical px)
+  var LANES = 6, LANE_W = 13, R_IN = 48, R_OUT = R_IN + LANE_W * LANES, RMID = R_IN + LANE_W * LANES / 2;
+  var CY = 190, XL = 230, XR = 910, X_MIN = 120;
+  var WW = XR + R_OUT + 90, WH = CY + R_OUT + 60;
   var S = XR - XL, ARC = Math.PI * RMID, TOTAL = 2 * S + ARC;
+  var SP = window.HorseSprites, PAL = SP.COLORS;
 
   // u = 0 is the start gate (top-left), u = 1 the finish line (bottom-left).
   function trackPos(u, lane) {
@@ -33,16 +33,6 @@
     return { x: x, y: y, dir: dir };
   }
 
-  /* ================= palette ================= */
-  var HORSE = {
-    1: { coat: '#f4f4f4', shade: '#b4b6c8', mane: '#6a6a80', line: '#34346a', silk: '#e03030', cap: '#2848d8' },
-    2: { coat: '#e84ccc', shade: '#a82c98', mane: '#4a2060', line: '#4a1050', silk: '#3858e8', cap: '#ffe83a' },
-    3: { coat: '#e83030', shade: '#a01818', mane: '#401010', line: '#500808', silk: '#8a8ad8', cap: '#8a8ad8' },
-    4: { coat: '#2848d8', shade: '#1830a0', mane: '#0c1038', line: '#080850', silk: '#ff9a9a', cap: '#ff6aa0' },
-    5: { coat: '#f0e030', shade: '#b8a410', mane: '#7a5018', line: '#584400', silk: '#b060e0', cap: '#b060e0' },
-    6: { coat: '#1f8858', shade: '#14603c', mane: '#302008', line: '#083820', silk: '#f090c0', cap: '#d8d8f0' }
-  };
-  var SKIN = '#f0b080', DARK = '#1c1c1c';
   var DIGITS = {
     1: ['010', '110', '010', '010', '111'], 2: ['111', '001', '111', '100', '111'],
     3: ['111', '001', '111', '001', '111'], 4: ['101', '101', '111', '001', '001'],
@@ -56,151 +46,171 @@
     var dx = x - XR, d = Math.sqrt(dx * dx + dy * dy);
     return d >= R_IN && d < R_OUT;
   }
+  function radial(x, y) { var dy = y - CY; if (x <= XR) return Math.abs(dy); var dx = x - XR; return Math.sqrt(dx * dx + dy * dy); }
   function hash(x, y) {
     var h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0;
     h = Math.imul(h ^ (h >>> 13), 1274126177);
     return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
   }
+  function vnoise(x, y, s) { // smooth value noise, cell size s
+    var xi = Math.floor(x / s), yi = Math.floor(y / s), fx = x / s - xi, fy = y / s - yi;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    var a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
+  }
   function rgb(hex) { return [parseInt(hex.substr(1, 2), 16), parseInt(hex.substr(3, 2), 16), parseInt(hex.substr(5, 2), 16)]; }
+  function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
   function rect(g, x, y, w, h, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), w, h); }
+  function px(g, x, y, col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
 
   function bush(g, x, y) {
-    rect(g, x + 1, y + 3, 11, 5, '#1b7236'); rect(g, x + 2, y + 1, 9, 5, '#2ea44e');
-    rect(g, x + 4, y, 5, 2, '#5bd26f'); rect(g, x, y + 5, 2, 3, '#2ea44e'); rect(g, x + 11, y + 5, 2, 3, '#2ea44e');
-    rect(g, x + 3, y + 5, 2, 2, '#f08a24'); rect(g, x + 8, y + 3, 2, 2, '#f08a24'); rect(g, x + 6, y + 6, 2, 1, '#ffd23c');
+    rect(g, x + 1, y + 4, 14, 7, '#1b7236'); rect(g, x + 2, y + 1, 12, 7, '#2ea44e');
+    rect(g, x + 5, y, 6, 3, '#5bd26f'); rect(g, x, y + 7, 3, 4, '#2ea44e'); rect(g, x + 14, y + 7, 3, 4, '#2ea44e');
+    rect(g, x + 4, y + 6, 2, 2, '#f08a24'); rect(g, x + 10, y + 4, 2, 2, '#f08a24'); rect(g, x + 8, y + 8, 2, 1, '#ffd23c');
   }
   function flowers(g, x, y) {
-    rect(g, x, y + 3, 16, 5, '#2a4a9a');
-    for (var i = 0; i < 16; i += 2) { rect(g, x + i, y + 2, 2, 5, i % 4 ? '#f0602a' : '#ffa23c'); }
-    rect(g, x, y + 2, 16, 1, '#ffd23c');
+    rect(g, x, y + 4, 18, 6, '#2a4a9a');
+    for (var i = 0; i < 18; i += 2) rect(g, x + i, y + 2, 2, 7, i % 4 ? '#f0602a' : '#ffa23c');
+    rect(g, x, y + 2, 18, 1, '#ffd23c');
+  }
+  function cone(g, x, y) {
+    rect(g, x - 4, y, 9, 2, '#1c1c1c'); rect(g, x - 3, y - 2, 7, 2, '#f06a14'); rect(g, x - 2, y - 5, 5, 3, '#f06a14');
+    rect(g, x - 2, y - 4, 5, 1, '#ffffff'); rect(g, x - 1, y - 8, 3, 3, '#f06a14'); px(g, x, y - 9, '#f06a14');
+  }
+
+  // grandstand facing the camera: roof, tiered seats full of spectators, advertising boards
+  function stands(g, x0, x1, y0, y1) {
+    var w = x1 - x0, h = y1 - y0, x, y, r;
+    rect(g, x0, y0, w, h, '#1b2140');
+    var rows = Math.floor((h - 22) / 6), crowd = ['#f2c8a0', '#e0a070', '#c07a50', '#8a5030', '#ffffff', '#e83a3a', '#3a7ae8', '#f2d83a', '#3ac86a', '#c84ae8', '#ff8a2a'];
+    for (r = 0; r < rows; r++) {
+      var ry = y0 + 12 + r * 6;
+      rect(g, x0, ry + 4, w, 2, r % 2 ? '#3a56a0' : '#2c4486');
+      for (x = x0 + 1; x < x1 - 2; x += 3) {
+        var hs = hash(x * 7 + r, r * 13 + 5);
+        if (hs < 0.78) {
+          var c = crowd[Math.floor(hash(x, r + 99) * crowd.length)];
+          rect(g, x, ry + 1, 2, 2, hs < 0.12 ? '#f2c8a0' : '#f2c8a0'); rect(g, x, ry + 3, 2, 2, c);
+        }
+      }
+    }
+    for (x = x0 + 60; x < x1 - 10; x += 150) rect(g, x, y0 + 10, 6, h - 22, 'rgba(210,215,235,.55)'); // aisles
+    // roof / awning
+    rect(g, x0, y0, w, 5, '#3a3a52');
+    for (x = x0; x < x1; x += 10) { rect(g, x, y0 + 5, 10, 5, (x / 10) % 2 ? '#e8e8f0' : '#d83a3a'); rect(g, x, y0 + 10, 10, 2, (x / 10) % 2 ? '#b8b8c8' : '#8a1c1c'); }
+    for (x = x0 + 4; x < x1; x += 120) rect(g, x, y0, 4, h, '#6a6a80');
+    // advertising band
+    rect(g, x0, y1 - 8, w, 8, '#10142a');
+    var ads = ['#f0c820', '#e83a3a', '#38b868', '#3a7ae8', '#ffffff', '#ff8a2a'];
+    for (x = x0 + 2; x < x1 - 20; x += 26) {
+      var ac = ads[Math.floor(hash(x, 7) * ads.length)];
+      rect(g, x, y1 - 7, 24, 6, ac);
+      for (var k = 0; k < 4; k++) rect(g, x + 2 + k * 5, y1 - 5, 3 + (k % 2), 2, ac === '#ffffff' ? '#222' : '#101010');
+    }
+  }
+  // padded barrier along the outer rail (alternating red / white blocks)
+  function barrierH(g, x0, x1, y) {
+    for (var x = x0; x < x1; x += 14) {
+      var red = ((x - x0) / 14) % 2 === 0;
+      rect(g, x, y, 14, 7, red ? '#d83030' : '#f0f0f4'); rect(g, x, y, 14, 2, red ? '#ff7a6a' : '#ffffff'); rect(g, x, y + 5, 14, 2, red ? '#8a1818' : '#b4b4c4');
+    }
   }
 
   function makeBackground() {
     var cv = document.createElement('canvas'); cv.width = WW; cv.height = WH;
     var g = cv.getContext('2d'), img = g.createImageData(WW, WH), d = img.data;
-    var GRASS = rgb('#3dbb5f'), GRASS_D = rgb('#34a653'), GRASS_L = rgb('#4ccd6e');
-    var DIRT = rgb('#b9925a'), DIRT_D = rgb('#a47e49'), DIRT_L = rgb('#c9a46c');
-    var RAIL_A = rgb('#f4ead6'), RAIL_B = rgb('#c8bca2');
+    var GRASS_A = rgb('#40b052'), GRASS_B = rgb('#379c48'), GRASS_L = rgb('#58cc6a');
+    var DIRT = rgb('#b48c58'), DIRT_D = rgb('#9c7648'), DIRT_L = rgb('#c8a26c'), LANE = rgb('#cfae7c');
+    var CURB_A = rgb('#f4c81c'), CURB_B = rgb('#2a52b8'), RAIL = rgb('#f6f2e8'), RAIL_S = rgb('#7a6444');
     for (var y = 0; y < WH; y++) for (var x = 0; x < WW; x++) {
       var c, h = hash(x, y);
       if (inTrack(x, y)) {
-        var edge = !inTrack(x - 1, y) || !inTrack(x + 1, y) || !inTrack(x, y - 1) || !inTrack(x, y + 1);
-        c = edge ? (((x >> 2) + (y >> 2)) & 1 ? RAIL_A : RAIL_B) : (h < 0.07 ? DIRT_D : h > 0.95 ? DIRT_L : DIRT);
-      } else c = h < 0.08 ? GRASS_D : h > 0.97 ? GRASS_L : GRASS;
+        // distance (px) to the nearest track edge
+        var e = 9;
+        for (var k = 1; k <= 8 && e === 9; k++) if (!inTrack(x - k, y) || !inTrack(x + k, y) || !inTrack(x, y - k) || !inTrack(x, y + k)) e = k;
+        if (e === 1 || e === 2) c = RAIL;
+        else if (e <= 5) c = (((x >> 3) + (y >> 3)) & 1) ? CURB_A : CURB_B;
+        else if (e <= 7) c = RAIL_S;
+        else {
+          var n = vnoise(x, y, 9) * 0.6 + vnoise(x, y, 3) * 0.4;
+          c = mix(DIRT_D, DIRT_L, n);
+          if (h < 0.05) c = DIRT_D; else if (h > 0.97) c = DIRT_L;
+          var rr = (radial(x, y) - R_IN) / LANE_W, fr = rr - Math.round(rr);
+          if (Math.abs(fr) < 0.045 && Math.round(rr) > 0 && Math.round(rr) < LANES && (((x + y) >> 4) & 1)) c = LANE;
+        }
+      } else {
+        var stripe = ((Math.floor(x / 40) + Math.floor(y / 40)) & 1) ? GRASS_A : GRASS_B;
+        c = h > 0.975 ? GRASS_L : h < 0.06 ? mix(stripe, [0, 40, 0], 0.25) : stripe;
+      }
       var i = (y * WW + x) * 4; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
     }
     g.putImageData(img, 0, 0);
 
-    // hedges + flower beds on the outside rail, flower beds on the infield rail
-    var n = 0, x0;
-    for (x0 = X_MIN; x0 <= XR; x0 += 15, n++) {
-      (n % 2 ? flowers : bush)(g, x0, CY - R_OUT - 11);
-      (n % 2 ? flowers : bush)(g, x0, CY + R_OUT + 3);
+    var yTopRail = CY - R_OUT, yBotRail = CY + R_OUT, x;
+    // tree line above the world
+    for (x = 0; x < WW; x += 14) { var th0 = 4 + hash(x, 3) * 8; rect(g, x, 0, 16, th0 + 4, hash(x, 9) < 0.5 ? '#1c6a34' : '#238040'); rect(g, x + 3, th0 + 2, 10, 3, '#175a2c'); }
+    // top grandstand + barrier above the outer rail, bottom grandstand in the infield
+    stands(g, X_MIN - 30, XR + 10, 14, yTopRail - 12);
+    barrierH(g, X_MIN - 30, XR + 10, yTopRail - 10);
+    rect(g, X_MIN - 30, yTopRail - 3, XR - X_MIN + 40, 2, '#f6f2e8');
+    stands(g, X_MIN - 30, XR - 80, CY + R_IN - 70, CY + R_IN - 12);
+    barrierH(g, X_MIN - 30, XR - 80, CY + R_IN - 10);
+    // infield decoration under the top straight: flower beds and a pond
+    var nn = 0;
+    for (x = X_MIN; x < XR - 120; x += 21, nn++) (nn % 2 ? flowers : bush)(g, x, CY - R_IN + 8);
+    g.fillStyle = '#2c78d8'; g.beginPath(); g.ellipse(XR + 6, CY, 34, 24, 0, 0, 7); g.fill();
+    g.fillStyle = '#58a8f0'; g.beginPath(); g.ellipse(XR, CY - 6, 22, 10, 0, 0, 7); g.fill();
+    // hedges + flower beds around the curve (outer side) and below the bottom straight
+    var step = 18 / (R_OUT + 12);
+    for (var th = step * 0.5; th < Math.PI - step * 0.3; th += step, nn++) {
+      var ax = XR + (R_OUT + 14) * Math.sin(th), ay = CY - (R_OUT + 14) * Math.cos(th);
+      (nn % 2 ? flowers : bush)(g, ax - 8, ay - 5);
     }
-    for (x0 = X_MIN + 10; x0 <= XR - 20; x0 += 40) { flowers(g, x0, CY - R_IN + 2); flowers(g, x0, CY + R_IN - 10); }
-    var step = 15 / (R_OUT + 8);
-    for (var th = step * 0.5; th < Math.PI - step * 0.3; th += step, n++) {
-      var px = XR + (R_OUT + 9) * Math.sin(th), py = CY - (R_OUT + 9) * Math.cos(th);
-      (n % 2 ? flowers : bush)(g, px - 7, py - 4);
+    for (x = X_MIN; x <= XR; x += 20, nn++) (nn % 2 ? flowers : bush)(g, x, yBotRail + 8);
+    for (x = X_MIN - 10; x < XR + 40; x += 36) { g.fillStyle = '#1c6a34'; g.fillRect(x, yBotRail + 28, 22, 18); g.fillStyle = '#2c9a4a'; g.fillRect(x + 3, yBotRail + 24, 16, 14); }
+    // cones along the inner curbs
+    for (x = XL + 80; x < XR - 20; x += 150) { cone(g, x, CY - R_IN - 3); cone(g, x + 60, CY + R_IN + 12); }
+    // finish line (bottom straight) with posts
+    for (var yy = CY + R_IN, k2 = 0; yy < CY + R_OUT; yy += 4, k2++) {
+      rect(g, XL - 2, yy, 4, 4, k2 % 2 ? '#101010' : '#ffffff'); rect(g, XL + 2, yy, 4, 4, k2 % 2 ? '#ffffff' : '#101010');
     }
-    // finish line (bottom straight, left) and posts
-    for (var yy = CY + R_IN + 1, k = 0; yy < CY + R_OUT - 1; yy += 3, k++) {
-      rect(g, XL - 1, yy, 3, 3, k % 2 ? '#000' : '#fff'); rect(g, XL + 2, yy, 3, 3, k % 2 ? '#fff' : '#000');
+    rect(g, XL - 3, CY + R_IN - 12, 5, 14, '#d83030'); rect(g, XL - 3, CY + R_OUT - 2, 5, 14, '#d83030');
+    rect(g, XL - 3, CY + R_IN - 14, 22, 4, '#ffffff'); rect(g, XL, CY + R_IN - 14, 4, 4, '#101010'); rect(g, XL + 8, CY + R_IN - 14, 4, 4, '#101010');
+    // starting gate with numbered stalls (top straight)
+    var gx0 = XL - 56, gx1 = XL + 14, gy0 = CY - R_OUT, gy1 = CY - R_IN;
+    rect(g, gx0, gy0, 5, gy1 - gy0, '#5a4a8a'); rect(g, gx0 + 1, gy0, 2, gy1 - gy0, '#7a6aaa');
+    for (var l = 0; l <= LANES; l++) {
+      var ly = gy0 + l * LANE_W - (l === LANES ? 2 : 0);
+      rect(g, gx0, ly, gx1 - gx0, 2, '#6a5a9a'); rect(g, gx0, ly + 2, gx1 - gx0, 1, '#2a2048');
     }
-    rect(g, XL - 1, CY + R_IN - 5, 3, 6, '#e03030'); rect(g, XL - 1, CY + R_OUT, 3, 5, '#e03030');
-    // starting gate (top straight, left)
-    rect(g, XL - 24, CY - R_OUT, 4, R_OUT - R_IN, '#3c3c48');
-    for (var l = 0; l <= LANES; l++) rect(g, XL - 24, CY - R_OUT + l * LANE_W - (l === LANES ? 1 : 0), 30, 1, '#555563');
+    for (var ln = 0; ln < LANES; ln++) {
+      var py = gy1 - (ln + 1) * LANE_W + 2; // lane 0 is the inner (bottom) lane
+      rect(g, gx0 - 12, py, 13, 12, '#ffd21c'); rect(g, gx0 - 12, py + 10, 13, 2, '#c8a010');
+      var gl = DIGITS[ln + 1];
+      for (var r2 = 0; r2 < 5; r2++) for (var c2 = 0; c2 < 3; c2++) if (gl[r2][c2] === '1') rect(g, gx0 - 10 + c2 * 3, py + 1 + r2 * 2, 3, 2, '#101010');
+    }
     return cv;
   }
 
-  /* ================= horse sprites: slim, long-legged racers (cached per pose) ================= */
-  var SPR_W = 48, SPR_H = 42, OX = 24, OY = 36;
-  var POSES = [ // [kneeX, kneeY, hoofX, hoofY] for frontNear, frontFar, backNear, backFar (facing right)
-    [[10, -5, 16, -3], [8, -4, 13, -1], [-11, -5, -16, -2], [-9, -4, -14, 0]],   // fully stretched
-    [[9, -4, 7, 0], [7, -4, 11, -1], [-8, -4, -6, 0], [-10, -4, -10, -1]],        // gathering
-    [[6, -3, 4, 0], [8, -3, 9, 0], [-5, -3, -7, 0], [-7, -3, -4, -1]],            // legs under
-    [[8, -5, 13, -2], [6, -3, 5, 0], [-9, -4, -14, -3], [-6, -3, -9, 0]],         // push off
-    [[5, -3, 5, 0], [4, -3, 4, 0], [-6, -3, -6, 0], [-5, -3, -5, 0]]              // standing
-  ];
-  var sprites = {};
-
-  function makeSprite(no, dir, frame) {
-    var p = HORSE[no], pose = POSES[frame];
-    var cv = document.createElement('canvas'); cv.width = SPR_W; cv.height = SPR_H;
-    var g = cv.getContext('2d');
-    var layer = document.createElement('canvas'); layer.width = SPR_W; layer.height = SPR_H;
-    var lg = layer.getContext('2d');
-    function R(lx, ly, w, h, col) { lg.fillStyle = col; lg.fillRect(OX + (dir > 0 ? lx : -lx - w), OY + ly, w, h); }
-    function line(x0, y0, x1, y1, w, col) {
-      var n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1, o = (w - 1) >> 1;
-      for (var i = 0; i <= n; i++) R(Math.round(x0 + (x1 - x0) * i / n) - o, Math.round(y0 + (y1 - y0) * i / n) - o, w, w, col);
-    }
-    // paints the current layer over the sprite with a 1px outline around it
-    function commit() {
-      var d = lg.getImageData(0, 0, SPR_W, SPR_H).data;
-      function on(x, y) { return x >= 0 && y >= 0 && x < SPR_W && y < SPR_H && d[(y * SPR_W + x) * 4 + 3] > 0; }
-      g.fillStyle = p.line;
-      for (var y = 0; y < SPR_H; y++) for (var x = 0; x < SPR_W; x++) {
-        if (!on(x, y) && (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1))) g.fillRect(x, y, 1, 1);
-      }
-      g.drawImage(layer, 0, 0); lg.clearRect(0, 0, SPR_W, SPR_H);
-    }
-    function leg(hx, hy, k, col) {
-      line(hx, hy, k[0], k[1], 2, col);
-      line(k[0], k[1], k[2], k[3] - 1, 1, col);
-      R(k[2] - 1, k[3] - 1, 2, 1, DARK);
-    }
-    function glyph(x, y) {
-      var gl = DIGITS[no];
-      for (var py = 0; py < 5; py++) for (var px = 0; px < 3; px++) if (gl[py][px] === '1') R(x + (dir > 0 ? px : 2 - px), y + py, 1, 1, '#000');
-    }
-
-    // far legs + tail
-    leg(4, -7, pose[1], p.shade); leg(-5, -7, pose[3], p.shade);
-    line(-8, -11, -12, -10, 2, p.mane); line(-12, -10, -15, -7, 1, p.mane);
-    commit();
-    // slim body, long neck, small head
-    R(-7, -12, 13, 1, p.coat); R(-8, -11, 16, 3, p.coat); R(-7, -8, 14, 1, p.shade);
-    line(6, -10, 10, -16, 3, p.coat); line(11, -16, 15, -14, 2, p.coat);
-    R(11, -18, 1, 2, p.coat); R(15, -14, 2, 2, p.shade); R(13, -16, 1, 1, DARK);
-    line(5, -12, 9, -18, 1, p.mane);
-    commit();
-    // near legs
-    leg(5, -7, pose[0], p.coat); leg(-6, -7, pose[2], p.coat);
-    commit();
-    // number tag
-    R(-5, -15, 7, 8, '#ffc830'); glyph(-3, -14);
-    commit();
-    // jockey: white pants, coloured silks and helmet, leaning over the neck
-    R(-3, -17, 6, 3, '#ffffff');
-    R(-2, -22, 5, 5, p.silk); R(2, -23, 4, 3, p.silk);
-    line(4, -20, 9, -17, 1, p.silk); R(9, -18, 1, 1, SKIN);
-    R(4, -26, 4, 3, p.cap); R(6, -23, 2, 2, SKIN);
-    commit();
-    return cv;
-  }
-
+  /* ================= horses ================= */
   function drawHorse(g, cx, cy, dir, phase, standing, no) {
-    var frame = standing ? 4 : Math.floor(phase / (Math.PI * 2) * 4) & 3;
-    var key = no + (dir > 0 ? 'r' : 'l') + frame;
-    var spr = sprites[key] || (sprites[key] = makeSprite(no, dir, frame));
-    g.drawImage(spr, cx - OX, cy - OY - (!standing && frame === 0 ? 1 : 0));
+    g.fillStyle = 'rgba(50,30,10,.30)'; g.fillRect(cx - 22, cy - 1, 46, 3); g.fillRect(cx - 16, cy + 2, 34, 1);
+    g.drawImage(SP.get(no, dir, phase, standing), cx - SP.OX, cy - SP.OY);
   }
-
   function drawDust(g, cx, cy, dir, phase) {
-    for (var i = 0; i < 3; i++) {
-      var ox = 18 + i * 5 + ((phase * 3 + i * 7) % 4 | 0), oy = 1 + ((phase * 2 + i * 3) % 4 | 0);
-      rect(g, cx - dir * ox - 1, cy - oy, 2, 1, i % 2 ? '#d9b886' : '#c9a46c');
+    for (var i = 0; i < 4; i++) {
+      var ox = 30 + i * 9 + ((phase * 2 + i * 5) % 5 | 0), oy = 1 + i * 2 + ((phase + i * 3) % 3 | 0), s = 5 - i;
+      g.fillStyle = 'rgba(222,192,142,' + (0.75 - i * 0.17) + ')';
+      g.fillRect(Math.round(cx - dir * ox), Math.round(cy - oy), s, s - 1);
     }
   }
 
-  var MS = 0.06, MW = Math.round(WW * MS), MH = Math.round(WH * MS), MX = 3, MY = VH - 10 - MH - 3;
+  var MS = 0.075, MW = Math.round(WW * MS), MH = Math.round(WH * MS), MX = 4, MY = VH - 14 - MH - 4;
   function drawMini(g, items, camX, camY) {
-    g.fillStyle = 'rgba(8,20,40,.7)'; g.fillRect(MX - 2, MY - 2, MW + 4, MH + 4);
-    for (var u = 0; u <= 1; u += 0.006) { var p = trackPos(u, LANES / 2 - 0.5); rect(g, MX + p.x * MS, MY + p.y * MS, 2, 2, '#8a7048'); }
+    g.fillStyle = 'rgba(8,20,40,.72)'; g.fillRect(MX - 2, MY - 2, MW + 4, MH + 4);
+    for (var u = 0; u <= 1; u += 0.004) { var p = trackPos(u, LANES / 2 - 0.5); rect(g, MX + p.x * MS, MY + p.y * MS, 2, 2, '#8a7048'); }
     var f = trackPos(1, LANES / 2 - 0.5); rect(g, MX + f.x * MS - 1, MY + f.y * MS - 2, 1, 6, '#fff');
-    items.forEach(function (it) { rect(g, MX + it.pos.x * MS - 1, MY + it.pos.y * MS - 1, 3, 3, HORSE[it.no].coat); });
+    items.forEach(function (it) { rect(g, MX + it.pos.x * MS - 1, MY + it.pos.y * MS - 1, 3, 3, PAL[it.no].coat); });
     g.strokeStyle = '#fff'; g.lineWidth = 1; g.strokeRect(MX + camX * MS + .5, MY + camY * MS + .5, VW * MS, VH * MS);
   }
 
@@ -362,7 +372,7 @@
     }
     var tp = trackPos(uc, LANES / 2 - 0.5), arcT = Math.min(1, Math.max(0, (uc * TOTAL - S) / ARC));
     var tx = Math.min(WW - VW, Math.max(0, tp.x + tp.dir * VW * 0.08 - VW / 2));
-    var ty = Math.min(WH - VH, Math.max(0, tp.y - 20 * Math.cos(Math.PI * arcT) - VH / 2));
+    var ty = Math.min(WH - VH, Math.max(0, tp.y - 34 * Math.cos(Math.PI * arcT) - VH / 2));
     var perf = performance.now(), dt = Math.min(0.1, (perf - (cam.t || perf)) / 1000); cam.t = perf;
     if (cam.key !== rk || cam.x == null) { cam.key = rk; cam.x = tx; cam.y = ty; }
     else { var k = 1 - Math.exp(-dt * 4); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; }
@@ -371,9 +381,9 @@
     g.drawImage(bg, camX, camY, VW, VH, 0, 0, VW, VH);
     items.sort(function (a, b) { return a.pos.y - b.pos.y; });
     items.forEach(function (it) {
-      var hx = Math.round(it.pos.x) - camX, hy = Math.round(it.pos.y) - camY + 4;
-      if (hx < -40 || hx > VW + 40) return;
-      var phs = it.u * TOTAL / 26 * Math.PI * 2;
+      var hx = Math.round(it.pos.x) - camX, hy = Math.round(it.pos.y) - camY + 6;
+      if (hx < -70 || hx > VW + 70) return;
+      var phs = it.u * TOTAL / 34 * Math.PI * 2;
       if (!it.standing) drawDust(g, hx, hy, it.pos.dir, phs);
       drawHorse(g, hx, hy, it.pos.dir, phs, it.standing, it.no);
     });

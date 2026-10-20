@@ -22,7 +22,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .bar { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: calc(var(--u) * 1.5); padding: 0 calc(var(--u) * 1.5); box-sizing: border-box; }
 .bar.top { top: 0; height: 7.4%; background: rgba(8, 20, 40, .6); }
 .bar.bottom { bottom: 0; height: 6.4%; background: rgba(8, 20, 40, .72); font-size: calc(var(--u) * 1.6); }
-.race-no { color: #ffd23c; white-space: nowrap; }
+.race-no { color: #111; background: #ffd21c; padding: 0 .7em; transform: skewX(-10deg); text-shadow: none; white-space: nowrap; border: calc(var(--u) * .25) solid #111; }
 .status { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; }
 .last { white-space: nowrap; display: flex; align-items: center; gap: calc(var(--u) * .6); }
 .history { flex: 1; display: flex; align-items: center; gap: calc(var(--u) * 1.4); overflow: hidden; white-space: nowrap; }
