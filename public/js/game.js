@@ -15,9 +15,9 @@
   /* ================= geometry: a closed "U" track lying on its side, opening to the LEFT ================= */
   // The world is bigger than the screen; a camera follows the pack. Horses start top-left, run right along the
   // top straight, round the curve on the right, and come back left along the bottom straight to the finish.
-  var VW = 400, VH = 225;                                   // camera view (logical px)
-  var LANES = 6, LANE_W = 13, R_IN = 48, R_OUT = R_IN + LANE_W * LANES, RMID = R_IN + LANE_W * LANES / 2;
-  var CY = 190, XL = 230, XR = 910, X_MIN = 120;
+  var VW = 480, VH = 270;                                   // camera view (logical px)
+  var LANES = 6, LANE_W = 16, R_IN = 54, R_OUT = R_IN + LANE_W * LANES, RMID = R_IN + LANE_W * LANES / 2;
+  var CY = 230, XL = 260, XR = 980, X_MIN = 140;
   var WW = XR + R_OUT + 90, WH = CY + R_OUT + 60;
   var S = XR - XL, ARC = Math.PI * RMID, TOTAL = 2 * S + ARC;
   var SP = window.HorseSprites, PAL = SP.COLORS;
@@ -194,12 +194,12 @@
 
   /* ================= horses ================= */
   function drawHorse(g, cx, cy, dir, phase, standing, no) {
-    g.fillStyle = 'rgba(50,30,10,.30)'; g.fillRect(cx - 22, cy - 1, 46, 3); g.fillRect(cx - 16, cy + 2, 34, 1);
+    g.fillStyle = 'rgba(50,30,10,.30)'; g.fillRect(cx - 30, cy - 1, 62, 3); g.fillRect(cx - 22, cy + 2, 46, 1);
     g.drawImage(SP.get(no, dir, phase, standing), cx - SP.OX, cy - SP.OY);
   }
   function drawDust(g, cx, cy, dir, phase) {
     for (var i = 0; i < 4; i++) {
-      var ox = 30 + i * 9 + ((phase * 2 + i * 5) % 5 | 0), oy = 1 + i * 2 + ((phase + i * 3) % 3 | 0), s = 5 - i;
+      var ox = 38 + i * 9 + ((phase * 2 + i * 5) % 5 | 0), oy = 1 + i * 2 + ((phase + i * 3) % 3 | 0), s = 5 - i;
       g.fillStyle = 'rgba(222,192,142,' + (0.75 - i * 0.17) + ')';
       g.fillRect(Math.round(cx - dir * ox), Math.round(cy - oy), s, s - 1);
     }
