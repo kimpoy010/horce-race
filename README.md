@@ -43,7 +43,7 @@ RTP is a long-run average; short runs wander a lot because of the 1000x odds. `n
 (`POST /session/validate` on your platform), keeps a session, removes the token from the URL, and shows the race with the
 betting panel (balance, the 15 pairs, chips, rebet, results). Bets debit the wallet immediately; wins are credited at
 the end of each race. See **docs/WALLET_API.md** for the four endpoints your platform implements and the idempotency
-rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> race (52 s) -> results (10 s) -> next round.
+rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> race (40 s) -> results (10 s) -> next round.
 
 **Operations.**
 * `data/ledger.jsonl` is the append-only audit log (rounds, seeds, bets, draws, settlements, credits). It contains
