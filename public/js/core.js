@@ -11,7 +11,7 @@
 
   var HORSES = 6;
   var COUNTDOWN_MS = 6000;   // from "start" command to the gun
-  var RACE_MS = 26000;       // gun to the end of the racing phase
+  var RACE_MS = 42000;       // gun to the end of the racing phase
   var RESULTS_MS = 10000;    // results board
   var REVEAL_MS = 2000;      // finishing order is only published this long before the gun
   var MAX_PLAN = 200;
@@ -44,10 +44,10 @@
     var key = seed + ':' + order.join('');
     if (cache.key === key) return cache.race;
     var rnd = mulberry32(seed);
-    var t = 17.5 + rnd() * 1.5;
+    var t = 28 + rnd() * 2.4;
     var horses = {}, list = [];
     order.forEach(function (no, i) {
-      if (i > 0) t += i === 1 ? 0.25 + rnd() * 0.45 : 0.3 + rnd() * 0.7;
+      if (i > 0) t += (i === 1 ? 0.25 + rnd() * 0.45 : 0.3 + rnd() * 0.7) * 1.6;
       var amp = AMPS.map(function (m) { return (rnd() * 2 - 1) * m; });
       var h = { no: no, rank: i + 1, time: t, amp: amp };
       horses[no] = h; list.push(h);

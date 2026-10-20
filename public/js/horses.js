@@ -8,7 +8,7 @@
   'use strict';
 
   var COLS = 89, PADX = 6, PADY = 4, SW = COLS + PADX * 2 + 2, SH = 60 + PADY * 2;
-  var OX = PADX + 44, OY = PADY + 59, STEPS = 12;
+  var OX = PADX + 44, OY = PADY + 56, STEPS = 12;
 
   var BODY = [
     '........................................................KKKKKK...........................',
@@ -126,10 +126,10 @@
     var bob = standing ? 0 : -Math.round(1.6 * Math.abs(Math.sin(phi * 0.5 + 0.4)));
 
     // legs first (the body is painted over their tops)
-    paintLeg(out, PADX + 41, PADY + 33 + bob, legs.hf, 5, 13, 14);
-    paintLeg(out, PADX + 53, PADY + 33 + bob, legs.ff, 5, 13, 14);
-    paintLeg(out, PADX + 29, PADY + 34 + bob, legs.hn, 7, 13, 14);
-    paintLeg(out, PADX + 61, PADY + 35 + bob, legs.fn, 7, 13, 14);
+    paintLeg(out, PADX + 41, PADY + 33 + bob, legs.hf, 5, 10, 11);
+    paintLeg(out, PADX + 53, PADY + 33 + bob, legs.ff, 5, 10, 11);
+    paintLeg(out, PADX + 29, PADY + 34 + bob, legs.hn, 7, 10, 11);
+    paintLeg(out, PADX + 61, PADY + 35 + bob, legs.fn, 7, 10, 11);
 
     // body from the reference (shifted by the bob), recoloured
     var kept = grid();

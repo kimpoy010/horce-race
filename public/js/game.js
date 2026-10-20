@@ -15,9 +15,9 @@
   /* ================= geometry: a closed "U" track lying on its side, opening to the LEFT ================= */
   // The world is bigger than the screen; a camera follows the pack. Horses start top-left, run right along the
   // top straight, round the curve on the right, and come back left along the bottom straight to the finish.
-  var VW = 480, VH = 270;                                   // camera view (logical px)
+  var VW = 544, VH = 306;                                   // camera view (logical px)
   var LANES = 6, LANE_W = 16, R_IN = 54, R_OUT = R_IN + LANE_W * LANES, RMID = R_IN + LANE_W * LANES / 2;
-  var CY = 230, XL = 260, XR = 980, X_MIN = 140;
+  var CY = 230, XL = 260, XR = 1700, X_MIN = 140;
   var WW = XR + R_OUT + 90, WH = CY + R_OUT + 60;
   var S = XR - XL, ARC = Math.PI * RMID, TOTAL = 2 * S + ARC;
   var SP = window.HorseSprites, PAL = SP.COLORS;
@@ -205,7 +205,7 @@
     }
   }
 
-  var MS = 0.075, MW = Math.round(WW * MS), MH = Math.round(WH * MS), MX = 4, MY = VH - 14 - MH - 4;
+  var MS = 0.055, MW = Math.round(WW * MS), MH = Math.round(WH * MS), MX = 4, MY = VH - 14 - MH - 4;
   function drawMini(g, items, camX, camY) {
     g.fillStyle = 'rgba(8,20,40,.72)'; g.fillRect(MX - 2, MY - 2, MW + 4, MH + 4);
     for (var u = 0; u <= 1; u += 0.004) { var p = trackPos(u, LANES / 2 - 0.5); rect(g, MX + p.x * MS, MY + p.y * MS, 2, 2, '#8a7048'); }
