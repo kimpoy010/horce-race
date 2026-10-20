@@ -246,7 +246,7 @@
 
   /* ================= sound (WebAudio chiptune) ================= */
   var Sound = (function () {
-    var ctx = null, on = false, musicBuf = null, musicSrc = null, musicKey = null, loading = false, MUSIC_VOL = 0.38;
+    var ctx = null, on = false, musicBuf = null, musicSrc = null, musicKey = null, loading = false, MUSIC_VOL = 0.38, chingBuf = null, chingLoading = false;
     function stopMusic(keepKey) {
       if (musicSrc) { try { musicSrc.stop(); } catch (e) { /* already ended */ } musicSrc = null; }
       if (!keepKey) musicKey = null;
@@ -256,6 +256,12 @@
       fetch('audio/theme.mp3').then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
         return new Promise(function (ok, bad) { ctx.decodeAudioData(ab, ok, bad); });      // callback form also works on older Safari
       }).then(function (buf) { musicBuf = buf; }).catch(function () { /* no music, the other sounds still work */ }).then(function () { loading = false; });
+    }
+    function loadChing() {
+      if (chingBuf || chingLoading) return; chingLoading = true;
+      fetch('audio/chaching.mp3').then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+        return new Promise(function (ok, bad) { ctx.decodeAudioData(ab, ok, bad); });
+      }).then(function (buf) { chingBuf = buf; }).catch(function () { /* no cha-ching */ }).then(function () { chingLoading = false; });
     }
     function tone(f, at, dur, type, vol) {
       var o = ctx.createOscillator(), g = ctx.createGain();
@@ -272,7 +278,7 @@
         if (!ctx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; ctx = new AC(); }
         if (ctx.state === 'suspended') ctx.resume();
         on = !on;
-        if (on) loadMusic(); else stopMusic();
+        if (on) { loadMusic(); loadChing(); } else stopMusic();
         return on;
       },
       // the theme starts 3 s before betting closes and plays on top of the other sounds; viewers who join later hear it from the right place
@@ -286,6 +292,11 @@
         src.buffer = musicBuf; g.gain.setValueAtTime(MUSIC_VOL, t0); g.gain.setValueAtTime(MUSIC_VOL, t0 + Math.max(0, left - 2)); g.gain.linearRampToValueAtTime(0.0001, t0 + left);
         src.connect(g); g.connect(ctx.destination); src.start(t0, off);
         musicSrc = src;
+      },
+      ching: function () {        // PLACE BET button
+        if (!on || !chingBuf) return;
+        var src = ctx.createBufferSource(), g = ctx.createGain();
+        src.buffer = chingBuf; g.gain.value = 0.9; src.connect(g); g.connect(ctx.destination); src.start();
       },
       beep: function () { if (on) tone(660, ctx.currentTime, 0.12, 'square', 0.06); },
       bugle: function () { if (on) seq([[392, .14], [523, .14], [659, .14], [784, .5]]); },

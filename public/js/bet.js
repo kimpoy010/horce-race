@@ -91,6 +91,7 @@
   function placeBets() {
     var list = Object.keys(S.pending).map(function (c) { return { combo: c, stake: S.pending[c] }; });
     if (!list.length || S.busy) return;
+    if (window.HorseGame && window.HorseGame.sound) window.HorseGame.sound.ching();
     S.busy = true; render();
     api('POST', 'api/bet', { bets: list }).then(function (res) {
       S.busy = false;
