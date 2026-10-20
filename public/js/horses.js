@@ -135,7 +135,7 @@
       hf: legAngles(phi + Math.PI * 0.85 + 0.7, true), ff: legAngles(phi + 0.7, false),
       hn: legAngles(phi + Math.PI * 0.85, true), fn: legAngles(phi, false)
     };
-    if ((window.HORSE_VARIANT | 0) === 4 && !standing) {
+    if ((window.HORSE_VARIANT | 0) >= 4 && !standing) {
       var cl = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
       legs.hn = [cl(legs.hn[0], -0.95, 0.12), cl(legs.hn[1], -1.0, 0.2)]; legs.hf = [cl(legs.hf[0], -0.95, 0.12), cl(legs.hf[1], -1.0, 0.2)];
       legs.fn = [cl(legs.fn[0], -0.2, 0.95), cl(legs.fn[1], -0.5, 1.0)]; legs.ff = [cl(legs.ff[0], -0.2, 0.95), cl(legs.ff[1], -0.5, 1.0)];
@@ -150,7 +150,7 @@
       paintLeg(out, PADX + 53, PADY + 33 + bob, legs.ff, 5, 10, 11);
       paintLeg(out, PADX + 29, PADY + 34 + bob, legs.hn, 7, 10, 11);
       paintLeg(out, PADX + 61, PADY + 35 + bob, legs.fn, 7, 10, 11);
-    } else if (V === 4) { // legs only at the far ends of the body: the belly between them stays in view
+    } else if (V >= 4) { // legs only at the far ends of the body: the belly between them stays in view
       paintLeg(out, PADX + 31, PADY + 34 + bob, legs.hf, 5, 10, 11);
       paintLeg(out, PADX + 60, PADY + 35 + bob, legs.ff, 5, 10, 11);
       paintLeg(out, PADX + 26, PADY + 34 + bob, legs.hn, 7, 10, 11);
@@ -172,6 +172,13 @@
       else if (ch === 'K' && c >= 37 && c <= 44 && r >= 23 && r <= 31) ch = 'Y'; // clear the reference number
       else if (ch === 'Y' && false) ch = 'Y';
       kept[r][c] = ch;
+    }
+    if (V === 5) { // athletic belly: deepest at the girth behind the elbow, tucking up towards the flank
+      for (c = 34; c <= 60; c++) {
+        var t5 = Math.max(0, Math.min(1, (c - 36) / 18)), bot5 = Math.round(34 + 5 * t5 * t5 * (3 - 2 * t5));
+        if (c > 54) bot5 = 39;
+        for (r = cut(c) + 1; r <= bot5; r++) kept[r][c] = r >= bot5 ? 'D' : 'W';
+      }
     }
     if (V === 4) { // clearly visible deep belly: rounded underside, shaded, outlined
       for (c = 33; c <= 60; c++) {
