@@ -8,7 +8,9 @@
 </head>
 <body>
 <div class="stage" id="stage">
-  <canvas id="screen" width="288" height="162"></canvas>
+  <canvas id="screen" width="320" height="180"></canvas>
+  <canvas id="mini" width="96" height="40"></canvas>
+  <div id="nogl" class="nogl" hidden>WebGL is required to show the race.</div>
 
   <div class="bar top">
     <div id="hRace" class="race-no">RACE --</div>
@@ -27,7 +29,9 @@
   </div>
 </div>
 <noscript>This game needs JavaScript.</noscript>
+<script src="js/vendor/three.min.js"></script>
 <script src="js/core.js"></script>
+<script src="js/scene3d.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>
