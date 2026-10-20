@@ -39,7 +39,7 @@ const { MockWallet } = require('../server/wallet.js');
   const wallet = new MockWallet({ startBalance: 100000 });
   const mk = () => new Engine({ wallet, now: () => clock, ledgerFile: ledger, config: { betMs: 20000, minBet: 100, maxBet: 10000, maxRoundStake: 15000 } });
   let eng = mk();
-  assert(Math.abs(eng.theoreticalRtp - 0.868397) < 1e-5);
+  assert.strictEqual(eng.rtp, 0.9);
   const D = oddsLib.DEFAULT_ODDS;
   assert.strictEqual(eng.payoutFor(100, '1-3', D), 2000);
   assert.strictEqual(eng.payoutFor(101, '5-6', D), 25250);
@@ -92,7 +92,7 @@ const { MockWallet } = require('../server/wallet.js');
   assert.strictEqual(eng.reveals[0].commit, rng.commitOf(eng.reveals[0].seed));
   const rv = eng.reveals[0];
   assert.deepStrictEqual(rng.oddsLayout(rv.seed, rn, eng.values), rv.odds);
-  assert.deepStrictEqual(rng.draw(rv.seed, rn, oddsLib.build(rv.odds).weights).order, rv.order);   // players can verify the draw
+  assert.deepStrictEqual(rng.draw(rv.seed, rn, oddsLib.buildForRtp(rv.odds, rv.rtp).weights).order, rv.order);   // players can verify the draw
 
   // ---- restart in the middle of a round: bets are refunded, a drawn race is settled ----
   clock = eng.cur.startAt + eng.cfg.raceMs + eng.cfg.resultsMs + 1; await eng.tick();        // next round opens
@@ -117,8 +117,52 @@ const { MockWallet } = require('../server/wallet.js');
     e2.sessions.get(s2).calls = [];
   }
   const rtp = e2.report().actualRtp;
-  console.log('simulated RTP over ' + R + ' rounds betting every pair: ' + (rtp * 100).toFixed(2) + '% (theory ' + (e2.theoreticalRtp * 100).toFixed(2) + '%)');
-  assert(Math.abs(rtp - e2.theoreticalRtp) < 0.07, 'RTP drifted: ' + rtp);   // standard deviation about 1.5%
+  console.log('simulated RTP over ' + R + ' rounds betting every pair: ' + (rtp * 100).toFixed(2) + '% (theory ' + (e2.previewRtp(e2.rtp).evenSpreadRtp * 100).toFixed(2) + '%)');
+  assert(Math.abs(rtp - e2.previewRtp(e2.rtp).evenSpreadRtp) < 0.07, 'RTP drifted: ' + rtp);   // standard deviation about 1.5%
+
+  // ---- editable RTP (80-99%): odds unchanged, draw weights / stake fee ----
+  for (const r of [0.80, 0.85, 0.9, 0.95, 0.99]) {
+    const tb = oddsLib.buildForRtp(null, r);
+    assert(Math.abs(Object.values(tb.prob).reduce((a, b2) => a + b2, 0) - 1) < 1e-9);
+    assert(tb.bestRtp <= r + 1e-6, 'no bet may return more than the setting');
+    if (r >= tb.uniform) {
+      const cheap = new Set(tb.cheap); assert.strictEqual(tb.cheap.length, 3);
+      oddsLib.COMBOS.forEach((c) => { if (!cheap.has(c)) assert(Math.abs(tb.rtpBy[c] - r) < 1e-6); });   // 12 pairs exactly at the setting
+      assert.strictEqual(tb.fee, 0);
+    } else {
+      oddsLib.COMBOS.forEach((c) => assert(Math.abs(tb.rtpBy[c] - r) < 1e-6));                      // all bets at the setting, with a fee
+      assert(tb.fee > 0);
+    }
+  }
+  assert.throws(() => oddsLib.buildForRtp(null, 0.79)); assert.throws(() => oddsLib.buildForRtp(null, 0.995));
+  assert.deepStrictEqual(oddsLib.build().odds, oddsLib.buildForRtp(null, 0.9).odds);                  // the odds never change
+
+  const w3 = new MockWallet({ startBalance: 1000000 });
+  let c3 = 5000000;
+  const led3 = path.join(os.tmpdir(), 'ledger3-' + process.pid + '.jsonl'); try { fs.unlinkSync(led3); } catch (e) { /* new */ }
+  const set3 = path.join(os.tmpdir(), 'settings3-' + process.pid + '.json'); try { fs.unlinkSync(set3); } catch (e) { /* new */ }
+  const mk3 = () => new Engine({ wallet: w3, now: () => c3, ledgerFile: led3, config: { rtp: 0.8, settingsFile: set3, betMs: 5000, maxBet: 100000, maxRoundStake: 1e9 } });
+  let e3 = mk3(); await e3.tick();
+  const s3 = (await e3.auth('demo-fee')).session;
+  assert(Math.abs(e3.cur.table.fee - 0.0855) < 0.0005);
+  await e3.placeBets(s3, [{ combo: '1-2', stake: 1000 }]);
+  assert.strictEqual(await w3.balance('fee'), 1000000 - 1000 - Math.round(1000 * e3.cur.table.fee));  // stake + fee debited
+  const r3 = e3.cur.raceNo;
+  // the setting only applies to the next race
+  assert.throws(() => e3.setRtp(0.5)); assert.throws(() => e3.setRtp(1));
+  const set = e3.setRtp(0.95); assert.strictEqual(set.appliesFromRace, r3 + 1); assert.strictEqual(e3.cur.rtp, 0.8);
+  // crash before the draw: the refund includes the fee
+  e3 = mk3(); await e3.recover(); await e3.tick();
+  assert.strictEqual(await w3.balance('fee'), 1000000);
+  assert.strictEqual(e3.rtp, 0.95);                                  // the saved setting survives a restart
+  assert.strictEqual(e3.cur.rtp, 0.95);
+  // finish a round with a winning bet: payout is stake x odds, the fee is not part of the payout
+  const s4 = (await e3.auth('demo-fee')).session;
+  await e3.placeBets(s4, rng.COMBOS.map((c) => ({ combo: c, stake: 1000 })));
+  c3 += 5001; await e3.tick(); c3 = e3.cur.startAt + e3.cfg.raceMs + 1; await e3.tick();
+  assert.strictEqual(await w3.balance('fee'), 1000000 - 15000 + 1000 * e3.cur.odds[e3.cur.combo]);
+  try { fs.unlinkSync(led3); fs.unlinkSync(set3); } catch (e) { /* ignore */ }
+  console.log('rtp setting ok');
   try { fs.unlinkSync(ledger); } catch (e) { /* ignore */ }
   console.log('live tests passed');
 })().catch((e) => { console.error(e); process.exit(1); });

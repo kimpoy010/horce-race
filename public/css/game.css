@@ -98,6 +98,8 @@ body.live { display: block; overflow: auto; }
 .bar-fill { height: 100%; width: 0; background: #7dff7d; }
 .bar-fill.low { background: #ff6a5a; }
 .bet-round .pay { font-size: 12px; color: #ffd23c; }
+.bet-round .info { font-size: 12px; color: #9fe8ff; margin-top: 4px; }
+.board .cell.low::after { content: '\25BE'; position: absolute; left: 4px; top: 2px; color: #ff9a5a; font-size: 12px; }
 .msg { margin: 6px 0; padding: 6px 8px; background: #4a1e28; border: 2px solid #b04a5a; color: #ffd0d6; font-size: 13px; }
 .msg.ok { background: #1c4a2a; border-color: #4ab06a; color: #d6ffe0; }
 

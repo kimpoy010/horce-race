@@ -22,6 +22,16 @@
 
   <section id="report" class="panel" hidden>
     <h2>Live game report <span class="small">(results are drawn by the server; the controller cannot change them)</span></h2>
+    <div class="rtpbox">
+      <h2>RTP setting <span class="small">(80% to 99%, applies from the next race; the odds never change)</span></h2>
+      <div class="row">
+        <label>RTP % <input id="rtpIn" type="number" min="80" max="99" step="0.1" style="width:90px;font:inherit;padding:6px"></label>
+        <button id="rtpApply" class="primary">Apply from next race</button>
+        <span id="rtpMsg" class="small"></span>
+      </div>
+      <p class="small" id="rtpSum"></p>
+      <table id="rtpPrev"><thead><tr><th>Odds</th><th>Win chance</th><th>RTP of a bet</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
     <div class="stats" id="stats"></div>
     <h2 style="margin-top:14px">Wins per pair <span class="small">(each pair wins 6.67% of races in the long run)</span></h2>
     <div class="combos" id="combos"></div>

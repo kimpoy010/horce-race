@@ -10,7 +10,7 @@
   var qs = new URLSearchParams(location.search);
   var S = { session: null, rules: null, me: null, pending: {}, chip: 0, busy: false, msgTimer: null, built: false };
   var el = { bet: $('bet'), layout: $('layout'), player: $('bPlayer'), balance: $('bBalance'), round: $('bRound'), timer: $('bTimer'),
-    prog: $('bProg'), pay: $('bPay'), msg: $('bMsg'), grid: $('bGrid'), legend: $('bLegend'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
+    prog: $('bProg'), pay: $('bPay'), info: $('bInfo'), msg: $('bMsg'), grid: $('bGrid'), legend: $('bLegend'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
     place: $('bPlace'), total: $('bTotal'), placed: $('bPlaced'), last: $('bLast'), fair: $('bFair'), back: $('bBack') };
 
   var ERRORS = {
@@ -137,12 +137,17 @@
       if (S.raceNo != null && Object.keys(S.pending).length) { S.pending = {}; say('New race, new odds. Please pick your bets again.', true); }
       S.raceNo = round.raceNo;
     }
-    var placed = placedBy(), cells = el.grid.querySelectorAll('.cell'), i, total = 0;
-    Object.keys(S.pending).forEach(function (c) { total += S.pending[c]; });
+    var placed = placedBy(), cells = el.grid.querySelectorAll('.cell'), i, total = 0, fees = 0, feeRate = (round && round.fee) || 0;
+    Object.keys(S.pending).forEach(function (c) { total += S.pending[c]; fees += Math.round(S.pending[c] * feeRate); });
+    var lowSet = {}; if (round && round.cheapPairs && round.cheapRtp < round.rtp - 0.0005) round.cheapPairs.forEach(function (c) { lowSet[c] = true; });
+    if (round && round.rtp) {
+      el.info.textContent = 'RTP ' + (round.rtp * 100).toFixed(1) + '%' + (feeRate ? ' - A FEE OF ' + (feeRate * 100).toFixed(2) + '% IS ADDED TO EACH STAKE' : '') +
+        (Object.keys(lowSet).length ? ' - THE 3 CELLS MARKED \u25BE (LOWEST ODDS) RETURN ' + (round.cheapRtp * 100).toFixed(1) + '%' : '');
+    }
     for (i = 0; i < cells.length; i++) {
       var tl = cells[i], c = tl.dataset.c, p = S.pending[c] || 0, pl = placed[c] || 0;
       tl.disabled = !betting || !S.session || S.busy;
-      tl.classList.toggle('on', p > 0 || pl > 0); tl.classList.toggle('pend', p > 0);
+      tl.classList.toggle('on', p > 0 || pl > 0); tl.classList.toggle('pend', p > 0); tl.classList.toggle('low', !!lowSet[c]);
       var od = tl.querySelector('.odds'), ov = round && round.odds ? String(round.odds[c]) : '-';
       if (od.textContent !== ov) od.textContent = ov;
       var bt = tl.querySelector('.bt'), txt = short(pl + p);
@@ -151,7 +156,7 @@
       if (p && !mn) { mn = document.createElement('span'); mn.className = 'minus'; mn.textContent = '-'; tl.appendChild(mn); }
       if (!p && mn) mn.remove();
     }
-    el.total.textContent = total ? '(' + fmt(total) + ')' : '';
+    el.total.textContent = total ? (fees ? '(' + fmt(total) + ' + FEE ' + fmt(fees) + ' = ' + fmt(total + fees) + ')' : '(' + fmt(total) + ')') : '';
     el.place.disabled = !betting || !total || S.busy || !S.session;
     el.clear.disabled = !total;
     el.rebet.disabled = !betting || !(me && me.last && me.last.bets.length);

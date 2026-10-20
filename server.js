@@ -52,15 +52,15 @@ async function startLive() {
     wallet: walletFactory.create(env),
     ledgerFile: path.join(DATA_DIR, 'ledger.jsonl'),
     config: {
-      odds: loadOdds(),
+      odds: loadOdds(), rtp: num(env.RTP, 0.9) > 1 ? num(env.RTP, 90) / 100 : num(env.RTP, 0.9), settingsFile: path.join(DATA_DIR, 'settings.json'),
       betMs: num(env.BET_MS, 25000), minBet: num(env.MIN_BET, 100), maxBet: num(env.MAX_BET, 100000),
       maxRoundStake: num(env.MAX_ROUND_STAKE, 500000), currency: env.CURRENCY || 'PHP'
     }
   });
   await engine.recover();
   setInterval(() => engine.tick().catch((e) => console.error('tick failed:', e.message)), 250);
-  console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', RTP of every bet ' + (engine.theoreticalRtp * 100).toFixed(2) + '% (house edge ' + (100 - engine.theoreticalRtp * 100).toFixed(2) + '%)');
-  if (env.RTP && Math.abs(Number(env.RTP) - engine.theoreticalRtp) > 0.005) console.warn('WARNING: RTP=' + env.RTP + ' requested but this odds table gives ' + engine.theoreticalRtp.toFixed(4) + '. Change the odds to change the RTP.');
+  const pv = engine.previewRtp(engine.rtp);
+  console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', RTP setting ' + (engine.rtp * 100).toFixed(2) + '% (best bets ' + (pv.bestRtp * 100).toFixed(2) + '%, three cheapest pairs ' + (pv.cheapRtp * 100).toFixed(2) + '%, stake fee ' + (pv.fee * 100).toFixed(2) + '%). Editable 80-99% in the controller.');
 }
 
 /* ---------- http helpers ---------- */
@@ -141,7 +141,12 @@ const server = http.createServer(async (req, res) => {
       if (!authorized(req)) return json(res, 401, { ok: false, error: 'bad controller key' });
       if (LIVE) {
         if ((url.pathname === '/api/admin' || url.pathname === '/api/report') && req.method === 'GET') return json(res, 200, Object.assign({ serverNow: now }, engine.report()));
-        if (url.pathname === '/api/command') return json(res, 403, { ok: false, error: 'the controller cannot change results in live mode' });
+        if (url.pathname === '/api/command' && req.method === 'POST') {          // the only live setting is the RTP; results can never be set
+          const body = JSON.parse(await readBody(req) || '{}');
+          if (body.cmd === 'setRtp') return json(res, 200, engine.setRtp(body.rtp, 'controller'));
+          if (body.cmd === 'previewRtp') return json(res, 200, engine.previewRtp(body.rtp));
+          return json(res, 403, { ok: false, error: 'the controller cannot change results in live mode' });
+        }
       } else {
         if (url.pathname === '/api/admin' && req.method === 'GET') return json(res, 200, director.adminState(now));
         if (url.pathname === '/api/command' && req.method === 'POST') {

@@ -10,19 +10,27 @@ GAME_MODE=live WALLET=http WALLET_URL=... WALLET_KEY=... CONTROLLER_KEY=... node
 GAME_MODE=live WALLET=mock node server.js                  # local test with play money: http://localhost:8080/?token=demo-alice
 ```
 
-**Odds and RTP.** The board is the video karera chart (rows 1-5, columns 6-2). A winning bet pays **stake x odds**
+**Odds.** The board is the video karera chart (rows 1-5, columns 6-2). A winning bet pays **stake x odds**
 (stake included). The 15 odds values are **3, 4, 5, 8, 10, 20, 30, 60, 80, 100, 125, 175, 250, 500, 1000**
 (`server/odds.js`, override with `ODDS=` / `ODDS_FILE=`) and they are **shuffled randomly over the 15 pairs before every
 race**: the layout is derived from the round seed, shown to the players when betting opens, and fixed for that race.
 Set `shuffleOdds: false` in the engine config to keep a fixed layout instead.
 
-In each race a pair with odds `o` is drawn with probability proportional to `1/o` (the pair that carries odds 3 wins
-about 29% of the time, the one with 1000 about 0.09%). Because the layout is random, every pair still wins 1 race in 15
-in the long run. **Every bet on every pair has the same RTP = 1 / sum(1/odds) = 86.84%** (house edge 13.16%) and no pair is a better bet than another.
-For this odds table 86.84% is the highest RTP that all pairs can share: sum(1/odds) is 1.1515, and a 90% RTP would need
-1.1111. To reach 90% raise some odds (for example 1:3 to 1:3.5) or accept 86.84%. The server prints the RTP at start-up
-and warns if `RTP=` is set and differs. RTP is a long-run average; short runs wander a lot because of the 1000x pair.
-`npm test` and `node scripts/simulate-rtp.js` check the draw weights and the payout maths.
+**Editable RTP (80% to 99%), odds unchanged.** The RTP is a setting in the controller (or `RTP=90` at start-up). It applies
+from the next race (the race in progress keeps its RTP), is saved in `data/settings.json` and recorded in the ledger.
+The payout odds never change; the setting changes how often each pair is drawn (and, below 86.84%, adds a fee):
+
+* **86.84% to 99%:** the 12 pairs with the higher odds each return **exactly the setting** (drawn with probability
+  `setting / odds`). The probability that is left over is shared by the **three cheapest pairs** (the cells showing
+  odds 3, 4 and 5 that race), which return a bit less: 85.4% at a 90% setting, 83.0% at 95%, 81.1% at 99%. No bet
+  returns more than the setting, so the real RTP can never exceed it. The three cells are marked in the betting panel.
+* **80% to 86.84%:** all pairs are drawn with probability proportional to `1/odds` (86.84% each) and a **fee** is added
+  on top of every stake: `fee = 86.84% / setting - 1` (8.55% at 80%, 2.2% at 85%). The player pays stake + fee, the
+  payout is still stake x odds, so every bet returns exactly the setting of what the player pays.
+
+86.84% is `1 / sum(1/odds)` for the 15 odds values: the highest RTP all pairs can share without extra payments.
+RTP is a long-run average; short runs wander a lot because of the 1000x odds. `npm test` and
+`node scripts/simulate-rtp.js [races] [rtp%]` check the weights and the payout maths.
 
 **Rules of the draw (do not change for real money).**
 * The outcome comes from a secret 256-bit seed made with `crypto.randomBytes`, *before* bets open; its SHA-256 hash

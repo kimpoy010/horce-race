@@ -6,7 +6,8 @@
  *
  * Fixed odds per pair (server/odds.js): a winning bet pays stake x odds (stake included). The 15 odds values are
  * shuffled over the pairs every race (from the round seed); each pair is drawn with probability proportional to
- * 1/odds of this race, so every bet has the same RTP whatever the layout. Money is integer minor units; payouts round down.
+ * 1/odds of this race (see odds.buildForRtp for the editable RTP setting, 80-99%). Money is integer minor units; payouts round down.
+ * A stake fee (only for RTP settings below the uniform RTP) is charged on top of the stake; payouts are stake x odds.
  */
 const fs = require('fs');
 const path = require('path');
@@ -22,22 +23,44 @@ class Engine {
     this.wallet = opts.wallet;
     this.now = opts.now || Date.now;
     this.cfg = Object.assign({
-      rtp: 0.9, betMs: 25000, countdownMs: Core.COUNTDOWN_MS, raceMs: Core.RACE_MS, resultsMs: Core.RESULTS_MS,
+      rtp: 0.9, settingsFile: null, betMs: 25000, countdownMs: Core.COUNTDOWN_MS, raceMs: Core.RACE_MS, resultsMs: Core.RESULTS_MS,
       minBet: 100, maxBet: 100000, maxRoundStake: 500000, sessionTtlMs: 12 * 3600 * 1000, odds: null, currency: 'PHP'
     }, opts.config || {});
-    this.table = oddsLib.build(this.cfg.odds);                          // base table: the odds values and the RTP they give
+    this.table = oddsLib.build(this.cfg.odds);                          // base table: the odds values
     this.values = rng.COMBOS.map((c) => this.table.odds[c]).sort((a, b) => a - b);
+    this.rtp = this.cfg.rtp;                                            // applies to rounds opened from now on
+    try { if (this.cfg.settingsFile) { const st = JSON.parse(fs.readFileSync(this.cfg.settingsFile, 'utf8')); if (st.rtp >= oddsLib.MIN_RTP && st.rtp <= oddsLib.MAX_RTP) this.rtp = st.rtp; } } catch (e) { /* no saved setting */ }
+    oddsLib.buildForRtp(this.table.odds, this.rtp);                     // throws if the configured RTP is out of range
     this.shuffle = this.cfg.shuffleOdds !== false;                      // new random layout every race
     this.ledgerFile = opts.ledgerFile || null;
     this.sessions = new Map(); this.cur = null; this.done = []; this.counter = 0;
     this.pending = new Map();                                          // credits that still have to reach the wallet
-    this.stats = { rounds: 0, bets: 0, staked: 0, paid: 0, wins: {}, winsByOdds: {} };
+    this.stats = { rounds: 0, bets: 0, staked: 0, fees: 0, paid: 0, wins: {}, winsByOdds: {} };
     rng.COMBOS.forEach((c) => { this.stats.wins[c] = 0; });
     this.recent = []; this.reveals = []; this.busy = false;
     this.log = [];
   }
 
-  get theoreticalRtp() { return this.table.rtp; }
+  get theoreticalRtp() { return this.rtp; }
+  setRtp(v, who) {
+    v = Number(v); if (v > 1) v = v / 100;
+    if (!(v >= oddsLib.MIN_RTP - 1e-9 && v <= oddsLib.MAX_RTP + 1e-9)) throw httpError(400, 'RTP_OUT_OF_RANGE');
+    v = Math.round(v * 10000) / 10000;
+    const was = this.rtp; this.rtp = v;
+    this._log({ e: 'rtp_set', from: was, to: v, who: who || 'controller', appliesFromRace: this.cur ? this.cur.raceNo + 1 : 1 });
+    try { if (this.cfg.settingsFile) fs.writeFileSync(this.cfg.settingsFile, JSON.stringify({ rtp: v })); } catch (e) { console.error('could not save the RTP setting:', e.message); }
+    return { ok: true, rtp: v, appliesFromRace: this.cur ? this.cur.raceNo + 1 : 1, currentRaceRtp: this.cur ? this.cur.rtp : null };
+  }
+  // what a setting would give (per odds value), without changing anything
+  previewRtp(v) {
+    v = Number(v); if (v > 1) v = v / 100;
+    if (!(v >= oddsLib.MIN_RTP - 1e-9 && v <= oddsLib.MAX_RTP + 1e-9)) throw httpError(400, 'RTP_OUT_OF_RANGE');
+    const t = oddsLib.buildForRtp(this.table.odds, v), cheap = new Set(t.cheap.map((c) => t.odds[c]));
+    return {
+      ok: true, rtp: v, fee: t.fee, uniformRtp: t.uniform, bestRtp: t.bestRtp, cheapRtp: t.cheapRtp, evenSpreadRtp: t.evenSpread,
+      rows: this.values.map((o) => { const c = rng.COMBOS.find((x) => t.odds[x] === o); return { odds: o, probability: t.prob[c], rtp: t.rtpBy[c], cheap: cheap.has(o) }; })
+    };
+  }
   payoutFor(stake, combo, odds) { return Math.floor(stake * Math.round(odds[combo] * 1000) / 1000); }
 
   /* ---------- ledger ---------- */
@@ -53,11 +76,11 @@ class Engine {
     const rounds = new Map(), due = new Map(), ok = new Set();
     fs.readFileSync(this.ledgerFile, 'utf8').split('\n').filter(Boolean).forEach((line) => {
       let ev; try { ev = JSON.parse(line); } catch (e) { return; }
-      if (ev.e === 'open') rounds.set(ev.raceNo, { raceNo: ev.raceNo, seed: ev.seed, commit: ev.commit, odds: ev.odds, openAt: ev.openAt, betCloseAt: ev.betCloseAt, status: 'betting', bets: [], betsByPlayer: new Map() });
+      if (ev.e === 'open') rounds.set(ev.raceNo, { raceNo: ev.raceNo, seed: ev.seed, commit: ev.commit, odds: ev.odds, rtp: ev.rtp, openAt: ev.openAt, betCloseAt: ev.betCloseAt, status: 'betting', bets: [], betsByPlayer: new Map() });
       const r = rounds.get(ev.raceNo);
-      if (ev.e === 'bet' && r) { r.bets.push({ id: ev.id, raceNo: ev.raceNo, playerId: ev.playerId, combo: ev.combo, stake: ev.stake, status: 'open', payout: 0 }); }
+      if (ev.e === 'bet' && r) { r.bets.push({ id: ev.id, raceNo: ev.raceNo, playerId: ev.playerId, combo: ev.combo, stake: ev.stake, fee: ev.fee || 0, status: 'open', payout: 0 }); }
       if (ev.e === 'draw' && r) Object.assign(r, { status: 'racing', combo: ev.combo, order: ev.order, animSeed: ev.animSeed, startAt: ev.startAt });
-      if (ev.e === 'settled' && r) { r.status = 'settled'; r.payouts = ev.payouts; r.staked = ev.staked; r.paid = ev.paid; }
+      if (ev.e === 'settled' && r) { r.status = 'settled'; r.payouts = ev.payouts; r.staked = ev.staked; r.fees = ev.fees || 0; r.paid = ev.paid; }
       if (ev.e === 'void' && r) r.status = 'void';
       if (ev.e === 'credit_due') due.set(ev.txId, ev);
       if (ev.e === 'credit_ok') ok.add(ev.txId);
@@ -68,15 +91,15 @@ class Engine {
       r.odds = r.odds || this.table.odds;
       const staked = r.bets.reduce((a, b) => a + b.stake, 0);
       if (r.status === 'settled') {
-        this.stats.rounds++; this.stats.bets += r.bets.length; this.stats.staked += r.staked; this.stats.paid += r.paid; if (r.combo) this.stats.wins[r.combo]++;
-        this.recent.push({ raceNo: r.raceNo, combo: r.combo, order: r.order, staked: r.staked, paid: r.paid, bets: r.bets.length, odds: r.odds ? r.odds[r.combo] : null });
+        this.stats.rounds++; this.stats.bets += r.bets.length; this.stats.staked += r.staked; this.stats.fees += r.fees || 0; this.stats.paid += r.paid; if (r.combo) this.stats.wins[r.combo]++;
+        this.recent.push({ raceNo: r.raceNo, combo: r.combo, order: r.order, staked: r.staked, fees: r.fees || 0, paid: r.paid, bets: r.bets.length, odds: r.odds ? r.odds[r.combo] : null });
         if (r.odds) this.stats.winsByOdds[r.odds[r.combo]] = (this.stats.winsByOdds[r.odds[r.combo]] || 0) + 1;
       } else if (r.status === 'racing') {            // drawn but never settled: settle now with the stored result
         r.bets.forEach((b) => { b.status = 'open'; });
         await this._settle(r);
       } else if (r.status === 'betting' && r.bets.length) { // bets taken but never drawn: void the round and refund
         this._log({ e: 'void', raceNo: r.raceNo, reason: 'restart' });
-        const per = new Map(); r.bets.forEach((b) => per.set(b.playerId, (per.get(b.playerId) || 0) + b.stake));
+        const per = new Map(); r.bets.forEach((b) => per.set(b.playerId, (per.get(b.playerId) || 0) + b.stake + (b.fee || 0)));
         for (const [playerId, amount] of per) this._queueCredit('refund:' + r.raceNo + ':' + playerId, playerId, amount, r.raceNo, 'refund');
       }
     }
@@ -119,10 +142,10 @@ class Engine {
       merged.set(b.combo, (merged.get(b.combo) || 0) + stake);
     }
     const mine = r.betsByPlayer.get(s.playerId) || { total: 0, per: {} };
-    let total = 0;
+    let total = 0, fees = 0; const feeOf = new Map();
     for (const [combo, stake] of merged) {
       if ((mine.per[combo] || 0) + stake > cfg.maxBet) throw httpError(400, 'MAX_BET_EXCEEDED');
-      total += stake;
+      total += stake; const fee = Math.round(stake * r.table.fee); feeOf.set(combo, fee); fees += fee;
     }
     if (mine.total + total > cfg.maxRoundStake) throw httpError(400, 'MAX_ROUND_STAKE_EXCEEDED');
 
@@ -131,18 +154,18 @@ class Engine {
     const rollback = () => { mine.total -= total; merged.forEach((st, c) => { mine.per[c] -= st; }); };
     const batch = crypto.randomBytes(8).toString('hex'), txId = 'bet:' + r.raceNo + ':' + batch;
     let res;
-    try { res = await this._debit(s.playerId, total, txId, { raceNo: r.raceNo, kind: 'bet' }); }
+    try { res = await this._debit(s.playerId, total + fees, txId, { raceNo: r.raceNo, kind: 'bet', stake: total, fee: fees }); }
     catch (e) { rollback(); throw e; }
     if (this.cur !== r || r.status !== 'betting' || this.now() >= r.betCloseAt) { // betting closed while the wallet was busy
-      rollback(); this._queueCredit('refund:' + txId, s.playerId, total, r.raceNo, 'refund');
+      rollback(); this._queueCredit('refund:' + txId, s.playerId, total + fees, r.raceNo, 'refund');
       throw httpError(409, 'BETTING_CLOSED');
     }
     s.balance = res.balance;
     const placed = [];
     merged.forEach((stake, combo) => {
-      const bet = { id: batch + ':' + combo, raceNo: r.raceNo, playerId: s.playerId, combo, stake, status: 'open', payout: 0 };
+      const bet = { id: batch + ':' + combo, raceNo: r.raceNo, playerId: s.playerId, combo, stake, fee: feeOf.get(combo), status: 'open', payout: 0 };
       r.bets.push(bet); placed.push(bet);
-      this._log({ e: 'bet', raceNo: r.raceNo, id: bet.id, playerId: s.playerId, combo, stake, txId });
+      this._log({ e: 'bet', raceNo: r.raceNo, id: bet.id, playerId: s.playerId, combo, stake, fee: bet.fee, txId });
     });
     return { bets: placed, balance: s.balance };
   }
@@ -180,9 +203,9 @@ class Engine {
   _open() {
     const seed = rng.newSeed(), t = this.now();
     this.counter++;
-    const odds = this.shuffle ? rng.oddsLayout(seed, this.counter, this.values) : this.table.odds, table = oddsLib.build(odds);
-    this.cur = { raceNo: this.counter, seed, commit: rng.commitOf(seed), odds, table, openAt: t, betCloseAt: t + this.cfg.betMs, status: 'betting', bets: [], betsByPlayer: new Map() };
-    this._log({ e: 'open', raceNo: this.cur.raceNo, seed, commit: this.cur.commit, odds, openAt: t, betCloseAt: this.cur.betCloseAt });
+    const odds = this.shuffle ? rng.oddsLayout(seed, this.counter, this.values) : this.table.odds, table = oddsLib.buildForRtp(odds, this.rtp);
+    this.cur = { raceNo: this.counter, seed, commit: rng.commitOf(seed), odds, table, rtp: this.rtp, openAt: t, betCloseAt: t + this.cfg.betMs, status: 'betting', bets: [], betsByPlayer: new Map() };
+    this._log({ e: 'open', raceNo: this.cur.raceNo, seed, commit: this.cur.commit, odds, rtp: this.rtp, openAt: t, betCloseAt: this.cur.betCloseAt });
   }
   _drawNow(r) {
     const o = rng.draw(r.seed, r.raceNo, r.table.weights);
@@ -190,20 +213,20 @@ class Engine {
     this._log({ e: 'draw', raceNo: r.raceNo, combo: r.combo, order: r.order, animSeed: r.animSeed, startAt: r.startAt });
   }
   async _settle(r) {
-    const payouts = new Map(); let staked = 0, paid = 0;
+    const payouts = new Map(); let staked = 0, paid = 0, fees = 0;
     r.bets.forEach((b) => {
-      staked += b.stake;
+      staked += b.stake; fees += b.fee || 0;
       if (b.combo === r.combo) { b.status = 'won'; b.payout = this.payoutFor(b.stake, b.combo, r.odds); paid += b.payout; payouts.set(b.playerId, (payouts.get(b.playerId) || 0) + b.payout); }
       else { b.status = 'lost'; b.payout = 0; }
     });
-    r.status = 'settled'; r.staked = staked; r.paid = paid;
-    this._log({ e: 'settled', raceNo: r.raceNo, combo: r.combo, staked, paid, payouts: [...payouts].map(([playerId, amount]) => ({ playerId, amount })) });
+    r.status = 'settled'; r.staked = staked; r.fees = fees; r.paid = paid;
+    this._log({ e: 'settled', raceNo: r.raceNo, combo: r.combo, staked, fees, paid, payouts: [...payouts].map(([playerId, amount]) => ({ playerId, amount })) });
     for (const [playerId, amount] of payouts) this._queueCredit('win:' + r.raceNo + ':' + playerId, playerId, amount, r.raceNo, 'win');
-    this.stats.rounds++; this.stats.bets += r.bets.length; this.stats.staked += staked; this.stats.paid += paid; this.stats.wins[r.combo]++;
+    this.stats.rounds++; this.stats.bets += r.bets.length; this.stats.staked += staked; this.stats.fees += fees; this.stats.paid += paid; this.stats.wins[r.combo]++;
     const wo = r.odds[r.combo]; this.stats.winsByOdds[wo] = (this.stats.winsByOdds[wo] || 0) + 1;
-    this.recent.push({ raceNo: r.raceNo, combo: r.combo, order: r.order, staked, paid, bets: r.bets.length, odds: wo });
+    this.recent.push({ raceNo: r.raceNo, combo: r.combo, order: r.order, staked, fees, paid, bets: r.bets.length, odds: wo });
     if (this.recent.length > 100) this.recent.shift();
-    this.reveals.push({ raceNo: r.raceNo, seed: r.seed, commit: r.commit, combo: r.combo, order: r.order, odds: r.odds });
+    this.reveals.push({ raceNo: r.raceNo, seed: r.seed, commit: r.commit, combo: r.combo, order: r.order, odds: r.odds, rtp: r.rtp });
     if (this.reveals.length > 20) this.reveals.shift();
     await this._flushCredits();
   }
@@ -238,7 +261,7 @@ class Engine {
       mode: 'live', serverNow: t, nextRaceNo: r ? r.raceNo + (r.status === 'betting' ? 0 : 1) : 1,
       timings: { countdown: this.cfg.countdownMs, race: this.cfg.raceMs, results: this.cfg.resultsMs, bet: this.cfg.betMs },
       rules: this.rules(),
-      round: r ? { raceNo: r.raceNo, phase: this._phase(r, t), openAt: r.openAt, betCloseAt: r.betCloseAt, startAt: r.startAt || null, commit: r.commit, odds: r.odds } : null,
+      round: r ? { raceNo: r.raceNo, phase: this._phase(r, t), openAt: r.openAt, betCloseAt: r.betCloseAt, startAt: r.startAt || null, commit: r.commit, odds: r.odds, rtp: r.rtp, fee: r.table.fee, cheapRtp: r.table.cheapRtp, cheapPairs: r.table.cheap } : null,
       race: null,
       history: this.recent.slice(-8).map((x) => ({ raceNo: x.raceNo, order: x.order })),
       reveals: this.reveals.slice(-5)
@@ -252,7 +275,7 @@ class Engine {
       s.refreshed = this.now();
       try { s.balance = await this.wallet.balance(s.playerId); } catch (e) { /* keep the cached balance */ }
     }
-    const mine = (r) => r.bets.filter((b) => b.playerId === s.playerId).map((b) => ({ combo: b.combo, stake: b.stake, odds: r.odds[b.combo], status: b.status, payout: b.payout }));
+    const mine = (r) => r.bets.filter((b) => b.playerId === s.playerId).map((b) => ({ combo: b.combo, stake: b.stake, fee: b.fee || 0, odds: r.odds[b.combo], status: b.status, payout: b.payout }));
     const out = { playerId: s.playerId, currency: s.currency, balance: s.balance, returnUrl: s.returnUrl, raceNo: null, bets: [], last: null };
     if (this.cur) { out.raceNo = this.cur.raceNo; out.bets = mine(this.cur); }
     const prev = this.cur && this.cur.status === 'settled' ? this.cur : this.done[this.done.length - 1];
@@ -261,13 +284,13 @@ class Engine {
     return out;
   }
   report() {
-    const s = this.stats;
+    const s = this.stats, p = this.previewRtp(this.rtp), paidIn = s.staked + s.fees;
     return {
-      mode: 'live', theoreticalRtp: this.theoreticalRtp, shuffleOdds: this.shuffle, oddsValues: this.values, winsByOdds: s.winsByOdds,
-      oddsProb: this.values.reduce((o, v) => { o[v] = (1 / v) / this.values.reduce((a, x) => a + 1 / x, 0); return o; }, {}),
-      rounds: s.rounds, bets: s.bets, staked: s.staked, paid: s.paid, actualRtp: s.staked ? s.paid / s.staked : null,
-      houseWin: s.staked - s.paid, wins: s.wins, pendingCredits: this.pending.size, activeSessions: this.sessions.size,
-      limits: { minBet: this.cfg.minBet, maxBet: this.cfg.maxBet, maxRoundStake: this.cfg.maxRoundStake }, currency: this.cfg.currency,
+      mode: 'live', rtpSetting: this.rtp, rtpOfCurrentRace: this.cur ? this.cur.rtp : null, bestBetRtp: p.bestRtp, cheapPairsRtp: p.cheapRtp, evenSpreadRtp: p.evenSpreadRtp, feeRate: p.fee,
+      theoreticalRtp: this.rtp, shuffleOdds: this.shuffle, oddsValues: this.values, winsByOdds: s.winsByOdds,
+      oddsProb: p.rows.reduce((o, r) => { o[r.odds] = r.probability; return o; }, {}), limits: { minBet: this.cfg.minBet, maxBet: this.cfg.maxBet, maxRoundStake: this.cfg.maxRoundStake },
+      rounds: s.rounds, bets: s.bets, staked: s.staked, fees: s.fees, paid: s.paid, actualRtp: paidIn ? s.paid / paidIn : null,
+      houseWin: paidIn - s.paid, wins: s.wins, pendingCredits: this.pending.size, activeSessions: this.sessions.size, currency: this.cfg.currency,
       recent: this.recent.slice(-50).reverse(), commit: this.cur ? this.cur.commit : null, currentRound: this.cur ? this.cur.raceNo : null
     };
   }
