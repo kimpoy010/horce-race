@@ -7,6 +7,8 @@
 (function () {
   'use strict';
 
+  if (window.HORSE_VARIANT == null) window.HORSE_VARIANT = 5; // 0 = old straight-leg body, 5 = slim tucked-up belly (default)
+
   var COLS = 89, PADX = 6, PADY = 4, SW = COLS + PADX * 2 + 2, SH = 60 + PADY * 2;
   var OX = PADX + 44, OY = PADY + 56, STEPS = 12;
 
