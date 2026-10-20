@@ -1,7 +1,8 @@
 # Retro Horse Race
 
-1980s-style 8-bit horse race for the web. Six numbered horses run a "C"-shaped track (a U rotated
-counter-clockwise): left along the top straight, round the curve, right along the bottom straight to the finish.
+1980s-style 8-bit horse race for the web. Six numbered horses run a closed track shaped like a "U" lying on its side (opening to the left): they start at the
+top-left, run right along the top straight, round the curve, and race back left along the bottom straight to the finish line,
+also on the left. A close-up camera follows the pack the whole way (a minimap shows the full track).
 Every race has **two winning numbers** (the horses that finish 1st and 2nd) chosen on the **controller page**.
 
 ## Run

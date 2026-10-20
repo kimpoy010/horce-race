@@ -5,7 +5,7 @@ body { display: flex; align-items: center; justify-content: center; }
   --u: 4px; /* 1% of the stage width, set from JS */
   position: relative;
   width: min(100vw, 177.78vh);
-  aspect-ratio: 384 / 216;
+  aspect-ratio: 16 / 9;
   font-family: "Courier New", Courier, ui-monospace, monospace;
   font-weight: 900;
   font-size: calc(var(--u) * 2.2);
@@ -20,7 +20,7 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 
 .bar { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: calc(var(--u) * 1.5); padding: 0 calc(var(--u) * 1.5); box-sizing: border-box; }
-.bar.top { top: 0; height: 8.6%; background: rgba(8, 20, 40, .72); }
+.bar.top { top: 0; height: 7.4%; background: rgba(8, 20, 40, .6); }
 .bar.bottom { bottom: 0; height: 6.4%; background: rgba(8, 20, 40, .72); font-size: calc(var(--u) * 1.6); }
 .race-no { color: #ffd23c; white-space: nowrap; }
 .status { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; }
@@ -46,8 +46,8 @@ body { display: flex; align-items: center; justify-content: center; }
 .h4 { text-shadow: none; }
 
 .tote {
-  position: absolute; left: 35.5%; width: 49.5%; top: 43.8%; height: 9.4%; font-size: .85em;
-  background: rgba(8, 20, 40, .78); pointer-events: none; border: calc(var(--u) * .35) solid #ffd23c; box-sizing: border-box;
+  position: absolute; left: 0; right: 0; top: 7.4%; height: 7.6%; font-size: .75em;
+  background: rgba(8, 20, 40, .55); pointer-events: none; box-sizing: border-box;
   display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .8);
   text-align: center; white-space: nowrap; overflow: hidden;
 }

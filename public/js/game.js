@@ -12,22 +12,24 @@
   var C = window.HorseCore;
   var qs = new URLSearchParams(location.search);
 
-  /* ================= geometry: a "C" shaped track (U rotated counter-clockwise) ================= */
-  var W = 384, H = 216, CY = 108, XL = 130, X_START = 330, X_END = 364;
-  var R_IN = 14, LANE_W = 11, LANES = 6;
+  /* ================= geometry: a closed "U" track lying on its side, opening to the LEFT ================= */
+  // World is bigger than the screen; a camera follows the pack. Horses start top-left, run right along the
+  // top straight, round the curve on the right, and come back left along the bottom straight to the finish.
+  var VW = 256, VH = 144;                                   // camera view (logical px)
+  var WW = 810, WH = 270, CY = 135, XL = 150, XR = 650, X_MIN = 70;
+  var R_IN = 30, LANE_W = 9, LANES = 6;
   var R_OUT = R_IN + LANE_W * LANES;
   var RMID = R_IN + LANE_W * LANES / 2;
-  var S = X_START - XL, ARC = Math.PI * RMID, TOTAL = 2 * S + ARC;
+  var S = XR - XL, ARC = Math.PI * RMID, TOTAL = 2 * S + ARC;
 
-  // Horses run left along the top straight, round the left-hand curve, then right along the bottom
-  // straight to the finish line. u = 0 is the start gate, u = 1 the finish line.
+  // u = 0 is the start gate (top-left), u = 1 the finish line (bottom-left).
   function trackPos(u, lane) {
     var r = R_IN + LANE_W * (lane + 0.5), d = u * TOTAL, x, y, dir;
-    if (d < S) { x = X_START - d; y = CY - r; dir = -1; }
+    if (d < S) { x = XL + d; y = CY - r; dir = 1; }
     else if (d < S + ARC) {
       var th = (d - S) / RMID;
-      x = XL - r * Math.sin(th); y = CY - r * Math.cos(th); dir = th < Math.PI / 2 ? -1 : 1;
-    } else { x = XL + (d - S - ARC); y = CY + r; dir = 1; }
+      x = XR + r * Math.sin(th); y = CY - r * Math.cos(th); dir = th < Math.PI / 2 ? 1 : -1;
+    } else { x = XR - (d - S - ARC); y = CY + r; dir = -1; }
     return { x: x, y: y, dir: dir };
   }
 
@@ -50,8 +52,8 @@
   /* ================= static background ================= */
   function inTrack(x, y) {
     var dy = y - CY;
-    if (x >= XL) { var a = Math.abs(dy); return x <= X_END && a >= R_IN && a < R_OUT; }
-    var dx = x - XL, d = Math.sqrt(dx * dx + dy * dy);
+    if (x <= XR) { var a = Math.abs(dy); return x >= X_MIN && a >= R_IN && a < R_OUT; }
+    var dx = x - XR, d = Math.sqrt(dx * dx + dy * dy);
     return d >= R_IN && d < R_OUT;
   }
   function hash(x, y) {
@@ -74,40 +76,41 @@
   }
 
   function makeBackground() {
-    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    var g = cv.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+    var cv = document.createElement('canvas'); cv.width = WW; cv.height = WH;
+    var g = cv.getContext('2d'), img = g.createImageData(WW, WH), d = img.data;
     var GRASS = rgb('#3dbb5f'), GRASS_D = rgb('#34a653'), GRASS_L = rgb('#4ccd6e');
     var DIRT = rgb('#b9925a'), DIRT_D = rgb('#a47e49'), DIRT_L = rgb('#c9a46c');
     var RAIL_A = rgb('#f4ead6'), RAIL_B = rgb('#c8bca2');
-    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+    for (var y = 0; y < WH; y++) for (var x = 0; x < WW; x++) {
       var c, h = hash(x, y);
       if (inTrack(x, y)) {
         var edge = !inTrack(x - 1, y) || !inTrack(x + 1, y) || !inTrack(x, y - 1) || !inTrack(x, y + 1);
         c = edge ? (((x >> 2) + (y >> 2)) & 1 ? RAIL_A : RAIL_B) : (h < 0.07 ? DIRT_D : h > 0.95 ? DIRT_L : DIRT);
       } else c = h < 0.08 ? GRASS_D : h > 0.97 ? GRASS_L : GRASS;
-      var i = (y * W + x) * 4; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+      var i = (y * WW + x) * 4; d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
     }
     g.putImageData(img, 0, 0);
 
-    // hedges + flower beds around the outside rail
+    // hedges + flower beds on the outside rail, flower beds on the infield rail
     var n = 0, x0;
-    for (x0 = XL; x0 < X_END - 8; x0 += 15, n++) {
-      (n % 2 ? flowers : bush)(g, x0, CY - R_OUT - 10);
+    for (x0 = X_MIN; x0 <= XR; x0 += 15, n++) {
+      (n % 2 ? flowers : bush)(g, x0, CY - R_OUT - 11);
       (n % 2 ? flowers : bush)(g, x0, CY + R_OUT + 3);
     }
-    var step = 15 / (R_OUT + 6);
-    for (var th = step * 0.6; th < Math.PI - step * 0.3; th += step, n++) {
-      var px = XL - (R_OUT + 8) * Math.sin(th), py = CY - (R_OUT + 8) * Math.cos(th);
+    for (x0 = X_MIN + 10; x0 <= XR - 20; x0 += 40) { flowers(g, x0, CY - R_IN + 2); flowers(g, x0, CY + R_IN - 10); }
+    var step = 15 / (R_OUT + 8);
+    for (var th = step * 0.5; th < Math.PI - step * 0.3; th += step, n++) {
+      var px = XR + (R_OUT + 9) * Math.sin(th), py = CY - (R_OUT + 9) * Math.cos(th);
       (n % 2 ? flowers : bush)(g, px - 7, py - 4);
     }
-    // finish line (bottom straight) and its posts
+    // finish line (bottom straight, left) and posts
     for (var yy = CY + R_IN + 1, k = 0; yy < CY + R_OUT - 1; yy += 3, k++) {
-      rect(g, X_START - 1, yy, 3, 3, k % 2 ? '#000' : '#fff'); rect(g, X_START + 2, yy, 3, 3, k % 2 ? '#fff' : '#000');
+      rect(g, XL - 1, yy, 3, 3, k % 2 ? '#000' : '#fff'); rect(g, XL + 2, yy, 3, 3, k % 2 ? '#fff' : '#000');
     }
-    rect(g, X_START - 1, CY + R_IN - 4, 3, 5, '#e03030'); rect(g, X_START - 1, CY + R_OUT, 3, 4, '#e03030');
-    // starting gate (top straight)
-    rect(g, X_START + 15, CY - R_OUT, 4, R_OUT - R_IN, '#3c3c48');
-    for (var l = 0; l <= LANES; l++) rect(g, X_START - 9, CY - R_OUT + l * LANE_W - (l === LANES ? 1 : 0), 26, 1, '#555563');
+    rect(g, XL - 1, CY + R_IN - 5, 3, 6, '#e03030'); rect(g, XL - 1, CY + R_OUT, 3, 5, '#e03030');
+    // starting gate (top straight, left)
+    rect(g, XL - 24, CY - R_OUT, 4, R_OUT - R_IN, '#3c3c48');
+    for (var l = 0; l <= LANES; l++) rect(g, XL - 24, CY - R_OUT + l * LANE_W - (l === LANES ? 1 : 0), 30, 1, '#555563');
     return cv;
   }
 
@@ -150,6 +153,15 @@
       var ox = 13 + i * 5 + ((phase * 3 + i * 7) % 4 | 0), oy = 1 + ((phase * 2 + i * 3) % 4 | 0);
       rect(g, cx - dir * ox - 1, cy - oy, 2, 1, i % 2 ? '#d9b886' : '#c9a46c');
     }
+  }
+
+  var MS = 0.06, MW = Math.round(WW * MS), MH = Math.round(WH * MS), MX = 3, MY = VH - 10 - MH - 3;
+  function drawMini(g, items, camX, camY) {
+    g.fillStyle = 'rgba(8,20,40,.7)'; g.fillRect(MX - 2, MY - 2, MW + 4, MH + 4);
+    for (var u = 0; u <= 1; u += 0.006) { var p = trackPos(u, LANES / 2 - 0.5); rect(g, MX + p.x * MS, MY + p.y * MS, 2, 2, '#8a7048'); }
+    var f = trackPos(1, LANES / 2 - 0.5); rect(g, MX + f.x * MS - 1, MY + f.y * MS - 2, 1, 6, '#fff');
+    items.forEach(function (it) { rect(g, MX + it.pos.x * MS - 1, MY + it.pos.y * MS - 1, 3, 3, HORSE[it.no].coat); });
+    g.strokeStyle = '#fff'; g.lineWidth = 1; g.strokeRect(MX + camX * MS + .5, MY + camY * MS + .5, VW * MS, VH * MS);
   }
 
   /* ================= sound (WebAudio chiptune) ================= */
@@ -256,7 +268,7 @@
   /* ================= main loop ================= */
   var bg = makeBackground();
   var g = document.getElementById('screen').getContext('2d');
-  var fired = {}, firedRace = null, lastHoof = 0;
+  var fired = {}, firedRace = null, lastHoof = 0, cam = {};
 
   function once(key, cond, fn, lateness) {
     if (fired[key] || !cond) return;
@@ -290,7 +302,6 @@
     }
 
     // ---- scene ----
-    g.drawImage(bg, 0, 0);
     var tt = phase === 'racing' || phase === 'results' ? t : 0, items = [], live = [];
     for (var no = 1; no <= C.HORSES; no++) {
       var u = 0, standing = true, h = rc && rc.horses[no];
@@ -299,15 +310,34 @@
         standing = tt <= 0 || u - C.progress(h, tt - 0.1) < 0.0004;
         live.push({ no: no, u: u, done: tt >= h.time, time: h.time });
       }
-      var pos = trackPos(u, no - 1);
-      items.push({ no: no, pos: pos, u: u, standing: standing });
+      items.push({ no: no, pos: trackPos(u, no - 1), u: u, standing: standing });
     }
+
+    // camera: follows the pack (leader-weighted) round the track and stops at the finish line
+    var uc = 0;
+    if (live.length) {
+      var lead = 0, sum = 0;
+      live.forEach(function (l) { lead = Math.max(lead, l.u); sum += l.u; });
+      uc = Math.min(1, (lead + sum / live.length) / 2);
+    }
+    var tp = trackPos(uc, LANES / 2 - 0.5), arcT = Math.min(1, Math.max(0, (uc * TOTAL - S) / ARC));
+    var tx = Math.min(WW - VW, Math.max(0, tp.x + tp.dir * VW * 0.08 - VW / 2));
+    var ty = Math.min(WH - VH, Math.max(0, tp.y - 20 * Math.cos(Math.PI * arcT) - VH / 2));
+    var perf = performance.now(), dt = Math.min(0.1, (perf - (cam.t || perf)) / 1000); cam.t = perf;
+    if (cam.key !== rk || cam.x == null) { cam.key = rk; cam.x = tx; cam.y = ty; }
+    else { var k = 1 - Math.exp(-dt * 4); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; }
+    var camX = Math.round(cam.x), camY = Math.round(cam.y);
+
+    g.drawImage(bg, camX, camY, VW, VH, 0, 0, VW, VH);
     items.sort(function (a, b) { return a.pos.y - b.pos.y; });
     items.forEach(function (it) {
-      var phs = it.u * TOTAL / 9 * Math.PI * 2;
-      if (!it.standing) drawDust(g, Math.round(it.pos.x), Math.round(it.pos.y), it.pos.dir, phs);
-      drawHorse(g, Math.round(it.pos.x), Math.round(it.pos.y) + 4, it.pos.dir, phs, it.standing, it.no);
+      var hx = Math.round(it.pos.x) - camX, hy = Math.round(it.pos.y) - camY + 4;
+      if (hx < -40 || hx > VW + 40) return;
+      var phs = it.u * TOTAL / 11 * Math.PI * 2;
+      if (!it.standing) drawDust(g, hx, hy, it.pos.dir, phs);
+      drawHorse(g, hx, hy, it.pos.dir, phs, it.standing, it.no);
     });
+    drawMini(g, items, camX, camY);
     if (phase === 'racing' && nowMs - lastHoof > 170) { lastHoof = nowMs; Sound.hoof(); }
 
     // ---- HUD ----
