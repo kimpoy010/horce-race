@@ -4,6 +4,7 @@
   --vh: 1vh; --sat: env(safe-area-inset-top, 0px); --sar: env(safe-area-inset-right, 0px); --sab: env(safe-area-inset-bottom, 0px); --sal: env(safe-area-inset-left, 0px);
   --aw: calc(100vw - var(--sal) - var(--sar)); --ah: calc(var(--vh) * 100 - var(--sat) - var(--sab));
   --sw: min(var(--aw), calc(var(--ah) * 1.7778));          /* width of the race screen (16:9) */
+  --pw: calc(var(--sw) * .6);                               /* width of the betting panel: 60% of the race screen */
 }
 html, body { margin: 0; height: calc(var(--vh) * 100); background: #0b0b14; overflow: hidden; }
 body { display: flex; align-items: center; justify-content: center; }
@@ -88,7 +89,7 @@ body.live { display: block; }
 .bet {
   box-sizing: border-box; padding: 12px; background: rgba(16, 23, 44, .95); color: #e8ecf5; border-left: 3px solid #2c3a66;
   font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700; font-size: 14px;
-  position: absolute; z-index: 20; width: calc(var(--sw) / 2); height: calc(var(--sw) * .5625);
+  position: absolute; z-index: 20; width: var(--pw); height: calc(var(--sw) * .5625);
   top: 50%; margin-top: calc(var(--sw) * -.28125); right: calc((100% - var(--sw)) / 2);
   overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   transition: transform .28s ease;
@@ -106,7 +107,7 @@ body.live { display: block; }
 .tab:hover { background: #fff27a; }
 .tab.attn { animation: tabpulse 1s ease-in-out infinite; }                   /* panel hidden while bets are open: ask for attention */
 @keyframes tabpulse { 0%, 100% { box-shadow: 0 0 0 1px #ffd23c, 0 0 6px 1px rgba(255, 210, 60, .5); } 50% { box-shadow: 0 0 0 2px #fff, 0 0 16px 5px rgba(255, 210, 60, .95); } }
-.tab.open { right: calc((100% - var(--sw)) / 2 + var(--sw) / 2); }
+.tab.open { right: calc((100% - var(--sw)) / 2 + var(--pw)); }
 .tab[hidden] { display: none; }
 .bet[hidden] { display: none; }
 .bet .lbl { font-size: 11px; color: #8d9bc4; letter-spacing: 1px; }
