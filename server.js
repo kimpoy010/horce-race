@@ -19,6 +19,8 @@ const walletFactory = require('./server/wallet.js');
 const webhookFactory = require('./server/webhook.js');
 const { Lease } = require('./server/lease.js');
 const { ClientRegistry } = require('./server/clients.js');
+const { UserStore } = require('./server/users.js');
+const { BackOffice } = require('./server/backoffice.js');
 const { AlertManager, webhookNotifier, diskFreeMb } = require('./server/alerts.js');
 const metricsLib = require('./server/metrics.js');
 
@@ -34,7 +36,7 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 
 /* ---------- demo mode: controller driven ---------- */
 let director = null, engine = null, lastSaved = '';
-let role = LIVE ? 'starting' : 'demo', lease = null, alerts = null, clients = null;       // live: starting | standby | active | stopping
+let role = LIVE ? 'starting' : 'demo', lease = null, alerts = null, clients = null, users = null, backoffice = null;       // live: starting | standby | active | stopping
 const timers = [];
 if (!LIVE) {
   try { director = new Director(JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'state.json'), 'utf8'))); } catch (e) { director = new Director(); }
@@ -59,6 +61,9 @@ async function startLive() {
   const production = env.NODE_ENV === 'production';
   clients = new ClientRegistry({ file: path.join(DATA_DIR, 'clients.json'), secret: env.CLIENTS_KEY, allowMock: env.ALLOW_MOCK_WALLET === '1' && !production, allowHttp: env.ALLOW_HTTP_WALLET === '1' });
   if (clients.loadError) throw new Error('data/clients.json: ' + clients.loadError);
+  users = new UserStore({ file: path.join(DATA_DIR, 'users.json'), secret: env.CLIENTS_KEY });
+  if (users.loadError) throw new Error('data/users.json: ' + users.loadError);
+  backoffice = new BackOffice({ users, clients, cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === '1' : production });
   if (clients.count() && !env.CLIENTS_KEY) console.warn('WARNING: CLIENTS_KEY is not set, so the client wallet secrets in data/clients.json are stored in plain text (the file is owner-only).');
   // the implicit "default" client comes from the WALLET / WEBHOOK settings; with WALLET unset and clients in the registry there is none
   const defaultWallet = env.WALLET || clients.count() === 0 ? walletFactory.create(env) : null;
@@ -81,7 +86,7 @@ async function startLive() {
     engine.tick().catch((e) => { engine.metrics.tickErrors++; console.error('tick failed:', e.message); });
   }, 250));
   alerts = new AlertManager({ config: alertConfig(), notify: env.ALERT_WEBHOOK_URL ? webhookNotifier(env.ALERT_WEBHOOK_URL) : null });
-  timers.push(setInterval(() => { if (clients.reload()) console.log('clients: registry reloaded (' + clients.count() + ' clients)'); }, 3000));
+  timers.push(setInterval(() => { if (clients.reload()) console.log('clients: registry reloaded (' + clients.count() + ' clients)'); if (users.reload()) console.log('users: reloaded'); backoffice.sweep(); }, 3000));
   timers.push(setInterval(() => { try { alerts.evaluate({ snapshot: engine.opsSnapshot(), wallet: engine.metrics.walletWindow(300000), walletClients: walletClients(), clientsError: clients.loadError, tickAge: engine.metrics.tickAge(), diskFreeMb: diskFreeMb(DATA_DIR) }); } catch (e) { console.error('alert check failed:', e.message); } }, 10000));
   if (defaultWallet && (env.WALLET || 'mock') === 'mock') console.warn('WARNING: play-money MOCK wallet (ALLOW_MOCK_WALLET=1). Never use this in production.');
   const pv = engine.previewRtp(engine.rtp);
@@ -184,20 +189,29 @@ function readBody(req) {
 function serveStatic(req, res, pathname) {
   if (pathname === '/' || pathname === '/play') pathname = '/index.html';
   if (pathname === '/controller') pathname = '/controller.html';
+  if (pathname === '/backoffice') pathname = '/backoffice.html';
   const file = path.normalize(path.join(PUBLIC_DIR, pathname));
   if (!file.startsWith(PUBLIC_DIR + path.sep)) { res.writeHead(403); return res.end('Forbidden'); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, {
+    const hdr = {
       'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache',
       'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff'   // the launch token is in the URL: never leak it
-    });
+    };
+    if (/^\/(backoffice|controller)/.test(pathname) || /\/(backoffice|controller)\.(html|js|css)$/.test(file)) {       // the panels must not be framed and may only load their own files
+      hdr['X-Frame-Options'] = 'DENY'; hdr['Content-Security-Policy'] = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'";
+    }
+    res.writeHead(200, hdr);
     res.end(data);
   });
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname.startsWith('/bo/api/')) {          // the client back office: same-origin only, no CORS headers
+    if (!LIVE || !backoffice) { res.writeHead(404); return res.end(); }
+    try { if (await backoffice.handle({ req, res, url, readBody: () => readBody(req), engine: role === 'active' ? engine : null, ip: clientIp(req) })) return; } catch (e) { console.error('back office:', e); res.writeHead(500); return res.end(); }
+  }
   if (url.pathname.startsWith('/api/')) {
     cors(res);
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
@@ -248,9 +262,19 @@ const server = http.createServer(async (req, res) => {
         if ((url.pathname === '/api/admin' || url.pathname === '/api/report') && req.method === 'GET') return json(res, 200, Object.assign({ serverNow: now }, engine.report(), { ops: ops() }));
         if (url.pathname === '/api/admin/history' && req.method === 'GET') return json(res, 200, engine.historyFor(engine.playerKey(url.searchParams.get('client'), url.searchParams.get('playerId')), url.searchParams.get('limit')));
         /* the client registry: platforms that offer the game */
-        if (url.pathname === '/api/clients' && req.method === 'GET') return json(res, 200, { ok: true, clients: clients.list(), defaultClient: !!engine.wallet });
+        if (url.pathname === '/api/clients' && req.method === 'GET') return json(res, 200, { ok: true, clients: clients.list().map((c) => Object.assign(c, { stats: engine.clientReport(c.id), users: users.count(c.id) })), defaultClient: !!engine.wallet });
         const audit = (action, id) => engine._log({ e: 'client_admin', action, clientId: id, who: 'controller' });          // who changed which client is in the ledger
         if (url.pathname === '/api/clients' && req.method === 'POST') { const body = JSON.parse(await readBody(req) || '{}'); const r = clients.create(body.client || body); audit('created', r.client.id); return json(res, 200, Object.assign({ ok: true }, r)); }
+        const um = /^\/api\/clients\/([a-z0-9-]{2,32})\/users(?:\/([a-z0-9._@-]{3,64})\/(reset-password|status|delete))?$/.exec(url.pathname);
+        if (um && (clients.get(um[1]) || um[1] === 'default')) {        // back-office logins of a client, managed by the operator (the first administrator is created here)
+          if (!um[2] && req.method === 'GET') return json(res, 200, { ok: true, users: users.list(um[1]) });
+          if (!um[2] && req.method === 'POST') { const b = JSON.parse(await readBody(req) || '{}'); const r = await users.create(um[1], { username: b.username, role: b.role, password: b.password }, 'operator'); audit('user_created:' + r.user.username, um[1]); return json(res, 200, Object.assign({ ok: true }, r)); }
+          if (um[2] && req.method === 'POST') {
+            const b = JSON.parse(await readBody(req) || '{}'); let out = {};
+            if (um[3] === 'reset-password') out = await users.resetPassword(um[1], um[2]); else if (um[3] === 'status') out = { user: users.setStatus(um[1], um[2], b.status) }; else { users.remove(um[1], um[2]); }
+            backoffice.endSessions(um[1], um[2]); audit('user_' + um[3].replace('-', '_') + ':' + um[2], um[1]); return json(res, 200, Object.assign({ ok: true }, out));
+          }
+        }
         const cm = /^\/api\/clients\/([a-z0-9-]{2,32})(?:\/(rotate-key|revoke-key|status|delete))?$/.exec(url.pathname);
         if (cm && req.method === 'GET' && !cm[2]) { const c = clients.get(cm[1]); return c ? json(res, 200, { ok: true, client: clients.publicView(c), report: engine.clientReport(cm[1]) }) : json(res, 404, { ok: false, error: 'NOT_FOUND' }); }
         if (cm && req.method === 'POST') {

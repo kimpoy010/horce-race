@@ -49,3 +49,6 @@ td select { width: 100%; max-width: 110px; padding: 4px; }
 .pill.ok { color: #7dff7d; border-color: #2f7a3f; background: #12301a; } .pill.bad { color: #ff9a9a; border-color: #a04040; background: #3a1616; }
 .alert { margin: 6px 0; padding: 6px 10px; border-left: 4px solid; font-size: 13px; }
 .alert.critical { border-color: #ff5a5a; background: #3a1616; } .alert.warning { border-color: #ffd23c; background: #3a3216; }
+.secretbox { background: #101a12; border: 1px dashed #4a8a56; padding: 10px; margin: 8px 0; } .secretbox code { word-break: break-all; color: #cdeed4; }
+.scroll { overflow-x: auto; }
+#clientsTbl td { vertical-align: top; } #clientsTbl .row { gap: 6px; flex-wrap: wrap; }

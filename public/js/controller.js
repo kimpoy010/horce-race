@@ -44,7 +44,8 @@
     return {
       mode: 'server',
       admin: function () { return call('/api/admin'); },
-      command: function (c) { return call('/api/command', { method: 'POST', body: JSON.stringify(c) }); }
+      command: function (c) { return call('/api/command', { method: 'POST', body: JSON.stringify(c) }); },
+      request: function (method, path, body) { return call(path, { method: method, body: body === undefined ? undefined : JSON.stringify(body) }); }
     };
   }
 
@@ -202,10 +203,47 @@
     $('opsStats').innerHTML = items.map(function (x) { return '<div class="stat"><span class="small">' + x[0] + '</span><b style="font-size:14px">' + x[1] + '</b></div>'; }).join('');
     $('opsLedger').textContent = 'Ledger: ' + (s.ledger.ok ? 'hash chain intact' : 'BROKEN at line ' + s.ledger.broken.line + ' (' + s.ledger.broken.reason + ')') + ', ' + s.ledger.lines + ' lines. Newest hash ' + s.ledger.head.slice(0, 16) + '... (also sent in every round.settled webhook).';
   }
+  /* ---------- clients (platforms): the registry, API keys and back-office logins ---------- */
+  function el(tag, attrs) { var e = document.createElement(tag), i, k; if (attrs) for (k in attrs) { if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), attrs[k]); else if (k === 'class') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); } for (i = 2; i < arguments.length; i++) { var c = arguments[i]; if (c == null) continue; (Array.isArray(c) ? c : [c]).forEach(function (x) { e.appendChild(x && x.nodeType ? x : document.createTextNode(String(x))); }); } return e; }
+  var clientsTimer = 0;
+  function loadClients() {
+    if (!backend || !backend.request) return;
+    backend.request('GET', '/api/clients').then(function (d) {
+      var box = $('clientsTbl'), tb = box.querySelector('tbody'); while (tb.firstChild) tb.removeChild(tb.firstChild);
+      if (!d.clients.length) tb.appendChild(el('tr', null, el('td', { colspan: 7 }, 'No clients yet. Add one below' + (d.defaultClient ? ' (the game currently serves the implicit default client from the WALLET settings).' : '.'))));
+      d.clients.forEach(function (c) {
+        var s = c.stats || {}, act = el('div', { class: 'row' });
+        function post(path, body, after) { backend.request('POST', '/api/clients/' + c.id + path, body).then(function (r) { if (!r.ok) return $('clientsOut').replaceChildren(el('div', { class: 'err' }, r.message || r.error)); if (after) after(r); loadClients(); }); }
+        function secret(title, lines) { $('clientsOut').replaceChildren(el('div', { class: 'secretbox' }, el('b', null, title), lines.map(function (l) { return el('div', null, l[0] + ' ', el('code', null, l[1])); }), el('div', { class: 'small' }, 'Shown once. Give it to the client over a safe channel.'))); }
+        act.appendChild(el('button', { onclick: function () { post('/status', { status: c.status === 'active' ? 'disabled' : 'active' }); } }, c.status === 'active' ? 'Disable' : 'Enable'));
+        act.appendChild(el('button', { onclick: function () { if (confirm('New API key for ' + c.id + '? The old keys stop working after 24 hours.')) post('/rotate-key', {}, function (r) { secret('New API key for ' + c.id, [['Key:', r.apiKey]]); }); } }, 'Rotate key'));
+        act.appendChild(el('button', { onclick: function () { var u = prompt('Username of the new back-office user (letters, digits . _ @ -):'); if (!u) return; var role = prompt('Role: viewer, support or admin', 'admin'); if (!role) return; post('/users', { username: u, role: role }, function (r) { secret('Back-office user ' + r.user.username + ' (' + r.user.role + ') for ' + c.id, [['Temporary password:', r.tempPassword]]); }); } }, 'Add back-office user'));
+        tb.appendChild(el('tr', null, el('td', null, el('b', null, c.id), el('div', { class: 'small' }, c.name)), el('td', null, el('span', { class: 'badge' }, c.status)), el('td', null, c.currency || '-'),
+          el('td', null, c.wallet.type === 'mock' ? 'mock wallet' : c.wallet.url, el('div', { class: 'small' }, c.webhook ? 'webhook ' + c.webhook.url : 'no webhook')),
+          el('td', null, (s.bets || 0) + ' bets', el('div', { class: 'small' }, 'staked ' + money(s.staked || 0) + ', paid ' + money(s.paid || 0))), el('td', null, (c.users || 0) + ' users', el('div', { class: 'small' }, (s.activeSessions || 0) + ' online')), el('td', null, act)));
+      });
+    }).catch(function () { /* not allowed or offline */ });
+  }
+  function initClients() {
+    var f = $('clientForm'); if (!f || f.dataset.ready) return; f.dataset.ready = '1';
+    f.addEventListener('submit', function (ev) {
+      ev.preventDefault(); var v = function (n) { return f.elements[n].value.trim(); };
+      var client = { id: v('id'), name: v('name'), currency: v('currency').toUpperCase() || undefined, wallet: { url: v('walletUrl') } };
+      if (f.elements.mock.checked) client.wallet = { type: 'mock' };
+      if (v('webhookUrl')) client.webhook = { url: v('webhookUrl') };
+      backend.request('POST', '/api/clients', { client: client }).then(function (r) {
+        if (!r.ok) return $('clientsOut').replaceChildren(el('div', { class: 'err' }, r.message || r.error));
+        var lines = [['API key:', r.apiKey]]; if (r.walletSecret) lines.push(['Wallet signing secret:', r.walletSecret]);
+        $('clientsOut').replaceChildren(el('div', { class: 'secretbox' }, el('b', null, 'Client ' + r.client.id + ' created. Next: add its first back-office administrator with the button in its row.'), lines.map(function (l) { return el('div', null, l[0] + ' ', el('code', null, l[1])); }), el('div', { class: 'small' }, 'Shown once. Give both to the client over a safe channel.')));
+        f.reset(); loadClients();
+      });
+    });
+    loadClients(); clientsTimer = setInterval(loadClients, 8000);
+  }
   function renderReport(r) {
     if (r.standby) { $('report').hidden = true; $('mode').textContent = 'STANDBY'; return; }
     $('report').hidden = false;
-    renderOps(r.ops);
+    renderOps(r.ops); initClients();
     [].forEach.call(document.querySelectorAll('[data-demo]'), function (n) { n.hidden = true; });
     $('mode').textContent = 'LIVE MODE';
     var pct = function (x) { return x == null ? '-' : (x * 100).toFixed(2) + '%'; };

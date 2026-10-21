@@ -44,6 +44,7 @@ class Engine {
     this.pending = new Map();                                          // credits that still have to reach the wallet
     this.metrics = new Metrics(this.now); this.closing = false;
     this.rtpTrack = { exp: 0, varsum: 0, paid: 0, staked: 0, rounds: 0 };   // what the odds predict for the bets actually placed
+    this.clientRecent = new Map(); this.boAudit = new Map();           // per client: its recent rounds, back-office actions
     this.pendingWh = new Map();                                        // webhook events the platform has not confirmed yet
     this.webhook = opts.webhook || null;
     this.history = new Map(); this.proofs = new Map();                 // per-player bet history, revealed draws
@@ -98,7 +99,8 @@ class Engine {
         if (this._day(ev.t) === this._day()) this._dayRec(ev.playerId).staked += ev.stake;
       }
       if (ev.e === 'draw' && r) Object.assign(r, { status: 'racing', combo: ev.combo, order: ev.order, animSeed: ev.animSeed, startAt: ev.startAt });
-      if (ev.e === 'settled' && r) { r.status = 'settled'; r.payouts = ev.payouts; r.staked = ev.staked; r.paid = ev.paid; if (this._day(ev.t) === this._day()) (ev.payouts || []).forEach((p) => { this._dayRec(p.playerId).paid += p.amount; }); }
+      if (ev.e === 'bo_action') { const l = this.boAudit.get(ev.clientId) || []; this.boAudit.set(ev.clientId, l); const { e: _e, t: _t, h: _h, ...rest } = ev; l.push(Object.assign({ at: _t }, rest)); if (l.length > 500) l.shift(); }
+      if (ev.e === 'settled' && r) { r.settledAt = ev.t; r.status = 'settled'; r.payouts = ev.payouts; r.staked = ev.staked; r.paid = ev.paid; if (this._day(ev.t) === this._day()) (ev.payouts || []).forEach((p) => { this._dayRec(p.playerId).paid += p.amount; }); }
       if (ev.e === 'void' && r) { r.status = 'void'; r.bets.forEach((b) => { if (this._day(b.placedAt) === this._day()) this._dayRec(b.playerId).staked -= b.stake; }); }
       if (ev.e === 'credit_due') due.set(ev.txId, ev);
       if (ev.e === 'credit_ok') ok.add(ev.txId);
@@ -121,7 +123,7 @@ class Engine {
           const cs = this.stats.byCurrency[b.currency] || (this.stats.byCurrency[b.currency] = { staked: 0, paid: 0 }); cs.staked += b.stake; cs.paid += b.payout;
           this._track(b, r); this._statClient(b);
         });
-        this._archiveRound(r);
+        this._archiveRound(r); this._clientRounds(r, r.settledAt);
         this.stats.rounds++; this.stats.bets += r.bets.length; this.stats.staked += r.staked; this.stats.paid += r.paid; if (r.combo) this.stats.wins[r.combo]++;
         this.recent.push({ raceNo: r.raceNo, combo: r.combo, order: r.order, staked: r.staked, paid: r.paid, bets: r.bets.length, odds: r.odds ? r.odds[r.combo] : null });
         if (r.odds) this.stats.winsByOdds[r.odds[r.combo]] = (this.stats.winsByOdds[r.odds[r.combo]] || 0) + 1;
@@ -458,6 +460,7 @@ class Engine {
     this._archiveRound(r);
     const per = new Map();                         // every client with a webhook gets the result; the money figures are its own players'
     r.bets.forEach((b) => { const c = this.splitPk(b.playerId).clientId, x = per.get(c) || { bets: 0, staked: 0, paid: 0 }; x.bets++; x.staked += b.stake; x.paid += b.payout; per.set(c, x); });
+    this._clientRounds(r, this.now());
     const cids = new Set(['default']); if (this.clients) this.clients.list().forEach((c) => cids.add(c.id));
     for (const cid of cids) {
       const x = per.get(cid) || { bets: 0, staked: 0, paid: 0 };
@@ -514,7 +517,53 @@ class Engine {
     T.staked += b.stake; T.paid += b.payout; if (p == null) return;
     const w = b.stake * (r.odds[b.combo]); T.exp += w * p; T.varsum += w * w * p * (1 - p);
   }
-  _statClient(b) { const c = this.splitPk(b.playerId).clientId, s = this.stats.byClient[c] || (this.stats.byClient[c] = { bets: 0, staked: 0, paid: 0 }); s.bets++; s.staked += b.stake; s.paid += b.payout; }
+  _statClient(b) {
+    const c = this.splitPk(b.playerId).clientId, s = this.stats.byClient[c] || (this.stats.byClient[c] = { bets: 0, staked: 0, paid: 0, byCurrency: {} });
+    s.bets++; s.staked += b.stake; s.paid += b.payout;
+    const cur = b.currency || this.cfg.currency, x = s.byCurrency[cur] || (s.byCurrency[cur] = { staked: 0, paid: 0 }); x.staked += b.stake; x.paid += b.payout;
+  }
+  // one line per client for a settled race: its own bets, players, staked and paid (for the back office)
+  _clientRounds(r, at) {
+    const per = new Map();
+    r.bets.forEach((b) => {
+      const c = this.splitPk(b.playerId).clientId, x = per.get(c) || { players: new Set(), bets: 0, staked: 0, paid: 0 };
+      x.players.add(b.playerId); x.bets++; x.staked += b.stake; x.paid += b.payout; per.set(c, x);
+    });
+    for (const [c, x] of per) {
+      const list = this.clientRecent.get(c) || []; this.clientRecent.set(c, list);
+      list.push({ raceNo: r.raceNo, combo: r.combo, odds: r.odds ? r.odds[r.combo] : null, order: r.order, at: at || this.now(), players: x.players.size, bets: x.bets, staked: x.staked, paid: x.paid });
+      if (list.length > 300) list.shift();
+    }
+  }
+  // players of a client that the game knows from its history, open bets, sessions and block list
+  players(clientId, opts) {
+    opts = opts || {}; const q = String(opts.query || '').toLowerCase(), by = new Map();
+    const get = (pk) => { let p = by.get(pk); if (!p) { p = { playerId: this.splitPk(pk).playerId, bets: 0, staked: 0, paid: 0, lastBetAt: null, online: false, blocked: this.blocked.has(pk) }; by.set(pk, p); } return p; };
+    const mine = (pk) => { const s = this.splitPk(pk); return s.clientId === clientId && (!q || s.playerId.toLowerCase().includes(q)); };
+    for (const [pk, list] of this.history) if (mine(pk)) for (const h of list) {
+      const p = get(pk); if (h.status === 'refunded') continue;
+      p.bets++; p.staked += h.stake; p.paid += h.payout || 0; if (!p.lastBetAt || (h.placedAt || 0) > p.lastBetAt) p.lastBetAt = h.placedAt || p.lastBetAt;
+    }
+    if (this.cur && this.cur.status !== 'settled') this.cur.bets.forEach((b) => { if (mine(b.playerId)) { const p = get(b.playerId); p.bets++; p.staked += b.stake; p.lastBetAt = Math.max(p.lastBetAt || 0, b.placedAt || 0); } });
+    for (const s of this.sessions.values()) if (s.clientId === clientId && mine(s.playerId)) get(s.playerId).online = true;
+    for (const pk of this.blocked) if (mine(pk)) get(pk);
+    const all = [...by.values()].sort((a, b) => (b.lastBetAt || 0) - (a.lastBetAt || 0));
+    return { ok: true, total: all.length, players: all.slice(0, Math.max(1, Math.min(500, Number(opts.limit) || 100))) };
+  }
+  playerDetail(clientId, playerId) {
+    const pk = this.playerKey(clientId, playerId), h = this.historyFor(pk, 100), sessions = [];
+    for (const s of this.sessions.values()) if (s.playerId === pk) sessions.push({ since: s.created, currency: s.currency, balance: s.balance, limits: s.limits, staked: s.sStaked, paid: s.sPaid });
+    const totals = { bets: 0, staked: 0, paid: 0 }; h.rounds.forEach((r) => r.bets.forEach((b) => { if (b.status !== 'refunded') { totals.bets++; totals.staked += b.stake; totals.paid += b.payout || 0; } }));
+    return { ok: true, playerId, clientId, blocked: this.blocked.has(pk), sessions, dailyNetLoss: Math.max(0, this._dayNet(pk)), totals, rounds: h.rounds };
+  }
+  rounds(clientId, limit) { return { ok: true, rounds: (this.clientRecent.get(clientId) || []).slice(-Math.max(1, Math.min(300, Number(limit) || 50))).reverse() }; }
+  // back-office actions are kept in the ledger and in a short list per client
+  audit(clientId, entry) {
+    const e = Object.assign({ at: this.now() }, entry), list = this.boAudit.get(clientId) || []; this.boAudit.set(clientId, list);
+    list.push(e); if (list.length > 500) list.shift();
+    this._log(Object.assign({ e: 'bo_action', clientId }, entry));
+  }
+  auditFor(clientId, limit) { return { ok: true, entries: (this.boAudit.get(clientId) || []).slice(-Math.max(1, Math.min(500, Number(limit) || 100))).reverse() }; }
   rtpZ() { const T = this.rtpTrack; return T.varsum > 0 ? (T.paid - T.exp) / Math.sqrt(T.varsum) : 0; }
 
   // numbers for one client (its own back office / client API)
@@ -523,7 +572,7 @@ class Engine {
     let sessions = 0; for (const s of this.sessions.values()) if (s.clientId === clientId) sessions++;
     const count = (m) => { let n = 0; for (const p of m.values()) if (mine(p.playerId)) n++; return n; };
     let blocked = 0; for (const b of this.blocked) if (mine(b)) blocked++;
-    return { ok: true, clientId, bets: st.bets, staked: st.staked, paid: st.paid, rtp: st.staked ? st.paid / st.staked : null, activeSessions: sessions,
+    return { ok: true, clientId, bets: st.bets, staked: st.staked, paid: st.paid, ggr: st.staked - st.paid, byCurrency: st.byCurrency || {}, rtp: st.staked ? st.paid / st.staked : null, activeSessions: sessions,
       pendingCredits: count(this.pending), pendingRollbacks: count(this.pendingRb), blockedPlayers: blocked, currentRound: this.cur ? this.cur.raceNo : null, rtpSetting: this.rtp };
   }
   opsSnapshot() {

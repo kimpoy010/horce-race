@@ -86,4 +86,5 @@ Errors: `INVALID_API_KEY` (401), `BAD_REQUEST` (400).
   with registry clients only.
 * **Webhooks.** Each client receives `round.settled` for every race (with its own bets, staked and paid; the draw is the same for all) and `big.win` for its players.
   Event ids contain the client id.
-* **Not built yet**: a back-office web panel with logins and roles for clients (this API is the foundation), per-client rate limits, and per-client report exports.
+* **Back office**: clients also get a web panel with their own logins and roles at `/backoffice`: see `BACKOFFICE.md`.
+* **Not built yet**: per-client rate limits.

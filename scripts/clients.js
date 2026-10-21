@@ -12,6 +12,13 @@
  *   node scripts/clients.js disable <id> | enable <id>               a disabled client's launches and sessions stop working
  *   node scripts/clients.js remove <id> --yes
  *
+ * back-office logins of a client (data/users.json):
+ *   node scripts/clients.js add-user <client> <username> --role viewer|support|admin     prints a temporary password (changed at the first sign-in)
+ *   node scripts/clients.js list-users <client>
+ *   node scripts/clients.js reset-password <client> <username>
+ *   node scripts/clients.js disable-user|enable-user <client> <username>
+ *   node scripts/clients.js remove-user <client> <username> --yes
+ *
  * options: --name --currency PHP --wallet-url --wallet-secret --wallet-key-id --wallet-auth hmac|bearer --webhook-url --webhook-secret --webhook-events a,b
  *          --min-bet --max-bet --max-round-stake --daily-loss-limit (minor units) --reality-check-min --big-win-min --ips a,b (IPs or CIDR for the client API)
  *          --return-hosts a,b --mock (play-money wallet, needs ALLOW_MOCK_WALLET=1)
@@ -19,6 +26,7 @@
  */
 const path = require('path');
 const { ClientRegistry } = require('../server/clients.js');
+const { UserStore } = require('../server/users.js');
 
 const file = process.env.CLIENTS_FILE || path.join(__dirname, '..', 'data', 'clients.json');
 const reg = new ClientRegistry({ file, secret: process.env.CLIENTS_KEY, allowMock: process.env.ALLOW_MOCK_WALLET === '1' && process.env.NODE_ENV !== 'production', allowHttp: process.env.ALLOW_HTTP_WALLET === '1' });
@@ -64,7 +72,19 @@ function secretNotice(r) {
 }
 
 const { pos, f } = parse(process.argv.slice(2)), cmd = pos[0], id = pos[1];
-try {
+const usersFile = process.env.USERS_FILE || path.join(path.dirname(file), 'users.json');
+async function userCmd() {
+  const us = new UserStore({ file: usersFile, secret: process.env.CLIENTS_KEY }), name = pos[2];
+  if (us.loadError) throw new Error('Cannot read ' + usersFile + ': ' + us.loadError);
+  if (!id) throw new Error('give the client id');
+  if (cmd !== 'list-users' && !reg.get(id) && id !== 'default') throw new Error('unknown client ' + id);
+  if (cmd === 'list-users') us.list(id).forEach((u) => console.log(u.username.padEnd(24) + u.role.padEnd(10) + u.status.padEnd(10) + (u.totp ? '2fa ' : '    ') + (u.mustChange ? 'temporary password' : '')));
+  else if (cmd === 'add-user') { const r = await us.create(id, { username: name, role: f.role || 'admin' }, 'operator'); console.log('created ' + r.user.username + ' (' + r.user.role + ')\n\n=== SHOW ONCE ===\nTemporary password: ' + r.tempPassword + '\n(the user must choose a new one at the first sign-in at /backoffice)'); }
+  else if (cmd === 'reset-password') { const r = await us.resetPassword(id, name); console.log('Temporary password for ' + name + ': ' + r.tempPassword); }
+  else if (cmd === 'disable-user' || cmd === 'enable-user') { us.setStatus(id, name, cmd === 'disable-user' ? 'disabled' : 'active'); console.log(name + (cmd === 'disable-user' ? ' disabled' : ' enabled')); }
+  else if (cmd === 'remove-user') { if (!f.yes) throw new Error('add --yes to remove ' + name); us.remove(id, name); console.log(name + ' removed'); }
+}
+if (['add-user', 'list-users', 'reset-password', 'disable-user', 'enable-user', 'remove-user'].includes(cmd)) { userCmd().catch((e) => { console.error('Error: ' + e.message); process.exit(1); }); } else try {
   if (cmd === 'list' || !cmd) {
     const l = reg.list(); if (!l.length) console.log('no clients yet. Add one: node scripts/clients.js add <id> --name "..." --wallet-url https://...');
     l.forEach((c) => console.log(c.id.padEnd(20) + c.status.padEnd(10) + (c.currency || '-').padEnd(6) + (c.wallet.type === 'mock' ? 'mock wallet' : c.wallet.url) + (c.webhook ? '   webhook ' + c.webhook.url : '')));

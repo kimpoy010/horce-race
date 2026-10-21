@@ -138,7 +138,7 @@ Ordered by importance for a real-money launch.
     paid per currency.
     **Multi-client (several platforms on one game server). DONE (registry and client API).** Each client has its own wallet URL and signing secret, webhook, API keys (hashed,
     rotating, optional IP allow list), currency, limits and return-link hosts; players are namespaced per client; a client API (`/api/client/...`) gives each client its own report,
-    history and player controls. See `CLIENT_API.md`. All clients share one race and one RTP. A back-office web panel with logins and roles is the next step.
+    history and player controls. See `CLIENT_API.md`. All clients share one race and one RTP. A back-office web panel for the clients (`/backoffice`: own logins, roles viewer / support / admin, optional 2-step sign-in, reports, players, player controls, audit log) is built: see `BACKOFFICE.md`.
 12. **Bonus / free-bet support.** Today there is only real-money debit and credit.
 
 ### Nice to have

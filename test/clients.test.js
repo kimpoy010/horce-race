@@ -210,7 +210,10 @@ function platform(secret, opts) {
     assert.strictEqual((await call('GET', '/api/client/info', null, { authorization: 'Bearer ' + rot2.body.apiKey })).status, 401);
     assert.strictEqual((await call('GET', '/metrics', null, op)).status, 200);
     assert.strictEqual(C.badSig, 0, 'the wallet of the client was called with a valid signature');
-  } finally { child.kill('SIGTERM'); C.server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    await new Promise((ok) => { child.on('exit', ok); child.kill('SIGTERM'); setTimeout(ok, 4000); });
+    C.server.close(); try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (e) { /* ignore */ }
+  }
   if (/FATAL|Cannot start/.test(log)) console.log(log);
   console.log('client API tests passed');
   process.exit(0);
