@@ -83,3 +83,7 @@ camera follows the pack, a minimap shows the whole track. Pixel-art horses (trac
 legs, angled sprites on the curve). Needs only a browser; no external requests.
 
 `npm test` runs the logic, draw and engine tests.
+
+**Betting panel.** In live mode the betting panel is a drawer over the right half of the race screen. The yellow tab on
+the right edge hides or shows it (a swipe works on touch screens; the choice is remembered), and while the panel is hidden
+the tab shows the seconds left to bet.

@@ -74,17 +74,29 @@ body { display: flex; align-items: center; justify-content: center; }
 .results .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * .8); font-size: .8em; }
 .results .cell { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .6); }
 
-/* ===== live mode: betting panel next to (or below) the race ===== */
-.layout { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
-body.live { display: block; overflow: auto; }
-.layout.live { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 34vw, 400px); align-items: start; height: auto; min-height: 100%; }
-.layout.live .stage { width: 100%; }
-@media (max-width: 1000px) and (orientation: portrait) { .layout.live { grid-template-columns: 1fr; } }
+/* ===== live mode: betting panel slides in over the right half of the race screen ===== */
+:root { --sw: min(100vw, 177.78vh); }       /* width of the race screen */
+.layout { position: relative; display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; overflow: hidden; }
+body.live { display: block; }
 
 .bet {
-  box-sizing: border-box; padding: 12px; background: #10172c; color: #e8ecf5; border-left: 3px solid #2c3a66;
-  font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700; font-size: 14px; min-height: 100%;
+  box-sizing: border-box; padding: 12px; background: rgba(16, 23, 44, .95); color: #e8ecf5; border-left: 3px solid #2c3a66;
+  font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700; font-size: 14px;
+  position: absolute; z-index: 20; width: calc(var(--sw) / 2); height: calc(var(--sw) * .5625);
+  top: 50%; margin-top: calc(var(--sw) * -.28125); right: calc((100% - var(--sw)) / 2);
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  transition: transform .28s ease;
 }
+.bet.closed { transform: translateX(100%); }
+/* the handle stays visible on the screen edge when the panel is hidden */
+.tab {
+  position: absolute; z-index: 25; top: calc(50% - var(--sw) * .28125 + var(--sw) * .1); right: calc((100% - var(--sw)) / 2);
+  font: inherit; font-size: 12px; font-weight: 900; line-height: 1.2; letter-spacing: 1px; text-align: center; cursor: pointer;
+  color: #111; background: #ffd23c; border: 2px solid #111; border-right: 0; border-radius: 10px 0 0 10px; padding: 12px 6px;
+  writing-mode: vertical-rl; transition: right .28s ease; font-family: "Courier New", Courier, ui-monospace, monospace;
+}
+.tab.open { right: calc((100% - var(--sw)) / 2 + var(--sw) / 2); }
+.tab[hidden] { display: none; }
 .bet[hidden] { display: none; }
 .bet .lbl { font-size: 11px; color: #8d9bc4; letter-spacing: 1px; }
 .bet .val { color: #fff; }
@@ -151,12 +163,9 @@ body.live { display: block; overflow: auto; }
 @keyframes tilt { 0%, 20% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
 @media (orientation: portrait) and (pointer: coarse) { .rotate { display: flex; } }
 
-/* phones held sideways: the race on the left, the betting panel on the right, nothing scrolls except the panel */
-@media (orientation: landscape) and (max-height: 520px) {
-  body.live { overflow: hidden; }
-  .layout.live { height: 100vh; min-height: 0; grid-template-columns: minmax(0, 1fr) clamp(280px, 38vw, 340px); align-items: center; }
-  .layout.live .stage { width: min(100%, calc(100vh * 16 / 9)); justify-self: center; }
-  .bet { height: 100vh; min-height: 0; overflow-y: auto; padding: 8px; font-size: 12px; -webkit-overflow-scrolling: touch; }
+/* short screens (laptops, phones held sideways): compact panel, only the panel scrolls */
+@media (max-height: 759px) {
+  .bet { padding: 8px; font-size: 12px; }
   .bet-head { margin-bottom: 6px; } .bet .big { font-size: 18px; }
   .bet-round { padding: 4px 8px; margin-bottom: 4px; } .bet-round .timer { font-size: 16px; }
   .bet-round .pay, .fair { display: none; } .bet-round .info { font-size: 9px; margin-top: 2px; }
@@ -169,5 +178,3 @@ body.live { display: block; overflow: auto; }
   .bet-actions button { padding: 6px 8px; font-size: 11px; }
   .placed, .last-result, .fair { margin-top: 6px; font-size: 10px; }
 }
-
-.layout.live .stage { align-self: center; }

@@ -11,7 +11,7 @@
   var S = { session: null, rules: null, me: null, pending: {}, chip: 0, busy: false, msgTimer: null, built: false };
   var el = { bet: $('bet'), layout: $('layout'), player: $('bPlayer'), balance: $('bBalance'), round: $('bRound'), timer: $('bTimer'),
     prog: $('bProg'), pay: $('bPay'), info: $('bInfo'), msg: $('bMsg'), grid: $('bGrid'), legend: $('bLegend'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
-    place: $('bPlace'), total: $('bTotal'), placed: $('bPlaced'), last: $('bLast'), fair: $('bFair'), back: $('bBack') };
+    place: $('bPlace'), total: $('bTotal'), placed: $('bPlaced'), last: $('bLast'), fair: $('bFair'), back: $('bBack'), tab: $('betTab') };
 
   var ERRORS = {
     BETTING_CLOSED: 'Betting is closed for this race.', INSUFFICIENT_FUNDS: 'Not enough balance for that bet.',
@@ -175,11 +175,38 @@
     } else el.last.innerHTML = '';
   }
 
+  /* ---------- slide-over panel: open / hide from the right edge ---------- */
+  var panelOpen = true;
+  try { if (localStorage.getItem('hr.panel') === '0') panelOpen = false; } catch (e) { /* ignore */ }
+  function setPanel(open) {
+    panelOpen = open;
+    el.bet.classList.toggle('closed', !open); el.tab.classList.toggle('open', open); el.tab.setAttribute('aria-expanded', open ? 'true' : 'false');
+    try { localStorage.setItem('hr.panel', open ? '1' : '0'); } catch (e) { /* ignore */ }
+    tabLabel();
+  }
+  function tabLabel() {
+    var G = window.HorseGame, st = G && G.state(), r = st && st.round, left = r && r.phase === 'betting' ? Math.ceil((r.betCloseAt - G.now()) / 1000) : 0;
+    el.tab.textContent = panelOpen ? 'HIDE \u25B8' : left > 0 ? '\u25C2 BET ' + left + 'S' : '\u25C2 BET';
+  }
+  function initPanel() {
+    el.tab.hidden = false; setPanel(panelOpen);
+    el.tab.addEventListener('click', function () { setPanel(!panelOpen); });
+    var x0 = null, y0 = 0;                                           // swipe right on the panel to hide, left from the screen edge to show
+    document.addEventListener('touchstart', function (e) { var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (x0 === null) return; var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0, edge = x0 > window.innerWidth - 40; x0 = null;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      if (panelOpen && dx > 0 && el.bet.contains(e.target)) setPanel(false);
+      else if (!panelOpen && dx < 0 && edge) setPanel(true);
+    }, { passive: true });
+    setInterval(tabLabel, 500);
+  }
+
   /* ---------- start ---------- */
   function start(st) {
     S.rules = st.rules; S.currency = st.rules.currency;
     el.layout.classList.add('live'); document.body.classList.add('live'); el.bet.hidden = false;
-    build(); render();
+    build(); render(); initPanel();
     var token = qs.get('token');
     if (token) {
       history.replaceState(null, '', location.pathname);                  // never leave the launch token in the address bar
