@@ -3,6 +3,7 @@ services:
   horse-race:
     build: .
     restart: unless-stopped
+    stop_grace_period: 15s            # on a deploy the game stops taking bets and delivers queued wallet calls first
     env_file: .env
     environment:
       HOST: 0.0.0.0

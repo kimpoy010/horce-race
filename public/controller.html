@@ -22,6 +22,13 @@
 
   <section id="report" class="panel" hidden>
     <h2>Live game report <span class="small">(results are drawn by the server; the controller cannot change them)</span></h2>
+    <div class="opsbox">
+      <h2>Health and alerts <span class="small">(updates every few seconds; the same data is at /metrics for Prometheus)</span></h2>
+      <div id="opsStatus"></div>
+      <div id="opsAlerts"></div>
+      <div class="stats" id="opsStats"></div>
+      <p class="small" id="opsLedger"></p>
+    </div>
     <div class="rtpbox">
       <h2>RTP setting <span class="small">(88% to 99%, applies from the next race; the odds never change)</span></h2>
       <div class="row">

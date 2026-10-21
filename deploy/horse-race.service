@@ -11,6 +11,7 @@ EnvironmentFile=/etc/horse-race.env
 Environment=HOST=127.0.0.1
 ExecStart=/usr/bin/node server.js
 Restart=always
+TimeoutStopSec=15
 RestartSec=3
 NoNewPrivileges=true
 ProtectSystem=full

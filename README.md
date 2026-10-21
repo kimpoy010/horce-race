@@ -86,6 +86,9 @@ legs, angled sprites on the curve). Needs only a browser; no external requests.
 
 `npm test` runs the logic, draw and engine tests.
 
+**Operations.** `/healthz` and `/metrics` (Prometheus), built-in alerts to a webhook, a hash-chained ledger (`node scripts/verify-ledger.js`),
+and active / standby failover with graceful shutdown: see **docs/DEPLOY.md** sections 7 to 9.
+
 **Platform features.** Per-player limits and a daily loss limit, self-exclusion (`blockPlayer`), reality checks, per-currency limits,
 bet history with draw proofs, and signed webhooks (`round.settled`, `big.win`) are described in `docs/WALLET_API.md` (settings in `.env.example`).
 

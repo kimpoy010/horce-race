@@ -2,6 +2,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY package.json server.js ./
 COPY server ./server
+COPY scripts ./scripts
 COPY public ./public
 ENV NODE_ENV=production PORT=8080 GAME_MODE=live
 RUN mkdir -p /app/data && chown -R node:node /app

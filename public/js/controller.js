@@ -188,8 +188,24 @@
 
   /* ---------- loop ---------- */
   function money(m, cur) { return (cur ? cur + ' ' : '') + (m / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function ago(ms) { var s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 90 ? s + ' s ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago'; }
+  function renderOps(o) {
+    if (!o) { $('opsStatus').innerHTML = ''; return; }
+    var crit = o.alerts.filter(function (a) { return a.severity === 'critical'; }).length, warn = o.alerts.length - crit;
+    $('opsStatus').innerHTML = o.alerts.length ? '<span class="pill bad">' + (crit ? crit + ' CRITICAL' : '') + (crit && warn ? ' + ' : '') + (warn ? warn + ' WARNING' : '') + '</span>' : '<span class="pill ok">ALL SYSTEMS NORMAL</span>';
+    $('opsAlerts').innerHTML = o.alerts.map(function (a) { return '<div class="alert ' + a.severity + '"><b>' + a.name.replace(/_/g, ' ').toUpperCase() + '</b> - ' + a.message + ' <span class="small">(since ' + ago(a.since) + ')</span></div>'; }).join('') +
+      (o.recentAlerts.length && !o.alerts.length ? '<div class="small">Last alert: ' + o.recentAlerts[0].name.replace(/_/g, ' ') + ' ' + o.recentAlerts[0].status + ' ' + ago(o.recentAlerts[0].at) + '</div>' : '');
+    var s = o.snapshot, w = o.wallet, p = s.pending, q = function (k, name) { return [name, p[k].count + (p[k].count ? ' (oldest ' + Math.round(p[k].oldestSeconds) + ' s)' : '')]; };
+    var items = [['Role', o.role + (o.lease ? ' - lease renewed ' + o.lease.ageSeconds + ' s ago' : '')], ['Uptime', Math.round(o.uptime / 60) + ' min'], ['Round loop', o.tickAge < 2 ? 'running' : 'STALLED ' + Math.round(o.tickAge) + ' s'],
+      ['Wallet, last 5 min', w.calls + ' calls, ' + (w.failRate * 100).toFixed(0) + '% failed, p95 ' + Math.round(w.p95) + ' ms'], q('credits', 'Wins / refunds pending'), q('rollbacks', 'Rollbacks pending'), q('webhooks', 'Webhooks pending'),
+      ['Payouts vs odds', (s.rtpZ >= 0 ? '+' : '') + s.rtpZ.toFixed(1) + ' standard deviations'], ['Disk free', o.diskFreeMb == null ? '-' : Math.round(o.diskFreeMb) + ' MB']];
+    $('opsStats').innerHTML = items.map(function (x) { return '<div class="stat"><span class="small">' + x[0] + '</span><b style="font-size:14px">' + x[1] + '</b></div>'; }).join('');
+    $('opsLedger').textContent = 'Ledger: ' + (s.ledger.ok ? 'hash chain intact' : 'BROKEN at line ' + s.ledger.broken.line + ' (' + s.ledger.broken.reason + ')') + ', ' + s.ledger.lines + ' lines. Newest hash ' + s.ledger.head.slice(0, 16) + '... (also sent in every round.settled webhook).';
+  }
   function renderReport(r) {
+    if (r.standby) { $('report').hidden = true; $('mode').textContent = 'STANDBY'; return; }
     $('report').hidden = false;
+    renderOps(r.ops);
     [].forEach.call(document.querySelectorAll('[data-demo]'), function (n) { n.hidden = true; });
     $('mode').textContent = 'LIVE MODE';
     var pct = function (x) { return x == null ? '-' : (x * 100).toFixed(2) + '%'; };

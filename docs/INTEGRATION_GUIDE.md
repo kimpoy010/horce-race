@@ -142,10 +142,14 @@ Ordered by importance for a real-money launch.
 ### Nice to have
 13. **Embed mode.** An iframe launch with a `postMessage` API (balance updated, round result, close game). The game already emits
     `countdown`, `start` and `result` events to a parent window, but the betting panel and session flow are built for redirect.
-14. **Signed ledger.** Chain each ledger line with a hash so tampering is detectable; ship it to an append-only store.
-15. **Monitoring.** Metrics and alerts (pending credits, failed debits, wallet latency, RTP drift) beyond `/healthz` and the controller report.
-16. **High availability.** The game is a single process with one shared table. A second instance would draw its own races.
-    Run one active instance with fast restart, or move round state to shared storage.
+14. **Tamper-evident ledger. DONE.** Every ledger line is hash-chained (`node scripts/verify-ledger.js`); a broken chain is detected at start-up,
+    raises an alert and turns `/healthz` red. Each `round.settled` webhook carries the newest hash (`ledgerHash`), so the platform can anchor the
+    ledger outside the game server. Shipping the file to an append-only store is still up to the operator.
+15. **Monitoring. DONE.** `/metrics` (Prometheus), `/healthz` that reflects the real state, a Health and alerts panel in the controller, and built-in alerts
+    to a webhook: stuck wins / refunds / rollbacks, failing or slow wallet, stalled round loop, broken ledger, payouts drifting from what the odds
+    predict, low disk.
+16. **High availability. DONE (active / standby).** A lease file keeps exactly one instance running the races; a standby takes over in about 10 to 15
+    seconds from the same data directory, replaying the ledger; graceful shutdown on deploys. This is failover, not load sharing: still one table, one process.
 17. **Aggregator adapter.** A small adapter in `server/wallet.js` if the platform sits behind a casino aggregator with its own API format.
 18. **Localisation and currency formatting** per player, and a launch parameter for language.
 

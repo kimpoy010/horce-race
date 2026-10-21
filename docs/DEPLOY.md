@@ -1,7 +1,8 @@
 # Deploying the live game
 
 The game is one small Node.js process (Node 18 or newer, no npm packages) that serves the pages and the API.
-Run **exactly one instance** (rounds, bets and sessions are kept in memory plus `data/ledger.jsonl`).
+Run **one active instance** (rounds, bets and sessions are kept in memory plus `data/ledger.jsonl`). A second instance on the same data
+directory refuses to start, or waits as a standby (section 9).
 
 ## 1. Server
 
@@ -60,10 +61,10 @@ The app listens on `127.0.0.1:8080` only; the proxy terminates TLS (the launch t
 * [ ] `GAME_MODE=live`, `NODE_ENV=production`, `WALLET=http`, strong `WALLET_KEY` (requests are HMAC-signed, the platform verifies them), `data/sessions.json` kept private (it is written 0600; sessions survive restarts) and `CONTROLLER_KEY`, `.env` readable only by the service user.
 * [ ] HTTPS works, `/controller` and `/api/admin` are restricted by IP or VPN.
 * [ ] `data/` is on persistent disk, owned by the service user, mode 700, and backed up (it holds the ledger and seeds).
-* [ ] One instance only; the service restarts on failure (systemd `Restart=always` or Docker `unless-stopped`).
+* [ ] One active instance; the service restarts on failure (systemd `Restart=always` or Docker `unless-stopped`); optional standby, section 9.
 * [ ] Wallet test: one bet is debited, a win is credited, restarting the service mid-round refunds or settles correctly.
 * [ ] Limits (`MIN_BET`, `MAX_BET`, `MAX_ROUND_STAKE`) agreed with the operator; RTP setting confirmed.
-* [ ] Monitoring on `/healthz`, disk space and the "Credits pending" figure in the controller (it should return to 0).
+* [ ] Alerts reach a person: `ALERT_WEBHOOK_URL` set and tested (section 7); `/healthz` watched by an uptime check; the ledger head hash kept by the platform (section 8).
 * [ ] Licence, RNG/RTP certification and responsible-gaming requirements for your market are in place.
 
 ## Updating
@@ -71,7 +72,65 @@ The app listens on `127.0.0.1:8080` only; the proxy terminates TLS (the launch t
 `git pull && docker compose up -d --build` (or `git pull && sudo systemctl restart horse-race`). A restart in the middle
 of a round is safe: a drawn race is settled, an undrawn one is refunded. Prefer to update between rounds anyway.
 
+## 7. Monitoring and alerts
+
+* **`/healthz`**: 200 while this process is the healthy active instance, 503 otherwise (standby, starting, shutting down, broken ledger,
+  round loop stalled). Point the load balancer and your uptime service at it.
+* **`/metrics`**: Prometheus text format, operator only (`X-Controller-Key` header or `Authorization: Bearer <CONTROLLER_KEY>`; in nginx it is on the
+  restricted list). Series: wallet calls and latency per operation, pending credits / rollbacks / webhooks and their age, ledger health, rounds,
+  staked and paid per currency, RTP setting, actual RTP, `horse_rtp_zscore`, sessions, tick age, role, memory. Prometheus example:
+  `scrape_configs: [{ job_name: horse, metrics_path: /metrics, authorization: { credentials: <CONTROLLER_KEY> }, static_configs: [{ targets: ['game.example.com'] }] }]`
+* **Controller page**: the "Health and alerts" panel shows the same data with the active alerts.
+* **Built-in alerts** (no Prometheus needed). Checked every 10 s, printed to the log and posted to `ALERT_WEBHOOK_URL` as JSON
+  `{ text, status: firing|resolved, name, severity, message, since, at }` (`text` works with Slack / Teams / Discord incoming webhooks).
+  An alert fires once, repeats every `ALERT_REPEAT_MIN` (30) while it lasts, and sends a resolved message.
+
+| Alert | Fires when | Setting (default) |
+|---|---|---|
+| `credits_stuck` (critical) | a win or refund is still undelivered to the wallet | `ALERT_CREDIT_MIN` (5 min) |
+| `rollbacks_stuck` (critical) | a rollback is unconfirmed, a player may be charged for a bet that was not placed | `ALERT_ROLLBACK_MIN` (2 min) |
+| `wallet_failing` (critical) | more than 20% of wallet calls fail in 5 min (at least 5 calls) | `ALERT_WALLET_FAIL_RATE` (0.2) |
+| `wallet_slow` (warning) | the slowest 5% of wallet calls take over 3 s | `ALERT_WALLET_P95_MS` (3000) |
+| `webhooks_stuck` (warning) | the platform does not accept webhook events | `ALERT_WEBHOOK_MIN` (10 min) |
+| `round_loop_stalled` (critical) | the round loop has not run for 5 s | - |
+| `ledger_broken` (critical) | the hash chain is broken (section 8) | - |
+| `rtp_drift` (warning) | payouts are more than 4 standard deviations away from what the odds predict for the bets actually placed (after 300 races) | `ALERT_RTP_Z` (4) |
+| `disk_low` (critical) | under 500 MB free where the ledger is kept | `ALERT_DISK_FREE_MB` (500) |
+
+`rtp_drift` compares the real payouts with the expectation of each bet (stake x odds x its win chance). It catches payout bugs or a
+broken draw without being fooled by which pairs players happen to pick.
+
+## 8. Tamper-evident ledger
+
+Every line of `data/ledger.jsonl` carries a hash of the line and of the line before it. Changing, removing, adding or re-ordering a
+line breaks the chain from that point on.
+
+* **Check it**: `node scripts/verify-ledger.js [data/ledger.jsonl]` (exit code 0 = intact; run it from cron too). The server checks the chain when it
+  starts: a broken chain raises the `ledger_broken` alert and turns `/healthz` red; with `LEDGER_STRICT=1` the server refuses to start.
+* **Anchor it outside the server**: every `round.settled` webhook carries `ledgerHash` (the newest hash) and `ledgerLines`. If the platform
+  stores them, rewriting the whole file still shows up, because the platform's hash for that line would no longer match, and so would a file cut
+  short. Compare with `node scripts/verify-ledger.js`, which prints the head hash.
+* Lines written before this feature are accepted as a prefix; the chain starts after them.
+* The file only grows. Archive it periodically (stop the game, move the file, start again: a new chain starts); keep archives with their final hash.
+
+## 9. Failover: active / standby
+
+Only one process may run the races, so high availability here means **fast takeover**, not two instances working together.
+
+* The active instance holds a lease file (`data/instance.lease`, renewed every second). Without any setting, a second instance on the same data
+  directory refuses to start. With `STANDBY=1` it waits, answering `/healthz` with 503 and `/api/*` with `STANDBY`, and takes over when the lease
+  has not been renewed for `LEASE_TTL_MS` (10 s): it replays the ledger (a running race is settled, an undrawn one refunded, queued wallet calls
+  resume) and becomes active. The old process stops itself if it cannot renew (fencing), so two never act at once.
+* **Same machine**: no standby needed. `Restart=always` (systemd) or `restart: unless-stopped` (Docker) restarts a crashed process in seconds,
+  and a second instance stays out of the way.
+* **Two machines**: both mount the same `data/` directory (a shared volume with normal POSIX file semantics, e.g. NFSv4, a cloud shared disk) and run
+  with `STANDBY=1`; put both behind the proxy (`deploy/nginx-ha.conf`) so that traffic follows `/healthz`. Expect about 10 to 15 seconds without
+  betting during a takeover. The lease is a practical mechanism, not a replacement for a real lock service: if your storage cannot give consistent
+  files to both machines, keep a single instance with fast restart.
+* **Deploys**: `SIGTERM` makes the game stop taking bets (`SHUTTING_DOWN`), deliver queued wins and refunds for up to 5 s, store the sessions
+  and release the lease. A standby takes over at once. Docker waits 15 s (`stop_grace_period`), systemd `TimeoutStopSec=15`.
+
 ## Limits of this build
 
-State lives in memory and one ledger file, so there is no high availability or horizontal scaling. For several servers or
-very high volume, move rounds, bets and sessions to a shared database first.
+State lives in one process plus one ledger file. Failover is active / standby (section 9), not horizontal scaling. For several servers
+sharing the load or very high volume, move rounds, bets and sessions to a shared database first. Ledger archiving is manual.

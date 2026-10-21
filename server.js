@@ -17,6 +17,9 @@ const { Director, execCommand } = require('./public/js/core.js');
 const { Engine } = require('./server/engine.js');
 const walletFactory = require('./server/wallet.js');
 const webhookFactory = require('./server/webhook.js');
+const { Lease } = require('./server/lease.js');
+const { AlertManager, webhookNotifier, diskFreeMb } = require('./server/alerts.js');
+const metricsLib = require('./server/metrics.js');
 
 const env = process.env;
 const PORT = env.PORT || 8080;
@@ -30,6 +33,8 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 
 /* ---------- demo mode: controller driven ---------- */
 let director = null, engine = null, lastSaved = '';
+let role = LIVE ? 'starting' : 'demo', lease = null, alerts = null;       // live: starting | standby | active | stopping
+const timers = [];
 if (!LIVE) {
   try { director = new Director(JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'state.json'), 'utf8'))); } catch (e) { director = new Director(); }
   setInterval(() => {
@@ -58,15 +63,65 @@ async function startLive() {
       dailyLossLimit: num(env.DAILY_LOSS_LIMIT, 0), realityCheckMinutes: num(env.REALITY_CHECK_MIN, 0), bigWinMin: num(env.BIG_WIN_MIN, 1000000),
       currencyLimits: env.CURRENCY_LIMITS ? JSON.parse(env.CURRENCY_LIMITS) : {},
       betMs: num(env.BET_MS, 25000), minBet: num(env.MIN_BET, 100), maxBet: num(env.MAX_BET, 100000),
-      maxRoundStake: num(env.MAX_ROUND_STAKE, 500000), currency: env.CURRENCY || 'PHP'
+      maxRoundStake: num(env.MAX_ROUND_STAKE, 500000), currency: env.CURRENCY || 'PHP', ledgerStrict: env.LEDGER_STRICT === '1'
     }
   });
+  if (!engine.ledger.ok) console.error('ALERT the ledger hash chain is broken at line ' + engine.ledger.check.broken.line + ': ' + engine.ledger.check.broken.reason + ' (node scripts/verify-ledger.js)');
   await engine.recover();
-  setInterval(() => engine.tick().catch((e) => console.error('tick failed:', e.message)), 250);
+  timers.push(setInterval(() => {
+    if (lease && !lease.valid()) return fatal('the lease expired (this process was frozen or the lease file is not writable): stopping so that no two instances act at once');
+    engine.tick().catch((e) => { engine.metrics.tickErrors++; console.error('tick failed:', e.message); });
+  }, 250));
+  alerts = new AlertManager({ config: alertConfig(), notify: env.ALERT_WEBHOOK_URL ? webhookNotifier(env.ALERT_WEBHOOK_URL) : null });
+  timers.push(setInterval(() => { try { alerts.evaluate({ snapshot: engine.opsSnapshot(), wallet: engine.metrics.walletWindow(300000), tickAge: engine.metrics.tickAge(), diskFreeMb: diskFreeMb(DATA_DIR) }); } catch (e) { console.error('alert check failed:', e.message); } }, 10000));
   if ((env.WALLET || 'mock') === 'mock') console.warn('WARNING: play-money MOCK wallet (ALLOW_MOCK_WALLET=1). Never use this in production.');
   const pv = engine.previewRtp(engine.rtp);
   console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', RTP setting ' + (engine.rtp * 100).toFixed(2) + '% (best bets ' + (pv.bestRtp * 100).toFixed(2) + '%, three cheapest pairs ' + (pv.cheapRtp * 100).toFixed(2) + '%). Editable 88-99% in the controller.');
 }
+
+function alertConfig() {              // ALERT_CREDIT_MIN, ALERT_ROLLBACK_MIN, ALERT_WEBHOOK_MIN, ALERT_WALLET_FAIL_RATE, ALERT_WALLET_P95_MS, ALERT_RTP_Z, ALERT_DISK_FREE_MB, ALERT_REPEAT_MIN
+  const m = { ALERT_CREDIT_MIN: 'creditMinutes', ALERT_ROLLBACK_MIN: 'rollbackMinutes', ALERT_WEBHOOK_MIN: 'webhookMinutes', ALERT_WALLET_FAIL_RATE: 'walletFailRate',
+    ALERT_WALLET_P95_MS: 'walletP95Ms', ALERT_RTP_Z: 'rtpZ', ALERT_DISK_FREE_MB: 'diskFreeMb', ALERT_REPEAT_MIN: 'repeatMinutes' }, c = {};
+  Object.keys(m).forEach((k) => { if (env[k] !== undefined && env[k] !== '' && Number.isFinite(Number(env[k]))) c[m[k]] = Number(env[k]); });
+  return c;
+}
+
+/* ---------- active / standby, shutdown ---------- */
+function fatal(msg) { console.error('FATAL: ' + msg); process.exit(2); }
+
+async function bootLive() {
+  const ttl = Number(env.LEASE_TTL_MS) || 10000;
+  if (env.LEASE === 'off') { await startLive(); role = 'active'; return; }
+  lease = new Lease(path.join(DATA_DIR, 'instance.lease'), { ttlMs: ttl });
+  const activate = async () => {
+    timers.push(setInterval(() => { if (!lease.renew()) fatal('the instance lease was lost'); }, 1000));
+    await startLive(); role = 'active';
+  };
+  if (await lease.tryAcquire()) return activate();
+  const other = lease.info();
+  if (env.STANDBY !== '1') {
+    console.error('Cannot start: another instance is running on this data directory' + (other ? ' (host ' + other.host + ', pid ' + other.pid + ', lease renewed ' + other.ageSeconds + ' s ago)' : '') + '. Set STANDBY=1 to wait as a standby instead.');
+    process.exit(1);
+  }
+  role = 'standby'; console.log('STANDBY: waiting for the active instance' + (other ? ' (host ' + other.host + ', pid ' + other.pid + ')' : '') + ' to stop; taking over when its lease is older than ' + ttl / 1000 + ' s');
+  const wait = setInterval(async () => {
+    try { if (role === 'standby' && await lease.tryAcquire()) { clearInterval(wait); console.log('STANDBY: lease acquired, taking over'); await activate(); } }
+    catch (e) { fatal('takeover failed: ' + e.message); }
+  }, 2000);
+  timers.push(wait);
+}
+
+let stopping = false;
+async function shutdown(sig) {            // deploys and restarts: stop taking bets, deliver what is queued, store the sessions, free the lease
+  if (stopping) return; stopping = true;
+  console.log(sig + ': shutting down'); const was = role; role = 'stopping';
+  setTimeout(() => process.exit(1), 9000).unref();
+  timers.forEach(clearInterval);
+  try { if (engine && was === 'active') await engine.shutdown(5000); } catch (e) { console.error('shutdown:', e.message); }
+  try { if (lease) lease.release(); } catch (e) { /* ignore */ }
+  server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 500).unref();
+}
+['SIGTERM', 'SIGINT'].forEach((s) => process.on(s, () => shutdown(s)));
 
 /* ---------- http helpers ---------- */
 const MIME = {
@@ -89,7 +144,7 @@ function fail(res, e) {
   console.error(e); return json(res, 500, { ok: false, error: 'SERVER_ERROR' });
 }
 function authorized(req) {
-  const given = Buffer.from(String(req.headers['x-controller-key'] || ''));
+  const given = Buffer.from(String(req.headers['x-controller-key'] || bearer(req) || ''));    // Prometheus sends the key as a bearer token
   const want = Buffer.from(KEY);
   return given.length === want.length && crypto.timingSafeEqual(given, want);
 }
@@ -129,6 +184,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     const now = Date.now();
     try {
+      if (LIVE && !engine) {          // standby or still starting: only the operator can ask what is going on
+        if (url.pathname === '/api/admin' && authorized(req)) return json(res, 200, { ok: true, role, lease: lease ? lease.info() : null, standby: true });
+        return json(res, 503, { ok: false, error: role === 'standby' ? 'STANDBY' : 'STARTING' });
+      }
       if (url.pathname === '/api/public' && req.method === 'GET') return json(res, 200, LIVE ? engine.publicState() : director.publicState(now));
 
       /* player endpoints (live mode only) */
@@ -152,7 +211,7 @@ const server = http.createServer(async (req, res) => {
       /* operator endpoints */
       if (!authorized(req)) return json(res, 401, { ok: false, error: 'bad controller key' });
       if (LIVE) {
-        if ((url.pathname === '/api/admin' || url.pathname === '/api/report') && req.method === 'GET') return json(res, 200, Object.assign({ serverNow: now }, engine.report()));
+        if ((url.pathname === '/api/admin' || url.pathname === '/api/report') && req.method === 'GET') return json(res, 200, Object.assign({ serverNow: now }, engine.report(), { ops: ops() }));
         if (url.pathname === '/api/admin/history' && req.method === 'GET') return json(res, 200, engine.historyFor(String(url.searchParams.get('playerId') || ''), url.searchParams.get('limit')));
         if (url.pathname === '/api/command' && req.method === 'POST') {          // the only live setting is the RTP; results can never be set
           const body = JSON.parse(await readBody(req) || '{}');
@@ -176,13 +235,28 @@ const server = http.createServer(async (req, res) => {
       return fail(res, e);
     }
   }
-  if (url.pathname === '/healthz') return json(res, 200, { ok: true, mode: LIVE ? 'live' : 'demo' });
+  if (url.pathname === '/healthz') {          // 200 only while this process is the healthy active instance (use it for load balancer and uptime checks)
+    if (!LIVE) return json(res, 200, { ok: true, mode: 'demo' });
+    const h = engine && role === 'active' ? engine.health() : { ok: false, reasons: [role] };
+    return json(res, h.ok ? 200 : 503, { ok: h.ok, mode: 'live', role, reasons: h.reasons });
+  }
+  if (url.pathname === '/metrics') {          // Prometheus text format, operator key as X-Controller-Key or Bearer token
+    if (!LIVE) { res.writeHead(404); return res.end('Not found'); }
+    if (!authorized(req)) { res.writeHead(401); return res.end('bad controller key'); }
+    res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(engine ? metricsLib.render(engine, { role, alerts: alerts ? alerts.list() : [] }) : '# standby\nhorse_up 1\nhorse_role{role="' + role + '"} 1\n');
+  }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
   serveStatic(req, res, decodeURIComponent(url.pathname));
 });
 
+function ops() {          // what the controller page shows under "Health and alerts"
+  return { role, health: engine.health(), alerts: alerts ? alerts.list() : [], recentAlerts: alerts ? alerts.history.slice(-10).reverse() : [], snapshot: engine.opsSnapshot(),
+    wallet: engine.metrics.walletWindow(300000), tickAge: engine.metrics.tickAge(), lease: lease ? lease.info() : null, uptime: Math.round(process.uptime()), diskFreeMb: diskFreeMb(DATA_DIR) };
+}
+
 (async () => {
-  if (LIVE) { try { await startLive(); } catch (e) { console.error('Cannot start: ' + e.message); process.exit(1); } }
+  if (LIVE) { bootLive().catch((e) => { console.error('Cannot start: ' + e.message); process.exit(1); }); }
   server.listen(PORT, HOST, () => {
     console.log('Horse Race (' + (LIVE ? 'LIVE' : 'demo') + ') running on http://' + HOST + ':' + PORT);
     console.log('  game       http://localhost:' + PORT + '/' + (LIVE && (env.WALLET || 'mock') === 'mock' ? '?token=demo-alice' : ''));
