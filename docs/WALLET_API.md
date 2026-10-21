@@ -124,6 +124,8 @@ Open `http://localhost:8080/?token=demo-alice` (any `demo-<name>` works, each st
 * `GET /api/round/42`: the draw proof of a finished race (public, the seed is revealed once the race is over):
   `{ commit, seed, odds, rtp, combo, order }`. To verify: `sha256(seed) == commit`; the odds layout is `oddsLayout(seed, raceNo, values)`
   and the result is `draw(seed, raceNo, weights)` with the weights from `buildForRtp(odds, rtp)` (functions in `server/rng.js` and `server/odds.js`).
+  The winning pair always finishes in the order it is written (`1-2`: horse 1 first, horse 2 second). Races run before this rule picked the order of the two at random;
+  the pair, and so every payout, is the same either way, and the order of the other four horses is unchanged.
 
 ## Operator commands (header `X-Controller-Key`, `POST /api/command`)
 

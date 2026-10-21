@@ -36,7 +36,9 @@ class Stream {
   }
 }
 
-// returns the full finishing order (all six horses) and the winning combination (the pair that finishes 1st + 2nd)
+// returns the full finishing order (all six horses) and the winning combination (the pair that finishes 1st + 2nd).
+// The winning pair finishes in the order it is written (lower number first). Races before this rule picked the order of the two at random;
+// the combination (and so every payout) is the same either way, and the other four horses come from the same stream as before.
 function pickPair(s, weights) {
   if (!weights) return PAIRS[s.int(PAIRS.length)];
   let total = 0; for (const w of weights) total += w;
@@ -48,7 +50,8 @@ function pickPair(s, weights) {
 function draw(seedHex, raceNo, weights) {
   const s = new Stream(seedHex, 'race:' + raceNo);
   const pair = pickPair(s, weights);
-  const top = s.int(2) ? [pair[1], pair[0]] : [pair[0], pair[1]];
+  s.int(2);                                       // (this value used to pick which of the two finishes first; drawn and ignored so the rest of the stream is unchanged)
+  const top = [pair[0], pair[1]];                 // the winning pair always finishes lower number first, exactly as the combination is written: 1-2, 1-3 ... 5-6
   const rest = [1, 2, 3, 4, 5, 6].filter((n) => n !== pair[0] && n !== pair[1]);
   for (let i = rest.length - 1; i > 0; i--) { const j = s.int(i + 1); const t = rest[i]; rest[i] = rest[j]; rest[j] = t; }
   return { combo: pair[0] + '-' + pair[1], order: top.concat(rest), animSeed: s.uint32() };

@@ -20,6 +20,8 @@ const { MockWallet } = require('../server/wallet.js');
     counts[d.combo]++;
     assert.deepStrictEqual(d.order.slice().sort(), [1, 2, 3, 4, 5, 6]);
     assert.strictEqual(rng.COMBOS.includes(d.combo), true);
+    assert(d.order[0] < d.order[1], 'the winning pair finishes lower number first: ' + d.order);          // the order of the finish matches the combination as written
+    assert.strictEqual(d.combo, d.order[0] + '-' + d.order[1]);
     assert.deepStrictEqual([d.order[0], d.order[1]].sort(), d.combo.split('-').map(Number));
   }
   const exp = N / 15; let chi = 0; rng.COMBOS.forEach((c) => { chi += Math.pow(counts[c] - exp, 2) / exp; });

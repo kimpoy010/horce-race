@@ -89,7 +89,7 @@
     if (a && !b) b = other(a);
     if (b && !a) a = other(b);
     var top = [];
-    if (a && b) top = entry.exact ? [a, b] : (rnd() < 0.5 ? [a, b] : [b, a]);
+    if (a && b) top = entry.exact ? [a, b] : (a < b ? [a, b] : [b, a]);       // "any order": the pair finishes as the combination is written, lower number first
     var rest = shuffle(all.filter(function (n) { return top.indexOf(n) < 0; }), rnd);
     return top.concat(rest);
   }
