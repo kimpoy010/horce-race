@@ -24,6 +24,18 @@
     try { if (req && !document.fullscreenElement) return Promise.resolve(req.call(el)).then(lock, lock); } catch (e) { /* ignore */ }
     return lock();
   }
+  // start screen: one tap (browsers only allow full screen, landscape lock and sound after a tap) starts all three
+  var start = document.getElementById('start');
+  if (start && new URLSearchParams(location.search).get('start') !== '0') {
+    var ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var standalone = navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches);
+    var tip = document.getElementById('startTip'); if (tip && ios && !standalone) tip.hidden = false;
+    start.hidden = false;
+    var begin = function () { if (start.hidden) return; start.hidden = true; if (!standalone) fullscreen(); };   // the sound starts with the same tap (game.js)
+    start.addEventListener('click', begin);
+    start.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); begin(); } });
+    try { start.focus(); } catch (e) { /* ignore */ }
+  }
   var btn = document.getElementById('fsBtn');
   if (btn) btn.addEventListener('click', fullscreen);
   var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;

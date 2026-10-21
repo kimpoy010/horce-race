@@ -63,6 +63,10 @@ installed web app, see `manifest.webmanifest`) also goes full screen and locks l
 cannot lock the orientation, so there the cover screen is the only mechanism. The betting panel has a compact layout for
 phones held sideways. Races keep running while the cover screen is shown.
 
+**Start screen.** The game opens with a TAP TO PLAY screen. That one tap (or Enter / Space) goes full screen, locks landscape
+where the browser allows it, and starts the sound, because browsers only allow those after a tap. iPhone Safari has no full screen
+for web pages, so there the screen shows a hint to use Add to Home Screen. `?start=0` skips the screen.
+
 **Sound.** Sound turns on by itself at the first tap, click or key press anywhere on the page (browsers allow audio only
 after a gesture; `?sound=0` disables this). The SOUND button switches it off and on again; once a player turns it off it
 stays off. The sound is the chiptune effects and the background theme
