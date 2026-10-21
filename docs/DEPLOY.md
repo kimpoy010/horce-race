@@ -20,7 +20,7 @@ CURRENCY=PHP
 RTP=90                                                # 88-99, later editable in the controller
 MIN_BET=100 MAX_BET=100000 MAX_ROUND_STAKE=500000      # minor units (100 = 1.00)
 ```
-Use `WALLET=mock` only for testing with play money. Never commit `.env`.
+Use `WALLET=mock` (with `ALLOW_MOCK_WALLET=1`) only for testing with play money; it is refused when `NODE_ENV=production`. Never commit `.env`.
 
 ## 3a. Docker (simplest)
 
@@ -30,7 +30,7 @@ cp .env.example .env && nano .env
 docker compose up -d --build
 curl http://127.0.0.1:8080/healthz        # {"ok":true,"mode":"live"}
 ```
-`./data` is mounted into the container: it holds the ledger (with the secret seeds) and the RTP setting.
+`./data` is mounted into the container: it holds the ledger (with the secret seeds), the RTP setting and the player sessions.
 
 ## 3b. Without Docker (systemd)
 
@@ -57,7 +57,7 @@ The app listens on `127.0.0.1:8080` only; the proxy terminates TLS (the launch t
 
 ## 6. Go-live checklist
 
-* [ ] `GAME_MODE=live`, `WALLET=http`, strong `WALLET_KEY` and `CONTROLLER_KEY`, `.env` readable only by the service user.
+* [ ] `GAME_MODE=live`, `NODE_ENV=production`, `WALLET=http`, strong `WALLET_KEY` (requests are HMAC-signed, the platform verifies them), `data/sessions.json` kept private (it is written 0600; sessions survive restarts) and `CONTROLLER_KEY`, `.env` readable only by the service user.
 * [ ] HTTPS works, `/controller` and `/api/admin` are restricted by IP or VPN.
 * [ ] `data/` is on persistent disk, owned by the service user, mode 700, and backed up (it holds the ledger and seeds).
 * [ ] One instance only; the service restarts on failure (systemd `Restart=always` or Docker `unless-stopped`).

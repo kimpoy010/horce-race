@@ -196,7 +196,7 @@
     var st = [['RTP setting', pct(r.rtpSetting)], ['RTP of the current race', pct(r.rtpOfCurrentRace)], ['Best bets return', pct(r.bestBetRtp)], ['3 cheapest pairs return', pct(r.cheapPairsRtp)],
       ['Actual RTP so far', pct(r.actualRtp)], ['Rounds', r.rounds], ['Bets', r.bets], ['Odds', r.shuffleOdds ? 'shuffled every race' : 'fixed layout'],
       ['Total staked', money(r.staked, r.currency)], ['Total paid', money(r.paid, r.currency)], ['House win', money(r.houseWin, r.currency)],
-      ['Credits pending', r.pendingCredits], ['Active sessions', r.activeSessions], ['Min / max bet', money(r.limits.minBet) + ' / ' + money(r.limits.maxBet)], ['Max per race', money(r.limits.maxRoundStake)]];
+      ['Credits pending', r.pendingCredits], ['Rollbacks pending', r.pendingRollbacks], ['Active sessions', r.activeSessions], ['Min / max bet', money(r.limits.minBet) + ' / ' + money(r.limits.maxBet)], ['Max per race', money(r.limits.maxRoundStake)]];
     $('stats').innerHTML = st.map(function (x) { return '<div class="stat"><span class="small">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
     $('combos').innerHTML = Object.keys(r.wins).map(function (c) {
       var p = c.split('-'); return '<div>' + chip(p[0]) + '-' + chip(p[1]) + '<br>' + r.wins[c] + (r.rounds ? ' (' + (100 * r.wins[c] / r.rounds).toFixed(1) + '%)' : '') + '</div>';

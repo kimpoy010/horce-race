@@ -7,7 +7,7 @@ An 8-bit style horse race with six numbered horses. Each race has a **winning co
 
 ```
 GAME_MODE=live WALLET=http WALLET_URL=... WALLET_KEY=... CONTROLLER_KEY=... node server.js     # see .env.example
-GAME_MODE=live WALLET=mock node server.js                  # local test with play money: http://localhost:8080/?token=demo-alice
+ALLOW_MOCK_WALLET=1 GAME_MODE=live WALLET=mock node server.js   # local test with play money: http://localhost:8080/?token=demo-alice
 ```
 
 **Odds.** The board is the video karera chart (rows 1-5, columns 6-2). A winning bet pays **stake x odds**

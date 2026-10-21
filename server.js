@@ -53,13 +53,14 @@ async function startLive() {
     wallet: walletFactory.create(env),
     ledgerFile: path.join(DATA_DIR, 'ledger.jsonl'),
     config: {
-      odds: loadOdds(), rtp: num(env.RTP, 0.9) > 1 ? num(env.RTP, 90) / 100 : num(env.RTP, 0.9), settingsFile: path.join(DATA_DIR, 'settings.json'),
+      odds: loadOdds(), rtp: num(env.RTP, 0.9) > 1 ? num(env.RTP, 90) / 100 : num(env.RTP, 0.9), settingsFile: path.join(DATA_DIR, 'settings.json'), sessionsFile: path.join(DATA_DIR, 'sessions.json'),
       betMs: num(env.BET_MS, 25000), minBet: num(env.MIN_BET, 100), maxBet: num(env.MAX_BET, 100000),
       maxRoundStake: num(env.MAX_ROUND_STAKE, 500000), currency: env.CURRENCY || 'PHP'
     }
   });
   await engine.recover();
   setInterval(() => engine.tick().catch((e) => console.error('tick failed:', e.message)), 250);
+  if ((env.WALLET || 'mock') === 'mock') console.warn('WARNING: play-money MOCK wallet (ALLOW_MOCK_WALLET=1). Never use this in production.');
   const pv = engine.previewRtp(engine.rtp);
   console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', RTP setting ' + (engine.rtp * 100).toFixed(2) + '% (best bets ' + (pv.bestRtp * 100).toFixed(2) + '%, three cheapest pairs ' + (pv.cheapRtp * 100).toFixed(2) + '%). Editable 88-99% in the controller.');
 }
@@ -146,6 +147,7 @@ const server = http.createServer(async (req, res) => {
           const body = JSON.parse(await readBody(req) || '{}');
           if (body.cmd === 'setRtp') return json(res, 200, engine.setRtp(body.rtp, 'controller'));
           if (body.cmd === 'previewRtp') return json(res, 200, engine.previewRtp(body.rtp));
+          if (body.cmd === 'closeSessions') return json(res, 200, { ok: true, closed: engine.closeSessions(String(body.playerId || '')) });   // kick a player
           return json(res, 403, { ok: false, error: 'the controller cannot change results in live mode' });
         }
       } else {
@@ -167,7 +169,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 (async () => {
-  if (LIVE) await startLive();
+  if (LIVE) { try { await startLive(); } catch (e) { console.error('Cannot start: ' + e.message); process.exit(1); } }
   server.listen(PORT, HOST, () => {
     console.log('Horse Race (' + (LIVE ? 'LIVE' : 'demo') + ') running on http://' + HOST + ':' + PORT);
     console.log('  game       http://localhost:' + PORT + '/' + (LIVE && (env.WALLET || 'mock') === 'mock' ? '?token=demo-alice' : ''));

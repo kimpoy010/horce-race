@@ -114,7 +114,7 @@ const { MockWallet } = require('../server/wallet.js');
     clock += 1001; await e2.tick();
     clock = e2.cur.startAt + e2.cfg.raceMs + 1; await e2.tick();
     clock = e2.cur.startAt + e2.cfg.raceMs + e2.cfg.resultsMs + 1; await e2.tick();
-    e2.sessions.get(s2).calls = [];
+    e2.sessions.get(e2._skey(s2)).calls = [];
   }
   const rtp = e2.report().actualRtp;
   console.log('simulated RTP over ' + R + ' rounds betting every pair: ' + (rtp * 100).toFixed(2) + '% (theory ' + (e2.previewRtp(e2.rtp).evenSpreadRtp * 100).toFixed(2) + '%)');

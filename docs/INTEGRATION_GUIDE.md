@@ -57,14 +57,15 @@ Player           Platform backend            Browser (game)              Game se
   |                                              |                          | POST /wallet/credit (win)->|
 ```
 
-Session details: the game server turns the launch token into its own random 192-bit session ID, stored in server memory for up to
-12 hours (`sessionTtlMs`). The browser keeps it in `sessionStorage` and sends it as `Authorization: Bearer <session>`. A closed tab
-or a game server restart ends the session; the player launches again from the lobby. Balances and bets are not lost on a restart
-(money is on the platform; bets are recovered from the ledger and settled or refunded).
+Session details: the game server turns the launch token into its own random 192-bit session ID, valid for up to 12 hours
+(`sessionTtlMs`). It stores only a hash of the ID, in memory and in `data/sessions.json`, so a restart does not end sessions.
+The browser keeps the ID in `sessionStorage` and sends it as `Authorization: Bearer <session>`. Closing the tab ends the player's
+session on that device; the player launches again from the lobby. Balances and bets are not lost on a restart (money is on the
+platform; bets are recovered from the ledger and settled or refunded).
 
 ## 5. What the platform implements
 
-All calls are `POST`, JSON, header `Authorization: Bearer <WALLET_KEY>`, amounts in minor units. Full detail in `WALLET_API.md`.
+All calls are `POST`, JSON, signed with HMAC (`X-Timestamp`, `X-Nonce`, `X-Signature`), amounts in minor units. Full detail in `WALLET_API.md`.
 
 | Endpoint | Request | Reply |
 |---|---|---|
@@ -72,12 +73,13 @@ All calls are `POST`, JSON, header `Authorization: Bearer <WALLET_KEY>`, amounts
 | `/wallet/balance` | `{playerId}` | `{ok, balance}` |
 | `/wallet/debit` | `{playerId, amount, txId, meta:{raceNo, kind:"bet"}}` | `{ok, balance}` or HTTP 402 `INSUFFICIENT_FUNDS` |
 | `/wallet/credit` | `{playerId, amount, txId, meta:{raceNo, kind:"win"\|"refund"}}` | `{ok, balance}` |
+| `/wallet/rollback` | `{playerId, amount, txId, rollbackTxId, meta}` | `{ok, balance, status}`; cancels the debit `txId` and refuses it if it arrives later |
 
 Rules the wallet must follow:
 
 * **Idempotent on `txId`**: the same `txId` twice is applied once and returns the same reply.
 * A debit that times out may or may not have been applied. The game retries once with the same `txId`; if it still fails the bet is
-  rejected and logged as `debit_unknown` for manual reconciliation.
+  rejected, logged as `debit_unknown`, and rolled back through `/wallet/rollback` (retried until confirmed).
 * Failed credits (wins, refunds) are retried forever with back-off.
 * Serve the wallet API over HTTPS only, keep `WALLET_KEY` secret.
 
@@ -95,6 +97,7 @@ Rules the wallet must follow:
 * Browser never sends balances or payouts; stakes are validated server-side (integer, min/max, 15 valid pairs, per-pair and per-round limits).
 * Launch token is one time and removed from the URL; `Referrer-Policy: no-referrer` on pages.
 * Results come from the server's RNG with a SHA-256 commit shown before betting closes and the seed revealed after the race.
+* Wallet requests are HMAC-signed with timestamp and nonce; the mock wallet cannot run in production; unknown debits are rolled back; sessions are stored hashed and survive restarts.
 * Bet requests are rate limited (12 per 5 s per session); the controller cannot change results in live mode.
 
 ## 8. Improvements to consider (gaps today)
@@ -102,15 +105,20 @@ Rules the wallet must follow:
 Ordered by importance for a real-money launch.
 
 ### Must have before real money
-1. **Signed wallet requests.** Today a shared bearer key is the only protection. Add an HMAC signature over the body plus a
-   timestamp/nonce so requests cannot be forged or replayed, and let the platform allowlist the game server's IP.
-2. **Block the mock wallet in production.** `WALLET=mock` hands out free play money to anyone with `?token=demo-x`. Refuse to start
-   with `GAME_MODE=live` and the mock wallet unless an explicit override is set (and `NODE_ENV=production` never allows it).
-3. **Rollback / status endpoint.** When a debit times out the outcome is unknown and the bet is dropped for manual reconciliation.
-   Add `POST /wallet/rollback` (cancel a `txId`) or `POST /wallet/status` (did `txId` apply?) so the game can resolve it by itself.
-4. **Persistent sessions.** Sessions are in memory only, so every restart or deploy logs everyone out. Store them (file / Redis) or
-   make them signed stateless tokens.
-5. **Independent security review and RNG/math certification** by an accredited lab if the operator is licensed.
+1. **Signed wallet requests. DONE.** Every wallet call carries `X-Timestamp`, `X-Nonce` and an HMAC-SHA256 `X-Signature`
+   (`server/sign.js`, spec in `WALLET_API.md`). The platform rejects bad signatures, stale timestamps and replayed nonces, and
+   should also allowlist the game server's IP. `WALLET_AUTH=bearer` keeps the old mode for platforms that cannot verify yet.
+2. **Block the mock wallet in production. DONE.** In live mode the play-money wallet needs `ALLOW_MOCK_WALLET=1` and is always
+   refused when `NODE_ENV=production`; a `WALLET_KEY` shorter than 16 characters is refused too.
+3. **Rollback of unknown debits. DONE.** When a debit times out twice the bet is rejected and the game calls
+   `POST /wallet/rollback` for that `txId`, retrying with back-off (also after a restart) until the platform confirms. The platform
+   must also refuse a late debit with a cancelled `txId`. If the platform has no rollback endpoint the case is left in the ledger
+   for manual reconciliation. A status endpoint is still an option if you prefer it to rollback.
+4. **Persistent sessions. DONE.** Sessions are kept in `data/sessions.json` (ids stored hashed, file mode 0600), so a restart or
+   deploy does not log players out. Expired sessions are not restored. Operators can end a player's sessions with the controller
+   command `closeSessions` (`POST /api/command {cmd:"closeSessions", playerId}`).
+5. **Independent security review and RNG/math certification** by an accredited lab if the operator is licensed. (Not something the
+   code can provide; still open.)
 
 ### Should have
 6. **Round and bet IDs in every wallet call** (`roundId`, `betId`, `gameId`), plus a `transactionType` field, so the platform can
@@ -138,7 +146,7 @@ Ordered by importance for a real-money launch.
 
 1. Redirect only, or do you also need an iframe embed?
 2. Which wallet API do you already have? (We can adapt `server/wallet.js` to it.)
-3. Do you need rollback, bonus, multi-currency or per-player limits at launch?
+3. Do you need bonus, multi-currency or per-player limits at launch?
 4. What must the player history show, and how do you want to reconcile (daily file, API)?
 5. Who hosts the game server, and who operates `/controller`?
 6. Is the operator licensed, and does that require lab certification of the RNG and the game math?
