@@ -43,22 +43,24 @@ console.log('core tests passed');
   console.log('combination tests passed');
 }
 
-// ---- gallop gait: smooth over the stride, hooves on the ground only part of the time, legs folded in the air ----
+// ---- gallop gait: the 12 key poses of the reference sheet, smooth between them, hooves down only part of the stride ----
 {
   const G = require('../public/js/gait.js');
+  assert.strictEqual(G.FRAMES, 12);
   const a = G.pose(0.99999), b = G.pose(0.00001);
   ['hf', 'hn', 'ff', 'fn'].forEach((k) => a[k].forEach((v, i) => assert(Math.abs(v - b[k][i]) < 0.01, 'gait jumps at the stride wrap: ' + k)));
-  let air = 0, N = 200;
-  for (let i = 0; i < N; i++) {
-    const p = G.pose(i / N), cycle = i / N;
-    ['hf', 'hn', 'ff', 'fn'].forEach((k) => p[k].forEach((v) => assert(Number.isFinite(v))));
-    const onGround = [['hf', G.LAND.hf, G.STANCE.hind], ['hn', G.LAND.hn, G.STANCE.hind], ['ff', G.LAND.ff, G.STANCE.fore], ['fn', G.LAND.fn, G.STANCE.fore]]
-      .some(([k, td, len]) => ((cycle - td + 1) % 1) < len);
-    if (!onGround) air++;
-  }
-  assert(air / N > 0.25 && air / N < 0.45, 'suspension phase should be about a third of the stride: ' + air / N);   // real gallop: all four hooves off the ground
-  const folded = G.pose(G.LAND.fn + 0.4).fn;                          // a foreleg in the air has the cannon folded back under the forearm
-  assert(folded[1] < -1);
-  assert(G.pose(G.LAND.fn + 0.1).fn[1] > -0.3);                        // and is nearly straight while the hoof is planted
+  ['hf', 'hn', 'ff', 'fn'].forEach((k) => G.KEY[k].forEach((f, n) => {            // a sprite step is exactly a key pose
+    const p = G.pose(n / 12)[k];
+    assert(Math.abs(p[0] - f[0]) < 1e-9 && Math.abs(p[1] - f[1]) < 1e-9, 'key pose ' + k + n);
+  }));
+  let air = 0;
+  for (let n = 0; n < 12; n++) if (['hf', 'hn', 'ff', 'fn'].every((k) => G.KEY[k][n][2] === 0)) air++;
+  assert(air >= 3 && air <= 5, 'the gathered flight phase is about a third of the stride: ' + air);   // all four hooves off the ground
+  for (let i = 0; i < 240; i++) { const p = G.pose(i / 240); ['hf', 'hn', 'ff', 'fn'].forEach((k) => p[k].forEach((v) => assert(Number.isFinite(v)))); assert(p.lift >= 0 && p.lift <= 1); }
+  assert(G.pose(7 / 12).fn[1] < -0.9);                                              // frame 8: forelegs tucked, cannons folded back
+  assert(G.pose(7 / 12).hn[0] > 0.3);                                               // and the hind legs swung forward under the belly
+  assert(G.pose(2 / 12).hf[1] < -1.5);                                              // frame 3: hind legs folded high behind
+  assert(G.pose(7 / 12).pitch > G.pose(0).pitch);                                   // the front is highest in the flight phase
+  assert(G.stretch([0.5, 0.5, 1], 21, 10, 11) > 1 && G.stretch([0.5, 0.5, 0], 21, 10, 11) === 1);
   console.log('gait tests passed');
 }

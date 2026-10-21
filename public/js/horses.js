@@ -9,8 +9,8 @@
 
   if (window.HORSE_VARIANT == null) window.HORSE_VARIANT = 5; // 0 = old straight-leg body, 5 = slim tucked-up belly (default)
 
-  var COLS = 89, PADX = 6, PADY = 4, SW = COLS + PADX * 2 + 2, SH = 60 + PADY * 2;
-  var OX = PADX + 44, OY = PADY + 56, STEPS = 16;
+  var COLS = 89, PADX = 6, PADY = 11, SW = COLS + PADX * 2 + 2, SH = 60 + PADY * 2;
+  var OX = PADX + 44, OY = PADY + 56, STEPS = HorseGait.FRAMES;
 
   var BODY = [
     '........................................................KKKKKK...........................',
@@ -127,10 +127,18 @@
 
   function makeSprite(no, dir, step, standing) {
     var P = HORSE[no], out = grid(), r, c;
-    var gp = window.HorseGait.pose(step / STEPS);                       // real gallop: see gait.js
+    var gp = window.HorseGait.pose(step / STEPS);                       // the gallop of the reference sheet: see gait.js
     var legs = { hf: gp.hf, ff: gp.ff, hn: gp.hn, fn: gp.fn };
     if (standing) legs = { hf: [-0.05, -0.05], ff: [-0.08, -0.08], hn: [0.05, 0.05], fn: [0, 0] };
-    var bob = standing ? 0 : -Math.round(3.4 * gp.lift);                  // the body rises in the air phase and sinks over the planted forelegs
+    var bob = standing ? 0 : -Math.round(3.4 * gp.lift);                  // the body rises in the flight phase and sinks over the planted forelegs
+    var tilt = standing ? 0 : Math.tan(gp.pitch * 0.5);                  // nose-up pitch: the finished picture is sheared around the saddle
+    var dyAt = function (x) { return Math.round(-(x - (PADX + 46)) * tilt); };
+    var GROUND = PADY + 55;                                              // where a hoof meets the ground (legs are 21 long)
+    // planted legs are lengthened a little so the hoof really reaches the ground (the body is lifted and pitched)
+    ['hf', 'ff', 'hn', 'fn'].forEach(function (k) {
+      var hx = { hf: 31, ff: 60, hn: 26, fn: 65 }[k] + PADX, hy = PADY + (k[0] === 'h' ? 34 : 35) + bob;
+      if (!standing) legs[k] = [legs[k][0], legs[k][1], window.HorseGait.stretch(legs[k], GROUND - hy - dyAt(hx), 10, 11)];
+    });
 
     // legs first (the body is painted over their tops)
     var V = window.HORSE_VARIANT | 0;
@@ -207,6 +215,11 @@
       }
     }
 
+    if (tilt) {                                                            // body pitch (columns move up or down)
+      var sh = grid(), xs, ys;
+      for (xs = 0; xs < SW; xs++) { var d = dyAt(xs); for (ys = 0; ys < SH; ys++) { var y2 = ys + d; if (y2 >= 0 && y2 < SH && out[ys][xs] !== ' ') sh[y2][xs] = out[ys][xs]; } }
+      out = sh;
+    }
     var cols = { K: '#000000', W: P.coat, D: P.shade, M: P.muzzle, L: P.sock, H: '#10184a', C: P.cap, R: P.silk, Y: P.cloth, S: '#f8aa8c', N: '#000000' };
     var cv = document.createElement('canvas'); cv.width = SW; cv.height = SH;
     var g = cv.getContext('2d');

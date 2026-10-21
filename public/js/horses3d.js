@@ -7,7 +7,7 @@
 (function () {
   'use strict';
   var HS = window.HorseSprites, PAL = HS.COLORS;
-  var TW = 100, TH = 92, TOX = 50, TOY = 78, SCALE = 1.38, PITCH = 0.36, H = 0.3, FRAMES = 8;
+  var TW = 100, TH = 92, TOX = 50, TOY = 78, SCALE = 1.38, PITCH = 0.36, H = 0.3, FRAMES = 12;
   var DIGITS = {
     1: ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
     2: ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
@@ -60,7 +60,7 @@
     var key = no + ':' + (standing ? 's' : step), m = models[key];
     if (m) return m;
     m = new Model(no);
-    var gp = window.HorseGait.pose(step / FRAMES), bob = standing ? 0 : 1.1 * gp.lift;     // real gallop: see gait.js
+    var gp = window.HorseGait.pose(step / FRAMES), bob = standing ? 0 : 1.1 * gp.lift;     // the gallop of the reference sheet: see gait.js
     var legs = standing ? { fn: [0, 0], ff: [-0.05, -0.05], hn: [0.05, 0.05], hf: [-0.05, -0.05] } : { fn: gp.fn, ff: gp.ff, hn: gp.hn, hf: gp.hf };
     var b = bob;
     // legs: groups 2 (+z side) and 3 (-z side): thigh/forearm, knee, cannon, sock, fetlock, hoof
@@ -77,7 +77,11 @@
       m.capsule(sk, f, 1.6, 1.8, C_COAT, grp);
       m.capsule(f, [f[0] + Math.sin(ang[1]) * 1.4, f[1] - 1.5, hz], 2.1, 2.2, C_HOOF, grp);
     }
-    var hy = 18.4;
+    var hy = 18.4 + b;
+    if (!standing) {                                              // planted legs are lengthened so the hoof reaches the ground
+      var sinT = Math.sin(gp.pitch * 0.5);
+      [['fn', 10], ['ff', 10], ['hn', -10], ['hf', -10]].forEach(function (q) { legs[q[0]] = [legs[q[0]][0], legs[q[0]][1], window.HorseGait.stretch(legs[q[0]], hy + q[1] * sinT - 0.2, 8.6, 9.6)]; });
+    }
     leg(10, hy, 3.8, legs.fn, 2, 2.9, false); leg(10, hy, -3.8, legs.ff, 3, 2.9, false);
     leg(-10, hy + 0.2, 3.9, legs.hn, 2, 3.1, true); leg(-10, hy + 0.2, -3.9, legs.hf, 3, 3.1, true);
 
@@ -150,17 +154,19 @@
   /* ---------- rendering ---------- */
   function render(no, step, standing, angDeg) {
     var P = PAL[no], m = buildModel(no, step, standing), v = m.v, n = v.length / 8;
+    var th = standing ? 0 : window.HorseGait.pose(step / FRAMES).pitch * 0.5, ct = Math.cos(th), stp = Math.sin(th);      // body pitch around the middle of the back
     var phiA = angDeg * Math.PI / 180, ca = Math.cos(phiA), sa = Math.sin(phiA), cp = Math.cos(PITCH), sp = Math.sin(PITCH);
     var zb = new Float32Array(TW * TH).fill(-1e9), id = new Int16Array(TW * TH).fill(-1), grp = new Int8Array(TW * TH), tone = new Uint8Array(TW * TH).fill(1);
     for (var i = 0; i < n; i++) {
-      var o = i * 8, x = v[o], y = v[o + 1], z = v[o + 2];
+      var o = i * 8, x0 = v[o], y0 = v[o + 1] - 20, z = v[o + 2], x = x0 * ct - y0 * stp, y = 20 + x0 * stp + y0 * ct;
       var X = x * ca - z * sa, Z = x * sa + z * ca;
       var px = Math.round(TOX + X * SCALE), py = Math.round(TOY + (-y * cp + Z * sp) * SCALE);
       if (px < 0 || py < 0 || px >= TW || py >= TH) continue;
       var d = Z * cp + y * sp, k = py * TW + px;
       if (d <= zb[k]) continue;
       zb[k] = d; id[k] = v[o + 6]; grp[k] = v[o + 7];
-      var nx = v[o + 3] * ca - v[o + 5] * sa, nz = v[o + 3] * sa + v[o + 5] * ca, ny = v[o + 4];
+      var nx0 = v[o + 3], ny = nx0 * stp + v[o + 4] * ct, nxp = nx0 * ct - v[o + 4] * stp;
+      var nx = nxp * ca - v[o + 5] * sa, nz = nxp * sa + v[o + 5] * ca;
       var vy = ny * cp - nz * sp, vz = ny * sp + nz * cp; // view-space normal (y up, z towards the camera)
       var I = nx * LIGHT[0] + vy * LIGHT[1] + vz * LIGHT[2];
       tone[k] = (I < 0.05 || vy < -0.55) ? 0 : I > 0.74 ? 2 : 1;

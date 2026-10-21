@@ -1,11 +1,14 @@
 /*
- * Horse gait: one stride of a transverse gallop as leg keyframes, shared by the side-view sprites (horses.js) and the angled 3D
- * sprites (horses3d.js). Phase 0..1 is one stride.
+ * Horse gait: one gallop stride as 12 key poses read from an animation reference sheet (frames 1 to 12), shared by the side-view
+ * sprites (horses.js) and the angled 3D sprites (horses3d.js).
  *
- * A galloping horse's legs are on the ground only briefly (each hoof about a quarter of the stride) and folded up for the rest:
- *   far hind lands at 0.00, near (leading) hind 0.10, far fore 0.36, near (leading) fore 0.46, then the horse is in the air.
- * Each leg is two segments: a1 = angle of the upper part (hip to knee / hock), a2 = angle of the lower part (cannon), measured
- * from straight down, positive = forward. keyframes: [phase of the leg (0 = touchdown), a1, a2].
+ * Every leg has two segments: a1 = angle of the upper part (hip to knee / hock), a2 = angle of the lower part (cannon), both
+ * measured from straight down, positive = forward. Per frame: [a1, a2, plant] where plant 1 = the hoof is on the ground.
+ *   hn / hf = near / far hind leg, fn / ff = near / far foreleg.
+ * The reference stride: forelegs planted and hind legs pushing off (frames 12 to 2), hind legs fold high behind (3 and 4), forelegs push
+ * off (5 and 6), then the gathered flight with the hind legs swung forward under the belly and the forelegs tucked (7 to 9), and the
+ * forelegs reach out again (10 and 11) while the hind legs land.
+ * Between the key poses the movement is a smooth cyclic spline.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -13,65 +16,50 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var KF = {
-    fore: [
-      [0.00, 0.62, 0.50],     // lands reaching forward, leg almost straight
-      [0.11, 0.10, 0.06],     // under the shoulder, body vaults over the planted leg
-      [0.22, -0.42, -0.55],   // pushes off behind the body, heel lifts
-      [0.34, -0.10, -1.55],   // leaves the ground, knee bends and the cannon folds up
-      [0.46, 0.22, -1.95],    // fully folded, hoof tucked behind the forearm
-      [0.60, 0.46, -1.25],    // forearm swings forward, starts to unfold
-      [0.76, 0.72, 0.05],     // reaching out in the air
-      [0.90, 0.80, 0.50]      // fully extended, about to land
-    ],
-    hind: [
-      [0.00, 0.48, -0.05],    // lands under the belly
-      [0.13, -0.06, -0.14],   // under the hip
-      [0.26, -0.72, -0.95],   // drives off behind the body, leg extended
-      [0.40, -0.62, -1.75],   // leaves the ground, hock folds
-      [0.55, -0.20, -1.85],   // swings forward folded
-      [0.70, 0.30, -1.30],
-      [0.85, 0.52, -0.45]     // reaching under the belly again
-    ]
+  var FRAMES = 12;
+  var KEY = {
+    //        1                    2                    3                    4                    5                    6
+    hn: [[-0.12, -0.12, 1], [-0.25, -0.30, 1], [-0.60, -1.20, 0], [-0.80, -1.80, 0], [-0.35, -1.10, 0], [-0.10, -0.90, 0],
+    //        7                    8                    9                    10                   11                   12
+         [0.35, 0.05, 0],    [0.40, 0.40, 0],    [0.35, 0.55, 0],    [0.55, 0.45, 0],    [0.00, 0.00, 1],    [-0.05, -0.05, 1]],
+    hf: [[-0.50, -1.40, 0], [-0.85, -1.50, 0], [-0.90, -1.90, 0], [-0.70, -1.80, 0], [-0.15, -0.90, 0], [0.05, -0.50, 0],
+         [0.30, 0.20, 0],    [0.45, 0.55, 0],    [0.50, 0.45, 0],    [0.05, 0.00, 0],    [-0.35, -0.45, 1],  [-0.80, -1.20, 0]],
+    fn: [[0.25, 0.25, 1],   [-0.05, -0.05, 1],  [0.00, 0.00, 1],    [0.00, 0.05, 1],    [-0.10, -0.10, 1],  [-0.50, -0.50, 1],
+         [0.60, -1.20, 0],   [0.80, -1.00, 0],   [0.50, 0.10, 0],    [0.60, 0.30, 0],    [0.95, 0.80, 0],    [0.25, 0.25, 1]],
+    ff: [[0.90, 0.90, 0],   [0.85, 0.85, 1],    [0.50, -0.90, 0],   [0.70, -1.30, 0],   [0.60, -1.57, 0],   [0.50, -1.20, 0],
+         [0.90, -1.00, 0],   [0.70, -1.50, 0],   [0.30, -1.57, 0],   [0.50, -0.70, 0],   [1.00, -1.20, 0],   [1.20, 0.00, 0]]
   };
-  var STANCE = { fore: 0.22, hind: 0.26 };               // share of the stride a hoof is on the ground
-  var LAND = { hf: 0.00, hn: 0.10, ff: 0.36, fn: 0.46 };  // touchdown of every leg
-  var R1 = 0.475;                                         // upper segment / whole leg (both sprite models are about this)
+  // body: nose-up pitch in radians (the sprites use half of it) and lift above the lowest point (0 to 1), per frame
+  var PITCH = [0.00, -0.03, -0.03, 0.05, 0.14, 0.20, 0.14, 0.26, 0.06, 0.00, -0.06, -0.05];
+  var LIFT = [0.10, 0.10, 0.20, 0.30, 0.40, 0.50, 0.70, 1.00, 0.80, 0.40, 0.10, 0.00];
 
-  // cyclic cubic Hermite through the keyframes (smooth, no stops at the keyframes)
-  function sample(kf, p) {
-    var n = kf.length;
-    p -= Math.floor(p);
-    var T = function (j) { return kf[((j % n) + n) % n][0] + Math.floor(j / n); };
-    var Y = function (j, c) { return kf[((j % n) + n) % n][c]; };
-    var i = n - 1;
-    for (var k = 0; k < n - 1; k++) if (p < kf[k + 1][0]) { i = k; break; }
-    var h = T(i + 1) - T(i), t = (p - T(i)) / h, t2 = t * t, t3 = t2 * t, out = [];
-    for (var c = 1; c <= 2; c++) {
-      var m0 = (Y(i + 1, c) - Y(i - 1, c)) / (T(i + 1) - T(i - 1)) * h, m1 = (Y(i + 2, c) - Y(i, c)) / (T(i + 2) - T(i)) * h;
-      out.push((2 * t3 - 3 * t2 + 1) * Y(i, c) + (t3 - 2 * t2 + t) * m0 + (-2 * t3 + 3 * t2) * Y(i + 1, c) + (t3 - t2) * m1);
-    }
+  function mod(n, m) { return ((n % m) + m) % m; }
+  function cr(p0, p1, p2, p3, t) {                      // Catmull-Rom
+    return 0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+  }
+  function at(arr, u, c) {                               // cyclic sample of column c (or of a plain number list when c is undefined)
+    var i = Math.floor(u), t = u - i, v = function (j) { var x = arr[mod(j, FRAMES)]; return c === undefined ? x : x[c]; };
+    return cr(v(i - 1), v(i), v(i + 1), v(i + 2), t);
+  }
+
+  // cycle 0..1 (0 = frame 1) -> the four legs [a1, a2, plant 0..1], body pitch and lift
+  function pose(cycle) {
+    var u = mod(cycle, 1) * FRAMES, out = {}, i = Math.floor(u), t = u - i;
+    ['hn', 'hf', 'fn', 'ff'].forEach(function (k) {
+      var a = KEY[k], plant = a[mod(i, FRAMES)][2] * (1 - t) + a[mod(i + 1, FRAMES)][2] * t;
+      out[k] = [at(a, u, 0), at(a, u, 1), plant];
+    });
+    out.pitch = at(PITCH, u); out.lift = Math.max(0, Math.min(1, at(LIFT, u)));
     return out;
   }
 
-  // a leg at its own phase p: [a1, a2, stretch]. While the hoof is on the ground the leg is lengthened a little so the hoof really
-  // touches the ground (an angled straight leg is shorter than a vertical one).
-  function leg(hind, p) {
-    var kf = hind ? KF.hind : KF.fore, a = sample(kf, p), end = hind ? STANCE.hind : STANCE.fore;
-    p -= Math.floor(p);
-    var w = p < end ? 1 : p < end + 0.05 ? 1 - (p - end) / 0.05 : p > 0.94 ? (p - 0.94) / 0.06 : 0;      // eases in just before the hoof lands, out after push-off
-    var k = 1 / (R1 * Math.cos(a[0]) + (1 - R1) * Math.cos(a[1]));
-    return [a[0], a[1], 1 + Math.min(0.16, Math.max(0, k - 1)) * w];
+  // how much longer a planted leg has to be for the hoof to reach the ground (the hip is hipH above it)
+  function stretch(leg, hipH, L1, L2) {
+    var w = leg[2];
+    if (!(w > 0)) return 1;
+    var need = hipH / (L1 * Math.cos(leg[0]) + L2 * Math.cos(leg[1]));
+    return 1 + (Math.max(0.9, Math.min(1.3, need)) - 1) * w;
   }
 
-  // cycle: 0..1 position in the stride -> all four legs and the body lift in sprite units (0 = lowest)
-  function pose(cycle) {
-    var c = cycle - Math.floor(cycle);
-    return {
-      hf: leg(true, c - LAND.hf), hn: leg(true, c - LAND.hn), ff: leg(false, c - LAND.ff), fn: leg(false, c - LAND.fn),
-      lift: 0.5 + 0.5 * Math.cos(2 * Math.PI * (c - 0.02))          // highest in the air as the hind legs land, lowest over the planted forelegs
-    };
-  }
-
-  return { pose: pose, leg: leg, KF: KF, STANCE: STANCE, LAND: LAND };
+  return { pose: pose, stretch: stretch, FRAMES: FRAMES, KEY: KEY, PITCH: PITCH, LIFT: LIFT };
 });
