@@ -5,6 +5,14 @@
  */
 (function () {
   'use strict';
+  // CSS needs the height that is really visible (iPhone Safari: 100vh is taller than the screen while the toolbars show)
+  function fitHeight() {
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty('--vh', (h / 100) + 'px');
+  }
+  fitHeight();
+  window.addEventListener('resize', fitHeight); window.addEventListener('orientationchange', function () { setTimeout(fitHeight, 250); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fitHeight);
   var locked = false;
   function lock() {
     try {
