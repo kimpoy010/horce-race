@@ -240,6 +240,11 @@
   function initPanel() {
     el.tab.hidden = false; setPanel(panelOpen); initReality(); el.histBtn.addEventListener('click', toggleHistory);
     el.tab.addEventListener('click', function () { setPanel(!panelOpen); });
+    // a tap or click outside the open panel closes it (not on the tab itself, nor on the start / reality-check / rotate screens)
+    document.addEventListener('pointerdown', function (e) {
+      if (!panelOpen || e.target.closest('#bet, #betTab, #start, #bReality, #rotate')) return;
+      setPanel(false);
+    }, true);
     var x0 = null, y0 = 0;                                           // swipe right on the panel to hide, left from the screen edge to show
     document.addEventListener('touchstart', function (e) { var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
     document.addEventListener('touchend', function (e) {

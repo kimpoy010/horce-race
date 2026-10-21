@@ -92,5 +92,5 @@ legs, angled sprites on the curve). Needs only a browser; no external requests.
 bet history with draw proofs, and signed webhooks (`round.settled`, `big.win`) are described in `docs/WALLET_API.md` (settings in `.env.example`).
 
 **Betting panel.** In live mode the betting panel is a drawer over the right 60% of the race screen. The yellow tab on
-the right edge hides or shows it by hand (a swipe works on touch screens). The panel also opens by itself when betting opens and
+the right edge hides or shows it by hand (a swipe works on touch screens; a tap outside the open panel closes it). The panel also opens by itself when betting opens and
 hides when betting closes, so the race is clear while it runs; while it is hidden the tab shows the seconds left to bet.
