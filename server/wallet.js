@@ -56,7 +56,7 @@ class MockWallet {
 class HttpWallet {
   constructor(opts) {
     this.url = opts.url.replace(/\/$/, ''); this.key = opts.key; this.keyId = opts.keyId || ''; this.auth = opts.auth || 'hmac';
-    this.timeout = opts.timeout || 8000; this.currency = opts.currency;
+    this.timeout = opts.timeout || 8000; this.currency = opts.currency; this.gameId = opts.gameId || 'horse-race';
   }
   async _post(path, body) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), this.timeout);
@@ -76,12 +76,21 @@ class HttpWallet {
   }
   async validateToken(token) {
     const d = await this._post('/session/validate', { token });
-    return { playerId: String(d.playerId), currency: d.currency || this.currency || 'PHP', balance: d.balance, returnUrl: d.returnUrl };
+    // besides the player: optional brandId, decimals, limits {minBet,maxBet,maxRoundStake,dailyLossLimit}, realityCheckMinutes, blocked
+    return { playerId: String(d.playerId), currency: d.currency || this.currency || 'PHP', balance: d.balance, returnUrl: d.returnUrl, brandId: d.brandId,
+      decimals: d.decimals, limits: d.limits, realityCheckMinutes: d.realityCheckMinutes, blocked: !!d.blocked };
   }
   async balance(playerId) { return (await this._post('/wallet/balance', { playerId })).balance; }
-  async debit(playerId, amount, txId, meta) { return this._post('/wallet/debit', { playerId, amount, txId, meta }); }
-  async credit(playerId, amount, txId, meta) { return this._post('/wallet/credit', { playerId, amount, txId, meta }); }
-  async rollback(playerId, amount, txId, meta) { return this._post('/wallet/rollback', { playerId, amount, txId, rollbackTxId: 'rollback:' + txId, meta }); }
+  // every transaction names the game, the round, the bet(s), the type, the currency and the brand, so the platform can show
+  // history and match audit logs without parsing `meta` (which still carries the same data)
+  _tx(playerId, amount, txId, meta, extra) {
+    const m = meta || {};
+    return Object.assign({ playerId, amount, txId, gameId: this.gameId, transactionType: m.kind, roundId: m.roundId, betId: m.betId, betIds: m.betIds, refTxId: m.refTxId,
+      currency: m.currency || this.currency, brandId: m.brandId }, extra, { meta: m });
+  }
+  async debit(playerId, amount, txId, meta) { return this._post('/wallet/debit', this._tx(playerId, amount, txId, meta)); }
+  async credit(playerId, amount, txId, meta) { return this._post('/wallet/credit', this._tx(playerId, amount, txId, meta)); }
+  async rollback(playerId, amount, txId, meta) { return this._post('/wallet/rollback', this._tx(playerId, amount, txId, meta, { rollbackTxId: 'rollback:' + txId })); }
 }
 
 function create(env) {

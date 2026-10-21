@@ -69,7 +69,7 @@ All calls are `POST`, JSON, signed with HMAC (`X-Timestamp`, `X-Nonce`, `X-Signa
 
 | Endpoint | Request | Reply |
 |---|---|---|
-| `/session/validate` | `{token}` | `{ok, playerId, currency, balance, returnUrl}`; the token is single use |
+| `/session/validate` | `{token}` | `{ok, playerId, currency, balance, returnUrl}` plus optional `brandId`, `decimals`, `limits`, `realityCheckMinutes`, `blocked`; the token is single use |
 | `/wallet/balance` | `{playerId}` | `{ok, balance}` |
 | `/wallet/debit` | `{playerId, amount, txId, meta:{raceNo, kind:"bet"}}` | `{ok, balance}` or HTTP 402 `INSUFFICIENT_FUNDS` |
 | `/wallet/credit` | `{playerId, amount, txId, meta:{raceNo, kind:"win"\|"refund"}}` | `{ok, balance}` |
@@ -98,6 +98,7 @@ Rules the wallet must follow:
 * Launch token is one time and removed from the URL; `Referrer-Policy: no-referrer` on pages.
 * Results come from the server's RNG with a SHA-256 commit shown before betting closes and the seed revealed after the race.
 * Wallet requests are HMAC-signed with timestamp and nonce; the mock wallet cannot run in production; unknown debits are rolled back; sessions are stored hashed and survive restarts.
+* Players can be limited (bet limits, daily loss limit), blocked and shown reality checks; every bet is in a per-player history with a verifiable draw proof.
 * Bet requests are rate limited (12 per 5 s per session); the controller cannot change results in live mode.
 
 ## 8. Improvements to consider (gaps today)
@@ -121,15 +122,21 @@ Ordered by importance for a real-money launch.
    code can provide; still open.)
 
 ### Should have
-6. **Round and bet IDs in every wallet call** (`roundId`, `betId`, `gameId`), plus a `transactionType` field, so the platform can
-   show player history and match audit logs without parsing `meta`.
-7. **Player history link / API.** Let the platform fetch a player's bets and results (`GET /api/history?playerId=`), and show the
-   draw proof (commit and seed) for any race.
-8. **Operator-driven limits.** Per-player or per-brand min/max bet, daily loss limit, self-exclusion, and a `/session/validate`
-   reply field to carry them. Add a way for the platform to **kick a player / close a session** (`POST /admin/session/close`).
-9. **Reality-check and responsible gaming hooks**: session time reminders and an exit link, driven by platform config.
-10. **Server-to-server events.** Notify the platform of round results or big wins (webhook) so it can update its own UI or bonuses.
-11. **Multi-currency and multi-brand.** One server currently serves one currency; add per-session currency and a brand/operator ID.
+6. **Round and bet IDs in every wallet call. DONE.** Debit, credit and rollback carry `gameId`, `transactionType`, `roundId`,
+   `betId` / `betIds`, `refTxId`, `currency` and `brandId` at the top of the body (and in `meta`).
+7. **Player history and draw proof. DONE.** `GET /api/history` (player session), `GET /api/admin/history?playerId=` (operator) and
+   `GET /api/round/<n>` (public proof: commit, seed, odds, result). The betting panel has a MY HISTORY list. History is rebuilt
+   from the ledger after a restart.
+8. **Operator-driven limits. DONE.** `/session/validate` may return `limits` (min / max bet, max per race, daily loss limit) and
+   `blocked`. A daily loss limit blocks bets that would take the player's net loss of the UTC day over it. Operator commands
+   `closeSessions`, `blockPlayer` and `unblockPlayer` end sessions and keep a player out (self-exclusion).
+9. **Reality-check hook. DONE.** `realityCheckMinutes` (per player or `REALITY_CHECK_MIN`) shows time played and the session result
+   every N minutes, with CONTINUE and LEAVE (to `returnUrl`). The BACK TO LOBBY link is always there.
+10. **Server-to-server events. DONE.** Signed `round.settled` and `big.win` webhooks (`WEBHOOK_URL`), at least once, stable `id`,
+    retried with back-off and recovered after a restart.
+11. **Multi-currency and multi-brand. DONE.** Currency, decimals and brand come per session; per-currency limit tables
+    (`CURRENCY_LIMITS`); the report shows staked and paid per currency. Currencies are not converted: the platform keeps one
+    wallet per currency.
 12. **Bonus / free-bet support.** Today there is only real-money debit and credit.
 
 ### Nice to have

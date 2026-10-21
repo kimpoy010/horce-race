@@ -23,7 +23,8 @@ class Engine {
     this.now = opts.now || Date.now;
     this.cfg = Object.assign({
       rtp: 0.9, settingsFile: null, betMs: 25000, countdownMs: Core.COUNTDOWN_MS, raceMs: Core.RACE_MS, resultsMs: Core.RESULTS_MS,
-      minBet: 100, maxBet: 100000, maxRoundStake: 500000, sessionTtlMs: 12 * 3600 * 1000, sessionsFile: null, odds: null, currency: 'PHP'
+      minBet: 100, maxBet: 100000, maxRoundStake: 500000, sessionTtlMs: 12 * 3600 * 1000, sessionsFile: null, blockedFile: null, odds: null,
+      dailyLossLimit: 0, realityCheckMinutes: 0, bigWinMin: 1000000, currencyLimits: {}, gameId: 'horse-race', currency: 'PHP'
     }, opts.config || {});
     this.table = oddsLib.build(this.cfg.odds);                          // base table: the odds values
     this.values = rng.COMBOS.map((c) => this.table.odds[c]).sort((a, b) => a - b);
@@ -34,8 +35,13 @@ class Engine {
     this.ledgerFile = opts.ledgerFile || null;
     this.sessions = new Map(); this.sessionsDirty = false; this._loadSessions(); this.cur = null; this.done = []; this.counter = 0;
     this.pending = new Map();                                          // credits that still have to reach the wallet
+    this.pendingWh = new Map();                                        // webhook events the platform has not confirmed yet
+    this.webhook = opts.webhook || null;
+    this.history = new Map(); this.proofs = new Map();                 // per-player bet history, revealed draws
+    this.daily = new Map();                                            // per-player stake / payout of the current day (for loss limits)
+    this.blocked = new Set(); this._loadBlocked();
     this.pendingRb = new Map();                                        // debits of unknown outcome that must be rolled back
-    this.stats = { rounds: 0, bets: 0, staked: 0, paid: 0, wins: {}, winsByOdds: {} };
+    this.stats = { rounds: 0, bets: 0, staked: 0, paid: 0, wins: {}, winsByOdds: {}, byCurrency: {} };
     rng.COMBOS.forEach((c) => { this.stats.wins[c] = 0; });
     this.recent = []; this.reveals = []; this.busy = false;
     this.log = [];
@@ -73,35 +79,49 @@ class Engine {
   // rebuild state from the ledger after a restart, then settle / refund whatever was in flight
   async recover() {
     if (!this.ledgerFile || !fs.existsSync(this.ledgerFile)) return;
-    const rounds = new Map(), due = new Map(), ok = new Set(), rbDue = new Map(), rbDone = new Set();
+    const rounds = new Map(), due = new Map(), ok = new Set(), rbDue = new Map(), rbDone = new Set(), whDue = new Map(), whDone = new Set();
     fs.readFileSync(this.ledgerFile, 'utf8').split('\n').filter(Boolean).forEach((line) => {
       let ev; try { ev = JSON.parse(line); } catch (e) { return; }
       if (ev.e === 'open') rounds.set(ev.raceNo, { raceNo: ev.raceNo, seed: ev.seed, commit: ev.commit, odds: ev.odds, rtp: ev.rtp, openAt: ev.openAt, betCloseAt: ev.betCloseAt, status: 'betting', bets: [], betsByPlayer: new Map() });
       const r = rounds.get(ev.raceNo);
-      if (ev.e === 'bet' && r) { r.bets.push({ id: ev.id, raceNo: ev.raceNo, playerId: ev.playerId, combo: ev.combo, stake: ev.stake, status: 'open', payout: 0 }); }
+      if (ev.e === 'bet' && r) {
+        r.bets.push({ id: ev.id, raceNo: ev.raceNo, playerId: ev.playerId, combo: ev.combo, stake: ev.stake, status: 'open', payout: 0, currency: ev.currency || this.cfg.currency, brandId: ev.brandId || null, placedAt: ev.t });
+        if (this._day(ev.t) === this._day()) this._dayRec(ev.playerId).staked += ev.stake;
+      }
       if (ev.e === 'draw' && r) Object.assign(r, { status: 'racing', combo: ev.combo, order: ev.order, animSeed: ev.animSeed, startAt: ev.startAt });
-      if (ev.e === 'settled' && r) { r.status = 'settled'; r.payouts = ev.payouts; r.staked = ev.staked; r.paid = ev.paid; }
-      if (ev.e === 'void' && r) r.status = 'void';
+      if (ev.e === 'settled' && r) { r.status = 'settled'; r.payouts = ev.payouts; r.staked = ev.staked; r.paid = ev.paid; if (this._day(ev.t) === this._day()) (ev.payouts || []).forEach((p) => { this._dayRec(p.playerId).paid += p.amount; }); }
+      if (ev.e === 'void' && r) { r.status = 'void'; r.bets.forEach((b) => { if (this._day(b.placedAt) === this._day()) this._dayRec(b.playerId).staked -= b.stake; }); }
       if (ev.e === 'credit_due') due.set(ev.txId, ev);
       if (ev.e === 'credit_ok') ok.add(ev.txId);
+      if (ev.e === 'webhook_due') whDue.set(ev.ev.id, ev.ev);
+      if (ev.e === 'webhook_ok') whDone.add(ev.id);
       if (ev.e === 'rollback_due') rbDue.set(ev.txId, ev);
       if (ev.e === 'rollback_ok' || ev.e === 'rollback_unsupported') rbDone.add(ev.txId);
       if (ev.raceNo > this.counter) this.counter = ev.raceNo;
     });
-    for (const [txId, ev] of due) if (!ok.has(txId)) this.pending.set(txId, { txId, playerId: ev.playerId, amount: ev.amount, raceNo: ev.raceNo, kind: ev.kind, tries: 0, nextAt: 0 });
-    for (const [txId, ev] of rbDue) if (!rbDone.has(txId)) this.pendingRb.set(txId, { txId, playerId: ev.playerId, amount: ev.amount, raceNo: ev.raceNo, tries: 0, nextAt: 0 });
+    for (const [txId, ev] of due) if (!ok.has(txId)) this.pending.set(txId, { txId, playerId: ev.playerId, amount: ev.amount, raceNo: ev.raceNo, kind: ev.kind, extra: ev.extra || {}, tries: 0, nextAt: 0 });
+    for (const [txId, ev] of rbDue) if (!rbDone.has(txId)) this.pendingRb.set(txId, { txId, playerId: ev.playerId, amount: ev.amount, raceNo: ev.raceNo, extra: ev.extra || {}, tries: 0, nextAt: 0 });
+    if (this.webhook) for (const [id, ev] of whDue) if (!whDone.has(id)) this.pendingWh.set(id, { ev, tries: 0, nextAt: 0 });
     for (const r of rounds.values()) {
       r.odds = r.odds || this.table.odds;
       const staked = r.bets.reduce((a, b) => a + b.stake, 0);
       if (r.status === 'settled') {
+        r.bets.forEach((b) => {                      // per-bet result, for the history and the per-currency totals
+          const won = b.combo === r.combo; b.status = won ? 'won' : 'lost'; b.payout = won && r.odds ? this.payoutFor(b.stake, b.combo, r.odds) : 0;
+          const cs = this.stats.byCurrency[b.currency] || (this.stats.byCurrency[b.currency] = { staked: 0, paid: 0 }); cs.staked += b.stake; cs.paid += b.payout;
+        });
+        this._archiveRound(r);
         this.stats.rounds++; this.stats.bets += r.bets.length; this.stats.staked += r.staked; this.stats.paid += r.paid; if (r.combo) this.stats.wins[r.combo]++;
         this.recent.push({ raceNo: r.raceNo, combo: r.combo, order: r.order, staked: r.staked, paid: r.paid, bets: r.bets.length, odds: r.odds ? r.odds[r.combo] : null });
         if (r.odds) this.stats.winsByOdds[r.odds[r.combo]] = (this.stats.winsByOdds[r.odds[r.combo]] || 0) + 1;
+      } else if (r.status === 'void') {
+        r.bets.forEach((b) => { b.status = 'refunded'; this._archiveBet(b, r); });
       } else if (r.status === 'racing') {            // drawn but never settled: settle now with the stored result
         r.bets.forEach((b) => { b.status = 'open'; });
         await this._settle(r);
       } else if (r.status === 'betting' && r.bets.length) { // bets taken but never drawn: void the round and refund
         this._log({ e: 'void', raceNo: r.raceNo, reason: 'restart' });
+        r.bets.forEach((b) => { if (this._day(b.placedAt) === this._day()) this._dayRec(b.playerId).staked -= b.stake; b.status = 'refunded'; this._archiveBet(b, r); });
         const per = new Map(); r.bets.forEach((b) => per.set(b.playerId, (per.get(b.playerId) || 0) + b.stake));
         for (const [playerId, amount] of per) this._queueCredit('refund:' + r.raceNo + ':' + playerId, playerId, amount, r.raceNo, 'refund');
       }
@@ -118,23 +138,48 @@ class Engine {
     const t = this.now();
     for (const x of list) if (x && x.key && x.expires > t) this.sessions.set(x.key, Object.assign({}, x, { refreshed: 0, calls: [] }));
   }
-  _saveSessions() {
+  _saveSessions(force) {
     if (!this.cfg.sessionsFile || !this.sessionsDirty) return;
-    this.sessionsDirty = false;
-    const list = [...this.sessions.values()].map((x) => ({ key: x.key, playerId: x.playerId, currency: x.currency, balance: x.balance, returnUrl: x.returnUrl, created: x.created, expires: x.expires }));
+    if (!force && this.now() - (this.lastSessionSave || 0) < 5000) return;        // busy tables: at most one write every 5 s
+    this.sessionsDirty = false; this.lastSessionSave = this.now();
+    const list = [...this.sessions.values()].map((x) => ({ key: x.key, playerId: x.playerId, brandId: x.brandId, currency: x.currency, decimals: x.decimals, balance: x.balance, returnUrl: x.returnUrl,
+      limits: x.limits, realityMinutes: x.realityMinutes, sStaked: x.sStaked, sPaid: x.sPaid, created: x.created, expires: x.expires }));
     try {
       const tmp = this.cfg.sessionsFile + '.tmp';
       fs.writeFileSync(tmp, JSON.stringify(list), { mode: 0o600 }); fs.renameSync(tmp, this.cfg.sessionsFile);
     } catch (e) { this.sessionsDirty = true; console.error('could not save sessions:', e.message); }
   }
+  _limitsFor(currency, info) {
+    const base = { minBet: this.cfg.minBet, maxBet: this.cfg.maxBet, maxRoundStake: this.cfg.maxRoundStake, dailyLossLimit: this.cfg.dailyLossLimit || 0 };
+    const posInt = (v) => Number.isInteger(v) && v > 0;
+    for (const src of [(this.cfg.currencyLimits || {})[currency], info && info.limits]) {    // per-currency table, then what the platform sends for this player
+      if (!src) continue;
+      for (const k of ['minBet', 'maxBet', 'maxRoundStake']) if (posInt(src[k])) base[k] = src[k];
+      if (Number.isInteger(src.dailyLossLimit) && src.dailyLossLimit >= 0) base.dailyLossLimit = src.dailyLossLimit;
+    }
+    if (base.maxBet < base.minBet) base.maxBet = base.minBet;
+    if (base.maxRoundStake < base.minBet) base.maxRoundStake = base.minBet;
+    return base;
+  }
+  _decimals(currency, info) {
+    const d = info && Number.isInteger(info.decimals) ? info.decimals : ((this.cfg.currencyLimits || {})[currency] || {}).decimals;
+    return Number.isInteger(d) && d >= 0 && d <= 4 ? d : 2;
+  }
   async auth(token) {
     let info;
     try { info = await this.wallet.validateToken(token); } catch (e) { throw httpError(401, 'INVALID_TOKEN'); }
-    const id = crypto.randomBytes(24).toString('hex'), key = this._skey(id);
-    this.sessions.set(key, { key, playerId: info.playerId, currency: info.currency || this.cfg.currency, balance: info.balance, returnUrl: info.returnUrl || null,
+    if (info.blocked || this.blocked.has(info.playerId)) throw httpError(403, 'PLAYER_BLOCKED');
+    const id = crypto.randomBytes(24).toString('hex'), key = this._skey(id), currency = info.currency || this.cfg.currency;
+    const rm = Number.isInteger(info.realityCheckMinutes) ? info.realityCheckMinutes : this.cfg.realityCheckMinutes;
+    this.sessions.set(key, { key, playerId: info.playerId, brandId: info.brandId ? String(info.brandId) : null, currency, decimals: this._decimals(currency, info), balance: info.balance,
+      returnUrl: info.returnUrl || null, limits: this._limitsFor(currency, info), realityMinutes: rm > 0 ? rm : 0, sStaked: 0, sPaid: 0,
       created: this.now(), expires: this.now() + this.cfg.sessionTtlMs, refreshed: this.now(), calls: [] });
-    this.sessionsDirty = true; this._saveSessions();
-    return { session: id, playerId: info.playerId, currency: info.currency, balance: info.balance, returnUrl: info.returnUrl || null };
+    this.sessionsDirty = true; this._saveSessions(true);
+    return Object.assign({ session: id, playerId: info.playerId, returnUrl: info.returnUrl || null }, this._sessionView(this.sessions.get(key)));
+  }
+  _sessionView(s) {
+    return { currency: s.currency, decimals: s.decimals, balance: s.balance, limits: s.limits, brandId: s.brandId,
+      responsible: { realityCheckMinutes: s.realityMinutes, startedAt: s.created, staked: s.sStaked, paid: s.sPaid, dailyNetLoss: Math.max(0, this._dayNet(s.playerId)) } };
   }
   session(id) {
     const key = this._skey(id), s = this.sessions.get(key);
@@ -147,6 +192,53 @@ class Engine {
     if (n) { this.sessionsDirty = true; this._saveSessions(); this._log({ e: 'sessions_closed', playerId, count: n }); }
     return n;
   }
+  /* ---------- blocked players (self-exclusion, set by the platform / operator) ---------- */
+  _loadBlocked() { try { if (this.cfg.blockedFile) this.blocked = new Set(JSON.parse(fs.readFileSync(this.cfg.blockedFile, 'utf8'))); } catch (e) { /* none yet */ } }
+  _saveBlocked() { try { if (this.cfg.blockedFile) fs.writeFileSync(this.cfg.blockedFile, JSON.stringify([...this.blocked])); } catch (e) { console.error('could not save the block list:', e.message); } }
+  blockPlayer(playerId, who) {
+    if (!playerId) throw httpError(400, 'BAD_REQUEST');
+    this.blocked.add(playerId); this._saveBlocked(); this._log({ e: 'player_blocked', playerId, who: who || 'operator' });
+    return { ok: true, blocked: true, closed: this.closeSessions(playerId) };
+  }
+  unblockPlayer(playerId, who) { this.blocked.delete(playerId); this._saveBlocked(); this._log({ e: 'player_unblocked', playerId, who: who || 'operator' }); return { ok: true, blocked: false }; }
+
+  /* ---------- daily stake / payout per player (UTC day), used for the daily loss limit ---------- */
+  _day(t) { return new Date(t === undefined ? this.now() : t).toISOString().slice(0, 10); }
+  _dayRec(playerId, t) {
+    const day = this._day(t); let d = this.daily.get(playerId);
+    if (!d || d.day !== day) { d = { day, staked: 0, paid: 0 }; this.daily.set(playerId, d); }
+    return d;
+  }
+  _dayNet(playerId) { const d = this.daily.get(playerId); return d && d.day === this._day() ? d.staked - d.paid : 0; }
+
+  /* ---------- history and draw proofs ---------- */
+  _archiveBet(b, r) {
+    let list = this.history.get(b.playerId); if (!list) { list = []; this.history.set(b.playerId, list); }
+    list.push({ raceNo: b.raceNo, betId: b.id, combo: b.combo, stake: b.stake, odds: r.odds ? r.odds[b.combo] : null, status: b.status, payout: b.payout, placedAt: b.placedAt || null, currency: b.currency || null, brandId: b.brandId || null });
+    if (list.length > 400) list.shift();
+  }
+  _archiveRound(r) {
+    r.bets.forEach((b) => this._archiveBet(b, r));
+    if (r.status === 'settled') {
+      this.proofs.set(r.raceNo, { raceNo: r.raceNo, roundId: String(r.raceNo), commit: r.commit, seed: r.seed, odds: r.odds, rtp: r.rtp, combo: r.combo, order: r.order });
+      if (this.proofs.size > 500) this.proofs.delete(this.proofs.keys().next().value);
+    }
+  }
+  // a revealed round, so anyone can check: sha256(seed) === commit, the odds layout and the draw (see docs/WALLET_API.md)
+  proof(raceNo) {
+    const p = this.proofs.get(Number(raceNo)); if (!p) throw httpError(404, 'NOT_FOUND');
+    return Object.assign({ ok: true, hash: 'sha256' }, p);
+  }
+  historyFor(playerId, limit) {
+    limit = Math.max(1, Math.min(200, Number(limit) || 50));
+    const byRound = new Map();
+    const add = (h) => { let x = byRound.get(h.raceNo); if (!x) { const pr = this.proofs.get(h.raceNo); x = { raceNo: h.raceNo, roundId: String(h.raceNo), combo: pr ? pr.combo : null, order: pr ? pr.order : null, commit: pr ? pr.commit : null, staked: 0, paid: 0, bets: [] }; byRound.set(h.raceNo, x); } x.bets.push(h); x.staked += h.stake; x.paid += h.status === 'refunded' ? h.stake : (h.payout || 0); };
+    (this.history.get(playerId) || []).forEach(add);
+    if (this.cur && this.cur.status !== 'settled') this.cur.bets.filter((b) => b.playerId === playerId).forEach((b) => add({ raceNo: b.raceNo, betId: b.id, combo: b.combo, stake: b.stake, odds: this.cur.odds[b.combo], status: 'open', payout: 0, placedAt: b.placedAt || null, currency: b.currency || null, brandId: b.brandId || null }));
+    const rounds = [...byRound.values()].sort((a, b) => b.raceNo - a.raceNo).slice(0, limit);
+    return { ok: true, playerId, rounds };
+  }
+
   _rate(s) { // at most 12 bet requests per 5 s per session
     const t = this.now(); s.calls = s.calls.filter((x) => t - x < 5000);
     if (s.calls.length >= 12) throw httpError(429, 'TOO_MANY_REQUESTS');
@@ -158,67 +250,74 @@ class Engine {
 
   async placeBets(sessionId, list) {
     const s = this.session(sessionId); if (!s) throw httpError(401, 'SESSION_EXPIRED');
+    if (this.blocked.has(s.playerId)) throw httpError(403, 'PLAYER_BLOCKED');
     this._rate(s);
-    const r = this.cur, cfg = this.cfg;
+    const r = this.cur, lim = s.limits;
     if (!r || r.status !== 'betting' || this.now() >= r.betCloseAt) throw httpError(409, 'BETTING_CLOSED');
     if (!Array.isArray(list) || !list.length || list.length > rng.COMBOS.length) throw httpError(400, 'BAD_REQUEST');
     const merged = new Map();
     for (const b of list) {
       const stake = b && b.stake;
-      if (!b || !rng.COMBOS.includes(b.combo) || !Number.isInteger(stake) || stake < cfg.minBet || stake > cfg.maxBet) throw httpError(400, 'BAD_BET');
+      if (!b || !rng.COMBOS.includes(b.combo) || !Number.isInteger(stake) || stake < lim.minBet || stake > lim.maxBet) throw httpError(400, 'BAD_BET');
       merged.set(b.combo, (merged.get(b.combo) || 0) + stake);
     }
     const mine = r.betsByPlayer.get(s.playerId) || { total: 0, per: {} };
     let total = 0;
     for (const [combo, stake] of merged) {
-      if ((mine.per[combo] || 0) + stake > cfg.maxBet) throw httpError(400, 'MAX_BET_EXCEEDED');
+      if ((mine.per[combo] || 0) + stake > lim.maxBet) throw httpError(400, 'MAX_BET_EXCEEDED');
       total += stake;
     }
-    if (mine.total + total > cfg.maxRoundStake) throw httpError(400, 'MAX_ROUND_STAKE_EXCEEDED');
+    if (mine.total + total > lim.maxRoundStake) throw httpError(400, 'MAX_ROUND_STAKE_EXCEEDED');
+    const day = this._dayRec(s.playerId);
+    if (lim.dailyLossLimit > 0 && day.staked - day.paid + total > lim.dailyLossLimit) throw httpError(400, 'DAILY_LOSS_LIMIT');
 
-    // reserve the limit before waiting for the wallet so parallel requests cannot exceed it
-    mine.total += total; merged.forEach((st, c) => { mine.per[c] = (mine.per[c] || 0) + st; }); r.betsByPlayer.set(s.playerId, mine);
-    const rollback = () => { mine.total -= total; merged.forEach((st, c) => { mine.per[c] -= st; }); };
+    // reserve the limits before waiting for the wallet so parallel requests cannot exceed them
+    mine.total += total; merged.forEach((st, c) => { mine.per[c] = (mine.per[c] || 0) + st; }); r.betsByPlayer.set(s.playerId, mine); day.staked += total;
+    const rollback = () => { mine.total -= total; merged.forEach((st, c) => { mine.per[c] -= st; }); day.staked -= total; };
     const batch = crypto.randomBytes(8).toString('hex'), txId = 'bet:' + r.raceNo + ':' + batch;
+    const base = { raceNo: r.raceNo, roundId: String(r.raceNo), currency: s.currency, brandId: s.brandId };
+    const betIds = [...merged.keys()].map((c) => batch + ':' + c);
     let res;
-    try { res = await this._debit(s.playerId, total, txId, { raceNo: r.raceNo, kind: 'bet' }); }
+    try { res = await this._debit(s.playerId, total, txId, Object.assign({ kind: 'bet', betId: batch, betIds }, base)); }
     catch (e) { rollback(); throw e; }
     if (this.cur !== r || r.status !== 'betting' || this.now() >= r.betCloseAt) { // betting closed while the wallet was busy
-      rollback(); this._queueCredit('refund:' + txId, s.playerId, total, r.raceNo, 'refund');
+      rollback(); this._queueCredit('refund:' + txId, s.playerId, total, r.raceNo, 'refund', Object.assign({ betId: batch, betIds, refTxId: txId }, base));
       throw httpError(409, 'BETTING_CLOSED');
     }
-    s.balance = res.balance;
+    s.balance = res.balance; s.sStaked += total; this.sessionsDirty = true;
     const placed = [];
     merged.forEach((stake, combo) => {
-      const bet = { id: batch + ':' + combo, raceNo: r.raceNo, playerId: s.playerId, combo, stake, status: 'open', payout: 0 };
+      const bet = { id: batch + ':' + combo, raceNo: r.raceNo, playerId: s.playerId, combo, stake, status: 'open', payout: 0, currency: s.currency, brandId: s.brandId, placedAt: this.now() };
       r.bets.push(bet); placed.push(bet);
-      this._log({ e: 'bet', raceNo: r.raceNo, id: bet.id, playerId: s.playerId, combo, stake, txId });
+      this._log({ e: 'bet', raceNo: r.raceNo, id: bet.id, playerId: s.playerId, combo, stake, txId, currency: s.currency, brandId: s.brandId });
     });
-    return { bets: placed, balance: s.balance };
+    const cs = this.stats.byCurrency[s.currency] || (this.stats.byCurrency[s.currency] = { staked: 0, paid: 0 }); cs.staked += total;
+    return { bets: placed.map((b) => ({ id: b.id, raceNo: b.raceNo, combo: b.combo, stake: b.stake, status: b.status, payout: b.payout, odds: r.odds[b.combo] })), balance: s.balance };
   }
-
   async _debit(playerId, amount, txId, meta) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try { return await this.wallet.debit(playerId, amount, txId, meta); }
       catch (e) {
         if (e.message === 'INSUFFICIENT_FUNDS') throw httpError(402, 'INSUFFICIENT_FUNDS');
         if (e.definitive) throw httpError(502, 'WALLET_REJECTED');
-        if (attempt === 1) { this._log({ e: 'debit_unknown', playerId, amount, txId }); this._queueRollback(txId, playerId, amount, meta && meta.raceNo); throw httpError(502, 'WALLET_UNAVAILABLE'); }
+        if (attempt === 1) { this._log({ e: 'debit_unknown', playerId, amount, txId }); this._queueRollback(txId, playerId, amount, meta); throw httpError(502, 'WALLET_UNAVAILABLE'); }
         await new Promise((ok) => setTimeout(ok, 250));    // same txId again: the wallet is idempotent
       }
     }
   }
 
-  _queueCredit(txId, playerId, amount, raceNo, kind) {
+  _queueCredit(txId, playerId, amount, raceNo, kind, extra) {
     if (!(amount > 0) || this.pending.has(txId)) return;
-    this._log({ e: 'credit_due', txId, playerId, amount, raceNo, kind });
-    this.pending.set(txId, { txId, playerId, amount, raceNo, kind, tries: 0, nextAt: 0 });
+    extra = extra || {};
+    this._log({ e: 'credit_due', txId, playerId, amount, raceNo, kind, extra });
+    this.pending.set(txId, { txId, playerId, amount, raceNo, kind, extra, tries: 0, nextAt: 0 });
   }
   // a debit that timed out twice may or may not have been applied: ask the wallet to cancel it (and to refuse it if it arrives late)
-  _queueRollback(txId, playerId, amount, raceNo) {
+  _queueRollback(txId, playerId, amount, meta) {
     if (this.pendingRb.has(txId)) return;
-    this._log({ e: 'rollback_due', txId, playerId, amount, raceNo });
-    this.pendingRb.set(txId, { txId, playerId, amount, raceNo, tries: 0, nextAt: 0 });
+    meta = meta || {}; const raceNo = meta.raceNo, extra = { currency: meta.currency, brandId: meta.brandId, betId: meta.betId, betIds: meta.betIds };
+    this._log({ e: 'rollback_due', txId, playerId, amount, raceNo, extra });
+    this.pendingRb.set(txId, { txId, playerId, amount, raceNo, extra, tries: 0, nextAt: 0 });
   }
   async _flushRollbacks() {
     const t = this.now();
@@ -226,7 +325,7 @@ class Engine {
       if (p.nextAt > t) continue;
       if (typeof this.wallet.rollback !== 'function') { this.pendingRb.delete(p.txId); this._log({ e: 'rollback_unsupported', txId: p.txId }); continue; }
       try {
-        const res = await this.wallet.rollback(p.playerId, p.amount, p.txId, { raceNo: p.raceNo, kind: 'rollback' });
+        const res = await this.wallet.rollback(p.playerId, p.amount, p.txId, Object.assign({ raceNo: p.raceNo, roundId: String(p.raceNo), kind: 'rollback', refTxId: p.txId }, p.extra));
         this.pendingRb.delete(p.txId); this._log({ e: 'rollback_ok', txId: p.txId, status: res && res.status });
         for (const s of this.sessions.values()) if (s.playerId === p.playerId && res && res.balance != null) s.balance = res.balance;
       } catch (e) {
@@ -240,7 +339,7 @@ class Engine {
     for (const p of [...this.pending.values()]) {
       if (p.nextAt > t) continue;
       try {
-        const res = await this.wallet.credit(p.playerId, p.amount, p.txId, { raceNo: p.raceNo, kind: p.kind });
+        const res = await this.wallet.credit(p.playerId, p.amount, p.txId, Object.assign({ raceNo: p.raceNo, roundId: String(p.raceNo), kind: p.kind }, p.extra));
         this.pending.delete(p.txId); this._log({ e: 'credit_ok', txId: p.txId, raceNo: p.raceNo });
         for (const s of this.sessions.values()) if (s.playerId === p.playerId && res && res.balance != null) s.balance = res.balance;
       } catch (e) { p.tries++; p.nextAt = t + Math.min(60000, 1000 * Math.pow(2, Math.min(p.tries, 6))); }
@@ -264,19 +363,50 @@ class Engine {
     const payouts = new Map(); let staked = 0, paid = 0;
     r.bets.forEach((b) => {
       staked += b.stake;
-      if (b.combo === r.combo) { b.status = 'won'; b.payout = this.payoutFor(b.stake, b.combo, r.odds); paid += b.payout; payouts.set(b.playerId, (payouts.get(b.playerId) || 0) + b.payout); }
-      else { b.status = 'lost'; b.payout = 0; }
+      if (b.combo === r.combo) {
+        b.status = 'won'; b.payout = this.payoutFor(b.stake, b.combo, r.odds); paid += b.payout;
+        const w = payouts.get(b.playerId) || { amount: 0, stake: 0, betIds: [], currency: b.currency, brandId: b.brandId, odds: r.odds[b.combo] };
+        w.amount += b.payout; w.stake += b.stake; w.betIds.push(b.id); payouts.set(b.playerId, w);
+      } else { b.status = 'lost'; b.payout = 0; }
+      const cur = b.currency || this.cfg.currency, cs = this.stats.byCurrency[cur] || (this.stats.byCurrency[cur] = { staked: 0, paid: 0 });
+      cs.paid += b.payout;
     });
     r.status = 'settled'; r.staked = staked; r.paid = paid;
-    this._log({ e: 'settled', raceNo: r.raceNo, combo: r.combo, staked, paid, payouts: [...payouts].map(([playerId, amount]) => ({ playerId, amount })) });
-    for (const [playerId, amount] of payouts) this._queueCredit('win:' + r.raceNo + ':' + playerId, playerId, amount, r.raceNo, 'win');
+    this._log({ e: 'settled', raceNo: r.raceNo, combo: r.combo, staked, paid, payouts: [...payouts].map(([playerId, w]) => ({ playerId, amount: w.amount })) });
+    for (const [playerId, w] of payouts) {
+      this._queueCredit('win:' + r.raceNo + ':' + playerId, playerId, w.amount, r.raceNo, 'win', { betIds: w.betIds, currency: w.currency, brandId: w.brandId });
+      this._dayRec(playerId).paid += w.amount;
+      for (const s of this.sessions.values()) if (s.playerId === playerId) { s.sPaid += w.amount; this.sessionsDirty = true; }
+    }
     this.stats.rounds++; this.stats.bets += r.bets.length; this.stats.staked += staked; this.stats.paid += paid; this.stats.wins[r.combo]++;
     const wo = r.odds[r.combo]; this.stats.winsByOdds[wo] = (this.stats.winsByOdds[wo] || 0) + 1;
     this.recent.push({ raceNo: r.raceNo, combo: r.combo, order: r.order, staked, paid, bets: r.bets.length, odds: wo });
     if (this.recent.length > 100) this.recent.shift();
     this.reveals.push({ raceNo: r.raceNo, seed: r.seed, commit: r.commit, combo: r.combo, order: r.order, odds: r.odds, rtp: r.rtp });
     if (this.reveals.length > 20) this.reveals.shift();
+    this._archiveRound(r);
+    this._emit('round.settled', 'round:' + r.raceNo, { roundId: String(r.raceNo), raceNo: r.raceNo, combo: r.combo, order: r.order, odds: r.odds, oddsOfWinner: wo, rtp: r.rtp, commit: r.commit, seed: r.seed, bets: r.bets.length, staked, paid });
+    for (const [playerId, w] of payouts) {
+      if (w.amount >= this.cfg.bigWinMin) this._emit('big.win', 'win:' + r.raceNo + ':' + playerId, { roundId: String(r.raceNo), raceNo: r.raceNo, playerId, brandId: w.brandId, currency: w.currency, stake: w.stake, payout: w.amount, odds: w.odds, betIds: w.betIds });
+    }
     await this._flushCredits();
+  }
+
+  /* ---------- webhooks to the platform (at least once; the platform de-duplicates on `id`) ---------- */
+  _emit(type, key, data) {
+    if (!this.webhook || !this.webhook.wants(type)) return;
+    const ev = { id: this.cfg.gameId + ':' + key, type, createdAt: this.now(), gameId: this.cfg.gameId, data };
+    this._log({ e: 'webhook_due', ev });
+    this.pendingWh.set(ev.id, { ev, tries: 0, nextAt: 0 });
+  }
+  async _flushWebhooks() {
+    if (!this.webhook) return;
+    const t = this.now();
+    for (const [id, p] of [...this.pendingWh]) {
+      if (p.nextAt > t) continue;
+      try { await this.webhook.send(p.ev); this.pendingWh.delete(id); this._log({ e: 'webhook_ok', id }); }
+      catch (e) { p.tries++; p.nextAt = t + Math.min(60000, 1000 * Math.pow(2, Math.min(p.tries, 6))); }
+    }
   }
 
   async tick() {
@@ -288,7 +418,7 @@ class Engine {
       if (r.status === 'betting' && t >= r.betCloseAt) this._drawNow(r);
       if (r.status === 'racing' && t >= r.startAt + c.raceMs) await this._settle(r);
       if (r.status === 'settled' && t >= r.startAt + c.raceMs + c.resultsMs) { this.done.push(r); if (this.done.length > 30) this.done.shift(); this._open(); }
-      await this._flushCredits(); await this._flushRollbacks();
+      await this._flushCredits(); await this._flushRollbacks(); await this._flushWebhooks();
       for (const [k, s] of this.sessions) if (s.expires < t) { this.sessions.delete(k); this.sessionsDirty = true; }
       this._saveSessions();
     } finally { this.busy = false; }
@@ -325,7 +455,7 @@ class Engine {
       try { s.balance = await this.wallet.balance(s.playerId); } catch (e) { /* keep the cached balance */ }
     }
     const mine = (r) => r.bets.filter((b) => b.playerId === s.playerId).map((b) => ({ combo: b.combo, stake: b.stake, odds: r.odds[b.combo], status: b.status, payout: b.payout }));
-    const out = { playerId: s.playerId, currency: s.currency, balance: s.balance, returnUrl: s.returnUrl, raceNo: null, bets: [], last: null };
+    const out = Object.assign({ playerId: s.playerId, returnUrl: s.returnUrl, raceNo: null, bets: [], last: null }, this._sessionView(s));
     if (this.cur) { out.raceNo = this.cur.raceNo; out.bets = mine(this.cur); }
     const prev = this.cur && this.cur.status === 'settled' ? this.cur : this.done[this.done.length - 1];
     if (prev && prev !== this.cur) { const b = mine(prev); if (b.length) out.last = { raceNo: prev.raceNo, combo: prev.combo, bets: b }; }
@@ -339,7 +469,7 @@ class Engine {
       theoreticalRtp: this.rtp, shuffleOdds: this.shuffle, oddsValues: this.values, winsByOdds: s.winsByOdds,
       oddsProb: p.rows.reduce((o, r) => { o[r.odds] = r.probability; return o; }, {}), limits: { minBet: this.cfg.minBet, maxBet: this.cfg.maxBet, maxRoundStake: this.cfg.maxRoundStake },
       rounds: s.rounds, bets: s.bets, staked: s.staked, paid: s.paid, actualRtp: paidIn ? s.paid / paidIn : null,
-      houseWin: paidIn - s.paid, wins: s.wins, pendingCredits: this.pending.size, pendingRollbacks: this.pendingRb.size, activeSessions: this.sessions.size, currency: this.cfg.currency,
+      houseWin: paidIn - s.paid, wins: s.wins, pendingCredits: this.pending.size, pendingRollbacks: this.pendingRb.size, pendingWebhooks: this.pendingWh.size, blockedPlayers: this.blocked.size, byCurrency: s.byCurrency, activeSessions: this.sessions.size, currency: this.cfg.currency,
       recent: this.recent.slice(-50).reverse(), commit: this.cur ? this.cur.commit : null, currentRound: this.cur ? this.cur.raceNo : null
     };
   }

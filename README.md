@@ -84,6 +84,9 @@ legs, angled sprites on the curve). Needs only a browser; no external requests.
 
 `npm test` runs the logic, draw and engine tests.
 
+**Platform features.** Per-player limits and a daily loss limit, self-exclusion (`blockPlayer`), reality checks, per-currency limits,
+bet history with draw proofs, and signed webhooks (`round.settled`, `big.win`) are described in `docs/WALLET_API.md` (settings in `.env.example`).
+
 **Betting panel.** In live mode the betting panel is a drawer over the right half of the race screen. The yellow tab on
 the right edge hides or shows it (a swipe works on touch screens; the choice is remembered), and while the panel is hidden
 the tab shows the seconds left to bet.

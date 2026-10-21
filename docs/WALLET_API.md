@@ -49,6 +49,32 @@ Request: `{ "token": "..." }`
 Reply: `{ "ok": true, "playerId": "p-123", "currency": "PHP", "balance": 250000, "returnUrl": "https://lobby.example.com" }`
 Mark the token as used. An invalid or used token must return `ok:false` (HTTP 401).
 
+Optional fields in the same reply, to run several brands and currencies from one game server and to apply your own rules per player:
+
+| Field | Meaning |
+|---|---|
+| `brandId` | your brand / operator id; copied to every wallet call, the ledger, history and webhooks |
+| `currency`, `decimals` | per player currency and its decimals (2 for PHP/USD, 0 for JPY); the board and the amounts follow it |
+| `limits` | `{ minBet, maxBet, maxRoundStake, dailyLossLimit }` in minor units, overriding the server defaults for this player (`dailyLossLimit` = most the player may lose in a UTC day: stakes minus wins, `0` = none) |
+| `realityCheckMinutes` | show a reality check every N minutes (time played and result so far, with a leave button) |
+| `blocked` | `true` refuses the launch (`PLAYER_BLOCKED`), for self-excluded players |
+
+Server defaults: `DAILY_LOSS_LIMIT`, `REALITY_CHECK_MIN`, and `CURRENCY_LIMITS='{"JPY":{"minBet":100,"maxBet":50000,"maxRoundStake":1000000,"decimals":0}}'`
+(a per-currency table; what your reply sends wins over the table, the table wins over the global defaults).
+
+### Fields on every debit, credit and rollback
+
+Besides `playerId`, `amount` and `txId`, each call carries (also repeated inside `meta`):
+
+| Field | Meaning |
+|---|---|
+| `gameId` | `horse-race` |
+| `transactionType` | `bet`, `win`, `refund` or `rollback` |
+| `roundId` | the race number as text, the same id used by the history API and the webhooks |
+| `betId` / `betIds` | the bet batch id of a debit; for a win the winning bet ids (`<betId>:<pair>`) |
+| `refTxId` | the debit a refund or rollback belongs to |
+| `currency`, `brandId` | of the player's session |
+
 ### `POST /wallet/balance`
 Request: `{ "playerId": "p-123" }` -> Reply: `{ "ok": true, "balance": 250000 }`
 
@@ -83,3 +109,35 @@ that `txId` that arrives later (a delayed retry) must be refused (HTTP 409, `TX_
 `ALLOW_MOCK_WALLET=1 GAME_MODE=live WALLET=mock node server.js` starts the game with an in-memory play-money wallet. In live mode the
 mock wallet is refused unless `ALLOW_MOCK_WALLET=1` is set, and refused always when `NODE_ENV=production`.
 Open `http://localhost:8080/?token=demo-alice` (any `demo-<name>` works, each starts with 10,000.00).
+
+## Player history and draw proof
+
+* `GET /api/history?limit=15` with `Authorization: Bearer <game session>`: the player's last races with every bet
+  (`betId`, pair, stake, odds, `status` open / won / lost / refunded, payout, currency, brand).
+* `GET /api/admin/history?playerId=p-123&limit=50` with `X-Controller-Key`: the same for your support team or back office.
+* `GET /api/round/42`: the draw proof of a finished race (public, the seed is revealed once the race is over):
+  `{ commit, seed, odds, rtp, combo, order }`. To verify: `sha256(seed) == commit`; the odds layout is `oddsLayout(seed, raceNo, values)`
+  and the result is `draw(seed, raceNo, weights)` with the weights from `buildForRtp(odds, rtp)` (functions in `server/rng.js` and `server/odds.js`).
+
+## Operator commands (header `X-Controller-Key`, `POST /api/command`)
+
+| Command | Effect |
+|---|---|
+| `{ "cmd": "closeSessions", "playerId": "p-123" }` | ends all game sessions of the player |
+| `{ "cmd": "blockPlayer", "playerId": "p-123" }` | ends the sessions and refuses new ones (kept in `data/blocked.json`, survives restarts) |
+| `{ "cmd": "unblockPlayer", "playerId": "p-123" }` | lifts the block |
+| `{ "cmd": "setRtp", "rtp": 0.93 }` | RTP setting, 88% to 99%, from the next race |
+
+## Webhooks (game -> platform)
+
+Set `WEBHOOK_URL=https://platform.example.com/horse-events` (signed like the wallet calls with `WEBHOOK_KEY`, default `WALLET_KEY`;
+`WEBHOOK_EVENTS=round.settled,big.win` chooses the events; `BIG_WIN_MIN` is the payout, in minor units, that counts as a big win,
+default 1,000,000). Request: `POST` JSON `{ "id": "horse-race:round:42", "type": "round.settled", "createdAt": 1700000000000, "gameId": "horse-race", "data": {...} }`.
+
+| Type | When | `data` |
+|---|---|---|
+| `round.settled` | every race, after settlement | `roundId`, `combo`, `order`, `odds`, `oddsOfWinner`, `rtp`, `commit`, `seed`, `bets`, `staked`, `paid` |
+| `big.win` | a player's payout in one race >= `BIG_WIN_MIN` | `roundId`, `playerId`, `brandId`, `currency`, `stake`, `payout`, `odds`, `betIds` |
+
+Reply any 2xx for "received". Anything else is retried with back-off until it is accepted (also after a restart, from the ledger), so
+an event can arrive more than once: **de-duplicate on `id`** (it is stable). Verify the signature and the timestamp like the wallet calls.

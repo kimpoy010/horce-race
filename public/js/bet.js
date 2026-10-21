@@ -11,18 +11,21 @@
   var S = { session: null, rules: null, me: null, pending: {}, chip: 0, busy: false, msgTimer: null, built: false };
   var el = { bet: $('bet'), layout: $('layout'), player: $('bPlayer'), balance: $('bBalance'), round: $('bRound'), timer: $('bTimer'),
     prog: $('bProg'), pay: $('bPay'), info: $('bInfo'), msg: $('bMsg'), grid: $('bGrid'), legend: $('bLegend'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
-    place: $('bPlace'), total: $('bTotal'), placed: $('bPlaced'), last: $('bLast'), fair: $('bFair'), back: $('bBack'), tab: $('betTab') };
+    place: $('bPlace'), hist: $('bHist'), histBtn: $('bHistBtn'), rc: $('bReality'), rcTxt: $('bRealityTxt'), rcGo: $('bRealityGo'), rcLeave: $('bRealityLeave'), total: $('bTotal'), placed: $('bPlaced'), last: $('bLast'), fair: $('bFair'), back: $('bBack'), tab: $('betTab') };
 
   var ERRORS = {
     BETTING_CLOSED: 'Betting is closed for this race.', INSUFFICIENT_FUNDS: 'Not enough balance for that bet.',
     MAX_BET_EXCEEDED: 'That is above the maximum bet for one combination.', MAX_ROUND_STAKE_EXCEEDED: 'That is above the maximum total bet for one race.',
     BAD_BET: 'That bet is not allowed (check the minimum and maximum).', TOO_MANY_REQUESTS: 'Slow down a little and try again.',
+    DAILY_LOSS_LIMIT: 'This bet would go over your daily loss limit.', PLAYER_BLOCKED: 'This account cannot play right now. Please contact support.',
     WALLET_UNAVAILABLE: 'The wallet is not responding. Your balance was not changed, please try again.', WALLET_REJECTED: 'The wallet rejected the bet.',
     SESSION_EXPIRED: 'Your session has expired. Please open the game again from the lobby.', INVALID_TOKEN: 'This launch link is invalid or has expired. Please open the game again from the lobby.'
   };
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function fmt(minor) { return (minor / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function dec() { return S.me && S.me.decimals != null ? S.me.decimals : 2; }
+  function fmt(minor) { var d = dec(); return (minor / Math.pow(10, d)).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function lim() { return (S.me && S.me.limits) || S.rules; }      // limits of this player (the platform may set them per player / currency)
   function money(minor) { return (S.currency ? S.currency + ' ' : '') + fmt(minor); }
   function chip(n) { return '<span class="chip h' + n + '">' + n + '</span>'; }
 
@@ -47,7 +50,17 @@
   }
 
   /* ---------- build ---------- */
-  function short(minor) { return minor % 100 === 0 ? String(minor / 100) : (minor / 100).toFixed(2); }
+  function short(minor) { var m = Math.pow(10, dec()); return minor % m === 0 ? String(minor / m) : (minor / m).toFixed(dec()); }
+
+  // chip values follow this player's minimum / maximum bet (they can differ per player and currency)
+  function buildChips() {
+    var l = lim(), key = l.minBet + ':' + l.maxBet + ':' + dec();
+    if (S.chipsKey === key) return; S.chipsKey = key;
+    var vals = [1, 5, 10, 50, 100, 500].map(function (m) { return m * l.minBet; }).filter(function (v) { return v <= l.maxBet; });
+    if (!vals.length) vals = [l.minBet];
+    S.chip = vals[0];
+    el.chips.innerHTML = vals.map(function (v, i) { return '<button type="button" class="chipbtn' + (i ? '' : ' sel') + '" data-v="' + v + '">' + fmt(v) + '</button>'; }).join('');
+  }
 
   // the board of the video karera chart: rows 1-5, columns 6 down to 2; every cell shows its odds (gold) and your bet (red)
   function build() {
@@ -63,15 +76,13 @@
     }
     el.grid.innerHTML = html;
     el.legend.innerHTML = '<span class="lo">ODDS</span> <span class="lb">BET</span>';
-    var base = r.minBet, vals = [1, 5, 10, 50, 100, 500].map(function (m) { return m * base; }).filter(function (v) { return v <= r.maxBet; });
-    S.chip = vals[0];
-    el.chips.innerHTML = vals.map(function (v, i) { return '<button type="button" class="chipbtn' + (i ? '' : ' sel') + '" data-v="' + v + '">' + fmt(v) + '</button>'; }).join('');
+    buildChips();
     el.pay.textContent = 'ANY ORDER - A WINNING PAIR PAYS STAKE x ODDS (STAKE INCLUDED). THE ODDS ARE SHUFFLED EVERY RACE.';
 
     el.grid.addEventListener('click', function (ev) {
       var minus = ev.target.closest('.minus'), t = ev.target.closest('.cell'); if (!t || t.disabled) return;
       var c = t.dataset.c, cur = S.pending[c] || 0, placed = placedBy()[c] || 0;
-      if (minus) { cur = Math.max(0, cur - S.chip); } else { cur = Math.min(cur + S.chip, S.rules.maxBet - placed); }
+      if (minus) { cur = Math.max(0, cur - S.chip); } else { cur = Math.min(cur + S.chip, lim().maxBet - placed); }
       if (cur > 0) S.pending[c] = cur; else delete S.pending[c];
       render();
     });
@@ -82,7 +93,7 @@
     el.clear.addEventListener('click', function () { S.pending = {}; render(); });
     el.rebet.addEventListener('click', function () {
       var l = S.me && S.me.last; if (!l) return;
-      S.pending = {}; l.bets.forEach(function (b2) { S.pending[b2.combo] = Math.min((S.pending[b2.combo] || 0) + b2.stake, S.rules.maxBet); }); render();
+      S.pending = {}; l.bets.forEach(function (b2) { S.pending[b2.combo] = Math.min((S.pending[b2.combo] || 0) + b2.stake, lim().maxBet); }); render();
     });
     el.place.addEventListener('click', placeBets);
   }
@@ -118,6 +129,7 @@
   function render() {
     var G = window.HorseGame, st = G && G.state(), me = S.me;
     if (me) {
+      buildChips();
       el.player.textContent = me.playerId; el.balance.textContent = money(me.balance);
       if (me.returnUrl) { el.back.hidden = false; el.back.href = me.returnUrl; }
     }
@@ -175,6 +187,37 @@
     } else el.last.innerHTML = '';
   }
 
+  /* ---------- my history (bets of the last races) ---------- */
+  function toggleHistory() {
+    if (!el.hist.hidden) { el.hist.hidden = true; return; }
+    api('GET', 'api/history?limit=15').then(function (res) {
+      if (!res.data.ok) { el.hist.textContent = ERRORS[res.data.error] || 'History is not available.'; el.hist.hidden = false; return; }
+      var rows = res.data.rounds.map(function (r) {
+        var p = r.combo ? r.combo.split('-') : null;
+        var refunded = r.bets.every(function (b) { return b.status === 'refunded'; });
+        return '<div class="row"><span>RACE ' + r.raceNo + (p ? ' ' + chip(p[0]) + '-' + chip(p[1]) : refunded ? ' (REFUNDED)' : ' (OPEN)') + '</span><span>' + fmt(r.staked) + ' &rarr; ' + fmt(r.paid) + '</span></div>';
+      }).join('');
+      el.hist.innerHTML = rows || '<div class="row"><span>NO BETS YET</span><span></span></div>'; el.hist.hidden = false;
+    }).catch(function () { el.hist.textContent = 'Connection problem.'; el.hist.hidden = false; });
+  }
+
+  /* ---------- reality check: every N minutes (set by the platform) the player sees time played and the result so far ---------- */
+  function realityCheck() {
+    var me = S.me, r = me && me.responsible, G = window.HorseGame;
+    if (!r || !r.realityCheckMinutes || !el.rc.hidden || !S.session) return;
+    var now = G ? G.now() : Date.now(), every = r.realityCheckMinutes * 60000, last;
+    try { last = +sessionStorage.getItem('hr.rc') || r.startedAt; } catch (e) { last = r.startedAt; }
+    if (now - last < every) return;
+    var mins = Math.round((now - r.startedAt) / 60000), net = r.paid - r.staked;
+    el.rcTxt.textContent = 'You have been playing for ' + mins + ' minutes. This session you bet ' + money(r.staked) + ' and won ' + money(r.paid) + ' (' + (net >= 0 ? '+' : '-') + money(Math.abs(net)) + ').';
+    el.rcLeave.hidden = !me.returnUrl; el.rc.hidden = false;
+  }
+  function initReality() {
+    el.rcGo.addEventListener('click', function () { try { sessionStorage.setItem('hr.rc', String(window.HorseGame ? window.HorseGame.now() : Date.now())); } catch (e) { /* ignore */ } el.rc.hidden = true; });
+    el.rcLeave.addEventListener('click', function () { if (S.me && S.me.returnUrl) location.href = S.me.returnUrl; });
+    setInterval(realityCheck, 5000);
+  }
+
   /* ---------- slide-over panel: open / hide from the right edge ---------- */
   var panelOpen = true;
   try { if (localStorage.getItem('hr.panel') === '0') panelOpen = false; } catch (e) { /* ignore */ }
@@ -189,7 +232,7 @@
     el.tab.textContent = panelOpen ? 'HIDE \u25B8' : left > 0 ? '\u25C2 BET ' + left + 'S' : '\u25C2 BET';
   }
   function initPanel() {
-    el.tab.hidden = false; setPanel(panelOpen);
+    el.tab.hidden = false; setPanel(panelOpen); initReality(); el.histBtn.addEventListener('click', toggleHistory);
     el.tab.addEventListener('click', function () { setPanel(!panelOpen); });
     var x0 = null, y0 = 0;                                           // swipe right on the panel to hide, left from the screen edge to show
     document.addEventListener('touchstart', function (e) { var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });

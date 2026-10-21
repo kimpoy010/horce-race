@@ -16,6 +16,7 @@ const crypto = require('crypto');
 const { Director, execCommand } = require('./public/js/core.js');
 const { Engine } = require('./server/engine.js');
 const walletFactory = require('./server/wallet.js');
+const webhookFactory = require('./server/webhook.js');
 
 const env = process.env;
 const PORT = env.PORT || 8080;
@@ -50,10 +51,12 @@ function loadOdds() {          // ODDS='{"1-2":60,...}' or ODDS_FILE=path.json; 
 async function startLive() {
   const num = (v, d) => (v === undefined || v === '' ? d : Number(v));
   engine = new Engine({
-    wallet: walletFactory.create(env),
+    wallet: walletFactory.create(env), webhook: webhookFactory.create(env),
     ledgerFile: path.join(DATA_DIR, 'ledger.jsonl'),
     config: {
-      odds: loadOdds(), rtp: num(env.RTP, 0.9) > 1 ? num(env.RTP, 90) / 100 : num(env.RTP, 0.9), settingsFile: path.join(DATA_DIR, 'settings.json'), sessionsFile: path.join(DATA_DIR, 'sessions.json'),
+      odds: loadOdds(), rtp: num(env.RTP, 0.9) > 1 ? num(env.RTP, 90) / 100 : num(env.RTP, 0.9), settingsFile: path.join(DATA_DIR, 'settings.json'), sessionsFile: path.join(DATA_DIR, 'sessions.json'), blockedFile: path.join(DATA_DIR, 'blocked.json'),
+      dailyLossLimit: num(env.DAILY_LOSS_LIMIT, 0), realityCheckMinutes: num(env.REALITY_CHECK_MIN, 0), bigWinMin: num(env.BIG_WIN_MIN, 1000000),
+      currencyLimits: env.CURRENCY_LIMITS ? JSON.parse(env.CURRENCY_LIMITS) : {},
       betMs: num(env.BET_MS, 25000), minBet: num(env.MIN_BET, 100), maxBet: num(env.MAX_BET, 100000),
       maxRoundStake: num(env.MAX_ROUND_STAKE, 500000), currency: env.CURRENCY || 'PHP'
     }
@@ -139,15 +142,25 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, Object.assign({ ok: true }, await engine.placeBets(bearer(req), body.bets)));
       }
 
+      if (LIVE && url.pathname === '/api/history' && req.method === 'GET') {
+        const sess = engine.session(bearer(req)); if (!sess) return json(res, 401, { ok: false, error: 'SESSION_EXPIRED' });
+        return json(res, 200, engine.historyFor(sess.playerId, url.searchParams.get('limit')));
+      }
+      const pr = /^\/api\/round\/(\d{1,12})$/.exec(url.pathname);      // draw proof of a finished race (public: the seed is revealed after the race)
+      if (LIVE && pr && req.method === 'GET') return json(res, 200, engine.proof(pr[1]));
+
       /* operator endpoints */
       if (!authorized(req)) return json(res, 401, { ok: false, error: 'bad controller key' });
       if (LIVE) {
         if ((url.pathname === '/api/admin' || url.pathname === '/api/report') && req.method === 'GET') return json(res, 200, Object.assign({ serverNow: now }, engine.report()));
+        if (url.pathname === '/api/admin/history' && req.method === 'GET') return json(res, 200, engine.historyFor(String(url.searchParams.get('playerId') || ''), url.searchParams.get('limit')));
         if (url.pathname === '/api/command' && req.method === 'POST') {          // the only live setting is the RTP; results can never be set
           const body = JSON.parse(await readBody(req) || '{}');
           if (body.cmd === 'setRtp') return json(res, 200, engine.setRtp(body.rtp, 'controller'));
           if (body.cmd === 'previewRtp') return json(res, 200, engine.previewRtp(body.rtp));
           if (body.cmd === 'closeSessions') return json(res, 200, { ok: true, closed: engine.closeSessions(String(body.playerId || '')) });   // kick a player
+          if (body.cmd === 'blockPlayer') return json(res, 200, engine.blockPlayer(String(body.playerId || ''), 'controller'));          // self-exclusion: no new sessions, current ones end
+          if (body.cmd === 'unblockPlayer') return json(res, 200, engine.unblockPlayer(String(body.playerId || ''), 'controller'));
           return json(res, 403, { ok: false, error: 'the controller cannot change results in live mode' });
         }
       } else {

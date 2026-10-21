@@ -147,6 +147,16 @@ body.live { display: block; }
 .last-result .won { color: #7dff7d; } .last-result .lost { color: #ff9a9a; }
 .fair { color: #6f7aa0; word-break: break-all; font-size: 10px; }
 .back { display: inline-block; margin-top: 12px; color: #7ab8ff; }
+.histbtn { margin-top: 10px; font: inherit; font-size: 11px; background: none; border: 1px solid #46537f; color: #9fb4e8; padding: 4px 8px; cursor: pointer; }
+.reality { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(5, 8, 20, .82); padding: 16px; }
+.reality[hidden] { display: none; }
+.reality .box { max-width: 420px; background: #10172c; border: 3px solid #ffd23c; padding: 18px; text-align: center; color: #e8ecf5; font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700; }
+.reality .rtitle { color: #ffd23c; font-size: 20px; margin: 0 0 8px; }
+.reality p { margin: 6px 0; line-height: 1.4; }
+.reality .ract { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.reality button { font: inherit; padding: 8px 14px; background: #2a3768; color: #fff; border: 2px solid #46537f; cursor: pointer; }
+.reality button.primary { background: #1e8a3c; border-color: #4fe07a; }
+.reality button[hidden] { display: none; }
 .launch-needed { padding: 16px; text-align: center; line-height: 1.5; }
 .back[hidden] { display: none; }
 
