@@ -230,6 +230,7 @@
   function tabLabel() {
     var G = window.HorseGame, st = G && G.state(), r = st && st.round, left = r && r.phase === 'betting' ? Math.ceil((r.betCloseAt - G.now()) / 1000) : 0;
     el.tab.textContent = panelOpen ? 'HIDE \u25B8' : left > 0 ? '\u25C2 BET ' + left + 'S' : '\u25C2 BET';
+    el.tab.classList.toggle('attn', !panelOpen && left > 0);
   }
   function initPanel() {
     el.tab.hidden = false; setPanel(panelOpen); initReality(); el.histBtn.addEventListener('click', toggleHistory);

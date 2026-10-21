@@ -87,14 +87,18 @@ body.live { display: block; }
   overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   transition: transform .28s ease;
 }
-.bet.closed { transform: translateX(100%); }
+.bet.closed { transform: translateX(100%); visibility: hidden; transition: transform .28s ease, visibility 0s linear .28s; }   /* fully hidden: nothing of it stays on screen, not even outside the race screen */
 /* the handle stays visible on the screen edge when the panel is hidden */
 .tab {
   position: absolute; z-index: 25; top: calc(50% - var(--sw) * .28125 + var(--sw) * .1); right: calc((100% - var(--sw)) / 2);
-  font: inherit; font-size: 12px; font-weight: 900; line-height: 1.2; letter-spacing: 1px; text-align: center; cursor: pointer;
-  color: #111; background: #ffd23c; border: 2px solid #111; border-right: 0; border-radius: 10px 0 0 10px; padding: 12px 6px;
+  font: inherit; font-size: 17px; font-weight: 900; line-height: 1.2; letter-spacing: 2px; text-align: center; cursor: pointer; text-shadow: none;
+  color: #111; background: #ffd23c; border: 3px solid #111; border-right: 0; border-radius: 12px 0 0 12px; padding: 18px 10px; min-width: 46px;
+  box-shadow: 0 0 0 2px #ffd23c, 0 4px 14px rgba(0, 0, 0, .6);
   writing-mode: vertical-rl; transition: right .28s ease; font-family: "Courier New", Courier, ui-monospace, monospace;
 }
+.tab:hover { background: #fff27a; }
+.tab.attn { animation: tabpulse 1s ease-in-out infinite; }                   /* panel hidden while bets are open: ask for attention */
+@keyframes tabpulse { 0%, 100% { box-shadow: 0 0 0 2px #ffd23c, 0 0 8px 2px rgba(255, 210, 60, .5); } 50% { box-shadow: 0 0 0 3px #fff, 0 0 22px 8px rgba(255, 210, 60, .95); } }
 .tab.open { right: calc((100% - var(--sw)) / 2 + var(--sw) / 2); }
 .tab[hidden] { display: none; }
 .bet[hidden] { display: none; }
