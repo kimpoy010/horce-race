@@ -129,8 +129,6 @@ body.live { display: block; }
 .bar-fill { height: 100%; width: 0; background: #7dff7d; }
 .bar-fill.low { background: #ff6a5a; }
 .bet-round .pay { font-size: 12px; color: #ffd23c; }
-.bet-round .info { font-size: 12px; color: #9fe8ff; margin-top: 4px; }
-.board .cell.low::after { content: '\25BE'; position: absolute; left: 4px; top: 2px; color: #ff9a5a; font-size: 12px; }
 .msg { margin: 6px 0; padding: 6px 8px; background: #4a1e28; border: 2px solid #b04a5a; color: #ffd0d6; font-size: 13px; }
 .msg.ok { background: #1c4a2a; border-color: #4ab06a; color: #d6ffe0; }
 
@@ -190,5 +188,4 @@ body.live { display: block; }
 .back[hidden] { display: none; }
 
 /* short screens (laptops, phones): compact panel, only the panel scrolls */
-/* (class `short` is set by orient.js when the landscape screen is under 760px tall, rotated or not) */html.short .bet { padding: 8px; font-size: 12px; }html.short .bet-head { margin-bottom: 6px; }html.short .bet .big { font-size: 18px; }html.short .bet-round { padding: 4px 8px; margin-bottom: 4px; }html.short .bet-round .timer { font-size: 16px; }html.short .bet-round .pay, html.short .fair { display: none; }html.short .bet-round .info { font-size: 9px; margin-top: 2px; }html.short .bar-track { margin: 2px 0; }html.short .board { margin: 4px 0 2px; padding: 4px; grid-template-columns: 24px repeat(5, 1fr); }html.short .board .bh { min-height: 18px; font-size: 12px; }html.short .board .bl { min-height: 34px; font-size: 12px; }html.short .board .cell { min-height: 34px; padding: 1px 3px; }html.short .board .odds { font-size: 12px; }html.short .board .bt { font-size: 11px; }html.short .chips { margin: 4px 0; gap: 3px; flex-wrap: nowrap; }html.short .chipbtn { padding: 3px 6px; font-size: 10px; border-width: 1px; }html.short .bet-actions { position: sticky; bottom: -8px; background: #10172c; padding: 4px 0 8px; z-index: 5; }html.short .bet-actions button { padding: 6px 8px; font-size: 11px; }html.short .placed, html.short .last-result, html.short .fair { margin-top: 6px; font-size: 10px; }
-
+/* (class `short` is set by orient.js when the landscape screen is under 760px tall, rotated or not) */html.short .bet { padding: 8px; font-size: 12px; }html.short .bet-head { margin-bottom: 6px; }html.short .bet .big { font-size: 18px; }html.short .bet-round { padding: 4px 8px; margin-bottom: 4px; }html.short .bet-round .timer { font-size: 16px; }html.short .bet-round .pay, html.short .fair { display: none; }html.short 

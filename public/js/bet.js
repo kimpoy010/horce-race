@@ -10,7 +10,7 @@
   var qs = new URLSearchParams(location.search);
   var S = { session: null, rules: null, me: null, pending: {}, chip: 0, busy: false, msgTimer: null, built: false };
   var el = { bet: $('bet'), layout: $('layout'), player: $('bPlayer'), balance: $('bBalance'), round: $('bRound'), timer: $('bTimer'),
-    prog: $('bProg'), pay: $('bPay'), info: $('bInfo'), msg: $('bMsg'), grid: $('bGrid'), legend: $('bLegend'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
+    prog: $('bProg'), pay: $('bPay'), msg: $('bMsg'), grid: $('bGrid'), legend: $('bLegend'), chips: $('bChips'), clear: $('bClear'), rebet: $('bRebet'),
     place: $('bPlace'), hist: $('bHist'), histBtn: $('bHistBtn'), rc: $('bReality'), rcTxt: $('bRealityTxt'), rcGo: $('bRealityGo'), rcLeave: $('bRealityLeave'), total: $('bTotal'), placed: $('bPlaced'), last: $('bLast'), fair: $('bFair'), back: $('bBack'), tab: $('betTab') };
 
   var ERRORS = {
@@ -152,15 +152,10 @@
     }
     var placed = placedBy(), cells = el.grid.querySelectorAll('.cell'), i, total = 0;
     Object.keys(S.pending).forEach(function (c) { total += S.pending[c]; });
-    var lowSet = {}; if (round && round.cheapPairs && round.cheapRtp < round.rtp - 0.0005) round.cheapPairs.forEach(function (c) { lowSet[c] = true; });
-    if (round && round.rtp) {
-      el.info.textContent = 'RTP ' + (round.rtp * 100).toFixed(1) + '%' + 
-        (Object.keys(lowSet).length ? ' - THE 3 CELLS MARKED \u25BE (LOWEST ODDS) RETURN ' + (round.cheapRtp * 100).toFixed(1) + '%' : '');
-    }
     for (i = 0; i < cells.length; i++) {
       var tl = cells[i], c = tl.dataset.c, p = S.pending[c] || 0, pl = placed[c] || 0;
       tl.disabled = !betting || !S.session || S.busy;
-      tl.classList.toggle('on', p > 0 || pl > 0); tl.classList.toggle('pend', p > 0); tl.classList.toggle('low', !!lowSet[c]);
+      tl.classList.toggle('on', p > 0 || pl > 0); tl.classList.toggle('pend', p > 0);
       var od = tl.querySelector('.odds'), ov = round && round.odds ? String(round.odds[c]) : '-';
       if (od.textContent !== ov) od.textContent = ov;
       var bt = tl.querySelector('.bt'), txt = short(pl + p);
