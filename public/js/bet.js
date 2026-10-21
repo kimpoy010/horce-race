@@ -219,13 +219,18 @@
   }
 
   /* ---------- slide-over panel: open / hide from the right edge ---------- */
-  var panelOpen = true;
-  try { if (localStorage.getItem('hr.panel') === '0') panelOpen = false; } catch (e) { /* ignore */ }
+  var panelOpen = true, wasBetting = null;
   function setPanel(open) {
     panelOpen = open;
     el.bet.classList.toggle('closed', !open); el.tab.classList.toggle('open', open); el.tab.setAttribute('aria-expanded', open ? 'true' : 'false');
-    try { localStorage.setItem('hr.panel', open ? '1' : '0'); } catch (e) { /* ignore */ }
     tabLabel();
+  }
+  // the panel opens by itself when betting opens and hides when betting closes; the tab still toggles it by hand in between
+  function autoPanel() {
+    var G = window.HorseGame, st = G && G.state(), r = st && st.round;
+    if (!r) return;
+    var betting = r.phase === 'betting' && G.now() < r.betCloseAt;
+    if (betting !== wasBetting) { wasBetting = betting; if (panelOpen !== betting) setPanel(betting); }
   }
   function tabLabel() {
     var G = window.HorseGame, st = G && G.state(), r = st && st.round, left = r && r.phase === 'betting' ? Math.ceil((r.betCloseAt - G.now()) / 1000) : 0;
@@ -243,7 +248,7 @@
       if (panelOpen && dx > 0 && el.bet.contains(e.target)) setPanel(false);
       else if (!panelOpen && dx < 0 && edge) setPanel(true);
     }, { passive: true });
-    setInterval(tabLabel, 500);
+    setInterval(function () { autoPanel(); tabLabel(); }, 250);
   }
 
   /* ---------- start ---------- */
