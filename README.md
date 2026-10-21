@@ -58,10 +58,10 @@ rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> ra
 
 **Deploying to a server:** see **docs/DEPLOY.md** (Docker or systemd, nginx with HTTPS, go-live checklist).
 
-**Landscape only.** On touch devices held in portrait a "rotate your device" screen covers the game. Android Chrome (and an
-installed web app, see `manifest.webmanifest`) also goes full screen and locks landscape on the first tap; iOS Safari
-cannot lock the orientation, so there the cover screen is the only mechanism. The betting panel has a compact layout for
-phones held sideways. Races keep running while the cover screen is shown.
+**Landscape layout, also upright.** The game is laid out as a landscape screen. A phone held upright shows that same landscape game turned a
+quarter turn (the top of the game is on the right edge: tilt the phone to the left), so there is no "rotate your device" block; when the phone is
+turned to landscape the normal view takes over. Android Chrome (and an installed web app, see `manifest.webmanifest`) also goes full screen and
+locks landscape on the first tap. The betting panel has a compact layout for short screens. Desktop windows keep the normal layout.
 
 **Start screen.** The game opens with a TAP TO PLAY screen. That one tap (or Enter / Space) goes full screen, locks landscape
 where the browser allows it, and starts the sound, because browsers only allow those after a tap. iPhone Safari has no full screen

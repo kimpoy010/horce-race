@@ -86,6 +86,13 @@ body { display: flex; align-items: center; justify-content: center; }
 .layout { position: relative; display: flex; align-items: center; justify-content: center; width: var(--aw); height: var(--ah); margin: var(--sat) var(--sar) var(--sab) var(--sal); overflow: hidden; }
 body.live { display: block; }
 
+/* Phone held upright: the game keeps its landscape layout. The landscape screen is rotated a quarter turn inside the portrait one (the top of the
+   game is on the right edge, so tilt the phone to the left to read it the natural way). Touches are mapped by the browser. Desktop keeps its layout. */
+@media (orientation: portrait) and (pointer: coarse) {
+  :root { --aw: calc(var(--vh) * 100 - var(--sat) - var(--sab)); --ah: calc(100vw - var(--sal) - var(--sar)); }
+  .layout { position: fixed; top: 0; left: 0; margin: 0; transform-origin: 0 0; transform: translate(calc(100vw - var(--sar)), var(--sat)) rotate(90deg); }
+}
+
 .bet {
   box-sizing: border-box; padding: 12px; background: rgba(16, 23, 44, .95); color: #e8ecf5; border-left: 3px solid #2c3a66;
   font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700; font-size: 14px;
@@ -184,31 +191,6 @@ body.live { display: block; }
 .launch-needed { padding: 16px; text-align: center; line-height: 1.5; }
 .back[hidden] { display: none; }
 
-/* ===== landscape only ===== */
-.rotate {
-  display: none; position: fixed; inset: 0; z-index: 1000; background: #0b0b14; color: #fff; text-align: center;
-  flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px;
-  font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700;
-}
-.rotate .big { font-size: 22px; color: #ffd23c; margin: 6px 0 0; }
-.rotate p { margin: 0; }
-.rotate button { font: inherit; margin-top: 10px; padding: 10px 18px; background: #1e8a3c; color: #fff; border: 2px solid #4fe07a; cursor: pointer; }
-.rotate .phone { width: 46px; height: 80px; border: 4px solid #fff; border-radius: 8px; animation: tilt 2.4s ease-in-out infinite; }
-@keyframes tilt { 0%, 20% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
-@media (orientation: portrait) and (pointer: coarse) { .rotate { display: flex; } }
+/* short screens (laptops, phones): compact panel, only the panel scrolls */
+/* (class `short` is set by orient.js when the landscape screen is under 760px tall, rotated or not) */html.short .bet { padding: 8px; font-size: 12px; }html.short .bet-head { margin-bottom: 6px; }html.short .bet .big { font-size: 18px; }html.short .bet-round { padding: 4px 8px; margin-bottom: 4px; }html.short .bet-round .timer { font-size: 16px; }html.short .bet-round .pay, html.short .fair { display: none; }html.short .bet-round .info { font-size: 9px; margin-top: 2px; }html.short .bar-track { margin: 2px 0; }html.short .board { margin: 4px 0 2px; padding: 4px; grid-template-columns: 24px repeat(5, 1fr); }html.short .board .bh { min-height: 18px; font-size: 12px; }html.short .board .bl { min-height: 34px; font-size: 12px; }html.short .board .cell { min-height: 34px; padding: 1px 3px; }html.short .board .odds { font-size: 12px; }html.short .board .bt { font-size: 11px; }html.short .chips { margin: 4px 0; gap: 3px; flex-wrap: nowrap; }html.short .chipbtn { padding: 3px 6px; font-size: 10px; border-width: 1px; }html.short .bet-actions { position: sticky; bottom: -8px; background: #10172c; padding: 4px 0 8px; z-index: 5; }html.short .bet-actions button { padding: 6px 8px; font-size: 11px; }html.short .placed, html.short .last-result, html.short .fair { margin-top: 6px; font-size: 10px; }
 
-/* short screens (laptops, phones held sideways): compact panel, only the panel scrolls */
-@media (max-height: 759px) {
-  .bet { padding: 8px; font-size: 12px; }
-  .bet-head { margin-bottom: 6px; } .bet .big { font-size: 18px; }
-  .bet-round { padding: 4px 8px; margin-bottom: 4px; } .bet-round .timer { font-size: 16px; }
-  .bet-round .pay, .fair { display: none; } .bet-round .info { font-size: 9px; margin-top: 2px; }
-  .bar-track { margin: 2px 0; }
-  .board { margin: 4px 0 2px; padding: 4px; grid-template-columns: 24px repeat(5, 1fr); }
-  .board .bh { min-height: 18px; font-size: 12px; } .board .bl { min-height: 34px; font-size: 12px; }
-  .board .cell { min-height: 34px; padding: 1px 3px; } .board .odds { font-size: 12px; } .board .bt { font-size: 11px; }
-  .chips { margin: 4px 0; gap: 3px; flex-wrap: nowrap; } .chipbtn { padding: 3px 6px; font-size: 10px; border-width: 1px; }
-  .bet-actions { position: sticky; bottom: -8px; background: #10172c; padding: 4px 0 8px; z-index: 5; }
-  .bet-actions button { padding: 6px 8px; font-size: 11px; }
-  .placed, .last-result, .fair { margin-top: 6px; font-size: 10px; }
-}

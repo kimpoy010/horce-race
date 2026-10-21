@@ -240,15 +240,16 @@
   function initPanel() {
     el.tab.hidden = false; setPanel(panelOpen); initReality(); el.histBtn.addEventListener('click', toggleHistory);
     el.tab.addEventListener('click', function () { setPanel(!panelOpen); });
-    // a tap or click outside the open panel closes it (not on the tab itself, nor on the start / reality-check / rotate screens)
+    // a tap or click outside the open panel closes it (not on the tab itself, nor on the start and reality-check screens)
     document.addEventListener('pointerdown', function (e) {
-      if (!panelOpen || e.target.closest('#bet, #betTab, #start, #bReality, #rotate')) return;
+      if (!panelOpen || e.target.closest('#bet, #betTab, #start, #bReality')) return;
       setPanel(false);
     }, true);
     var x0 = null, y0 = 0;                                           // swipe right on the panel to hide, left from the screen edge to show
-    document.addEventListener('touchstart', function (e) { var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
+    var pt = function (t) { return window.HorseOrient ? window.HorseOrient.point(t) : { x: t.clientX, y: t.clientY, w: window.innerWidth }; };
+    document.addEventListener('touchstart', function (e) { var t = pt(e.touches[0]); x0 = t.x; y0 = t.y; }, { passive: true });
     document.addEventListener('touchend', function (e) {
-      if (x0 === null) return; var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0, edge = x0 > window.innerWidth - 40; x0 = null;
+      if (x0 === null) return; var t = pt(e.changedTouches[0]), dx = t.x - x0, dy = t.y - y0, edge = x0 > t.w - 40; x0 = null;
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
       if (panelOpen && dx > 0 && el.bet.contains(e.target)) setPanel(false);
       else if (!panelOpen && dx < 0 && edge) setPanel(true);
