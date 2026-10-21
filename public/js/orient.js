@@ -1,7 +1,7 @@
 /*
  * Landscape layout everywhere. A phone held upright shows the same landscape game turned a quarter turn (CSS, see game.css); when the
- * phone is turned to landscape the normal layout takes over. Where the browser allows it (Android Chrome, installed web apps) the
- * first tap also goes full screen and locks the orientation to landscape. This file also tells the CSS how big the visible screen is.
+ * phone is turned to landscape the normal layout takes over. This file also tells the CSS how big the visible screen is and runs the
+ * start screen. There is no automatic full screen.
  */
 (function () {
   'use strict';
@@ -20,29 +20,13 @@
   fitHeight();
   window.addEventListener('resize', fitHeight); window.addEventListener('orientationchange', function () { setTimeout(fitHeight, 250); });
   if (window.visualViewport) window.visualViewport.addEventListener('resize', fitHeight);
-  var locked = false;
-  function lock() {
-    try {
-      if (screen.orientation && screen.orientation.lock) return screen.orientation.lock('landscape').then(function () { locked = true; }, function () {});
-    } catch (e) { /* not supported */ }
-  }
-  function fullscreen() {
-    var el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
-    try { if (req && !document.fullscreenElement) return Promise.resolve(req.call(el)).then(lock, lock); } catch (e) { /* ignore */ }
-    return lock();
-  }
-  // start screen: one tap (browsers only allow full screen, landscape lock and sound after a tap) starts all three
+  // start screen: one tap starts the sound (browsers only allow sound after a tap). The game never goes full screen by itself.
   var start = document.getElementById('start');
   if (start && new URLSearchParams(location.search).get('start') !== '0') {
-    var ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    var standalone = navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches);
-    var tip = document.getElementById('startTip'); if (tip && ios && !standalone) tip.hidden = false;
     start.hidden = false;
-    var begin = function () { if (start.hidden) return; start.hidden = true; if (!standalone) fullscreen(); };   // the sound starts with the same tap (game.js)
+    var begin = function () { start.hidden = true; };          // the sound starts with the same tap (game.js)
     start.addEventListener('click', begin);
     start.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); begin(); } });
     try { start.focus(); } catch (e) { /* ignore */ }
   }
-  var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  if (coarse) document.addEventListener('pointerdown', function once() { document.removeEventListener('pointerdown', once); if (!locked) fullscreen(); }, { once: true });
 })();

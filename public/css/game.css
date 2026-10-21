@@ -186,8 +186,6 @@ body.live { display: block; }
 .start .stitle { margin: 0 0 6vh; font-size: clamp(26px, 8vmin, 64px); line-height: 1.05; color: #ffd23c; letter-spacing: 3px; text-shadow: 4px 4px 0 #b03a1a; }
 .start .go { margin: 0; font-size: clamp(18px, 5vmin, 34px); color: #7dff7d; letter-spacing: 3px; }
 .start .sub { margin: 10px 0 0; font-size: clamp(11px, 2.6vmin, 16px); color: #9fb4e8; letter-spacing: 2px; }
-.start .tip { margin: 16px auto 0; font-size: 12px; line-height: 1.4; color: #cfd8f5; text-transform: none; max-width: 380px; }
-.start .tip[hidden] { display: none; }
 .launch-needed { padding: 16px; text-align: center; line-height: 1.5; }
 .back[hidden] { display: none; }
 

@@ -60,12 +60,10 @@ rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> ra
 
 **Landscape layout, also upright.** The game is laid out as a landscape screen. A phone held upright shows that same landscape game turned a
 quarter turn (the top of the game is on the right edge: tilt the phone to the left), so there is no "rotate your device" block; when the phone is
-turned to landscape the normal view takes over. Android Chrome (and an installed web app, see `manifest.webmanifest`) also goes full screen and
-locks landscape on the first tap. The betting panel has a compact layout for short screens. Desktop windows keep the normal layout.
+turned to landscape the normal view takes over. The game does not go full screen by itself. The betting panel has a compact layout for short screens. Desktop windows keep the normal layout.
 
-**Start screen.** The game opens with a TAP TO PLAY screen. That one tap (or Enter / Space) goes full screen, locks landscape
-where the browser allows it, and starts the sound, because browsers only allow those after a tap. iPhone Safari has no full screen
-for web pages, so there the screen shows a hint to use Add to Home Screen. `?start=0` skips the screen.
+**Start screen.** The game opens with a TAP TO PLAY screen. That one tap (or Enter / Space) starts the sound, because browsers only allow
+sound after a tap. There is no automatic full screen. `?start=0` skips the screen.
 
 **Sound.** Sound turns on by itself at the first tap, click or key press anywhere on the page (browsers allow audio only
 after a gesture; `?sound=0` disables this). The SOUND button switches it off and on again; once a player turns it off it
