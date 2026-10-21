@@ -192,6 +192,19 @@ class ClientRegistry {
     const c = this.clients.get(id); if (!c) throw Object.assign(fail('unknown client'), { status: 404, code: 'NOT_FOUND' });
     c.apiKeys = c.apiKeys.filter((k) => k.id !== keyId); c.updatedAt = this.now(); this.save(); return this.publicView(c);
   }
+  // new signing secrets (returned once). The client's platform has to switch to the new secret at the same time.
+  rotateWalletSecret(id) {
+    const c = this.clients.get(id); if (!c) throw Object.assign(fail('unknown client'), { status: 404, code: 'NOT_FOUND' });
+    if (c.wallet.type !== 'http') throw fail('this client uses the mock wallet: there is no secret');
+    const secret = crypto.randomBytes(32).toString('hex'); c.wallet.secret = secret; c.updatedAt = this.now(); this.wallets.delete(id); this.save();
+    return { client: this.publicView(c), walletSecret: secret };
+  }
+  rotateWebhookSecret(id) {
+    const c = this.clients.get(id); if (!c) throw Object.assign(fail('unknown client'), { status: 404, code: 'NOT_FOUND' });
+    if (!c.webhook) throw fail('this client has no webhook');
+    const secret = crypto.randomBytes(32).toString('hex'); c.webhook.secret = secret; c.updatedAt = this.now(); this.hooks.delete(id); this.save();
+    return { client: this.publicView(c), webhookSecret: secret };
+  }
   remove(id) { if (!this.clients.delete(id)) throw Object.assign(fail('unknown client'), { status: 404, code: 'NOT_FOUND' }); this.wallets.delete(id); this.hooks.delete(id); this.save(); }
 
   // Bearer key -> the client, or null. Failed attempts are counted per address (10 in 5 minutes block the address for 5 minutes).

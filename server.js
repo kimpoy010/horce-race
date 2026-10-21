@@ -21,6 +21,7 @@ const { Lease } = require('./server/lease.js');
 const { ClientRegistry } = require('./server/clients.js');
 const { UserStore } = require('./server/users.js');
 const { BackOffice } = require('./server/backoffice.js');
+const { adminRoutes } = require('./server/admin.js');
 const { AlertManager, webhookNotifier, diskFreeMb } = require('./server/alerts.js');
 const metricsLib = require('./server/metrics.js');
 
@@ -36,7 +37,7 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 
 /* ---------- demo mode: controller driven ---------- */
 let director = null, engine = null, lastSaved = '';
-let role = LIVE ? 'starting' : 'demo', lease = null, alerts = null, clients = null, users = null, backoffice = null;       // live: starting | standby | active | stopping
+let role = LIVE ? 'starting' : 'demo', lease = null, alerts = null, clients = null, users = null, backoffice = null, staff = null, adminConsole = null;       // live: starting | standby | active | stopping
 const timers = [];
 if (!LIVE) {
   try { director = new Director(JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'state.json'), 'utf8'))); } catch (e) { director = new Director(); }
@@ -64,6 +65,12 @@ async function startLive() {
   users = new UserStore({ file: path.join(DATA_DIR, 'users.json'), secret: env.CLIENTS_KEY });
   if (users.loadError) throw new Error('data/users.json: ' + users.loadError);
   backoffice = new BackOffice({ users, clients, cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === '1' : production });
+  // the operator's own admin console (/admin): its staff accounts are separate from every client's back-office users
+  staff = new UserStore({ file: path.join(DATA_DIR, 'admins.json'), secret: env.CLIENTS_KEY });
+  if (staff.loadError) throw new Error('data/admins.json: ' + staff.loadError);
+  adminConsole = new BackOffice({ users: staff, clients, prefix: '/admin/api/', fixedClient: '_operator', cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === '1' : production,
+    routes: adminRoutes({ clients, clientUsers: users, clientBackOffice: backoffice, ops: () => ops() }) });
+  if (!staff.list('_operator').length) console.warn('No admin console account yet: create one with  node scripts/clients.js add-operator <username> --role admin  and open /admin.');
   if (clients.count() && !env.CLIENTS_KEY) console.warn('WARNING: CLIENTS_KEY is not set, so the client wallet secrets in data/clients.json are stored in plain text (the file is owner-only).');
   // the implicit "default" client comes from the WALLET / WEBHOOK settings; with WALLET unset and clients in the registry there is none
   const defaultWallet = env.WALLET || clients.count() === 0 ? walletFactory.create(env) : null;
@@ -86,7 +93,7 @@ async function startLive() {
     engine.tick().catch((e) => { engine.metrics.tickErrors++; console.error('tick failed:', e.message); });
   }, 250));
   alerts = new AlertManager({ config: alertConfig(), notify: env.ALERT_WEBHOOK_URL ? webhookNotifier(env.ALERT_WEBHOOK_URL) : null });
-  timers.push(setInterval(() => { if (clients.reload()) console.log('clients: registry reloaded (' + clients.count() + ' clients)'); if (users.reload()) console.log('users: reloaded'); backoffice.sweep(); }, 3000));
+  timers.push(setInterval(() => { if (clients.reload()) console.log('clients: registry reloaded (' + clients.count() + ' clients)'); if (users.reload()) console.log('users: reloaded'); if (staff.reload()) console.log('admins: reloaded'); backoffice.sweep(); adminConsole.sweep(); }, 3000));
   timers.push(setInterval(() => { try { alerts.evaluate({ snapshot: engine.opsSnapshot(), wallet: engine.metrics.walletWindow(300000), walletClients: walletClients(), clientsError: clients.loadError, tickAge: engine.metrics.tickAge(), diskFreeMb: diskFreeMb(DATA_DIR) }); } catch (e) { console.error('alert check failed:', e.message); } }, 10000));
   if (defaultWallet && (env.WALLET || 'mock') === 'mock') console.warn('WARNING: play-money MOCK wallet (ALLOW_MOCK_WALLET=1). Never use this in production.');
   const pv = engine.previewRtp(engine.rtp);
@@ -190,6 +197,7 @@ function serveStatic(req, res, pathname) {
   if (pathname === '/' || pathname === '/play') pathname = '/index.html';
   if (pathname === '/controller') pathname = '/controller.html';
   if (pathname === '/backoffice') pathname = '/backoffice.html';
+  if (pathname === '/admin') pathname = '/admin.html';
   const file = path.normalize(path.join(PUBLIC_DIR, pathname));
   if (!file.startsWith(PUBLIC_DIR + path.sep)) { res.writeHead(403); return res.end('Forbidden'); }
   fs.readFile(file, (err, data) => {
@@ -198,7 +206,7 @@ function serveStatic(req, res, pathname) {
       'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache',
       'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff'   // the launch token is in the URL: never leak it
     };
-    if (/^\/(backoffice|controller)/.test(pathname) || /\/(backoffice|controller)\.(html|js|css)$/.test(file)) {       // the panels must not be framed and may only load their own files
+    if (/^\/(backoffice|controller|admin)/.test(pathname) || /\/(backoffice|controller|admin)\.(html|js|css)$/.test(file)) {       // the panels must not be framed and may only load their own files
       hdr['X-Frame-Options'] = 'DENY'; hdr['Content-Security-Policy'] = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'";
     }
     res.writeHead(200, hdr);
@@ -208,6 +216,10 @@ function serveStatic(req, res, pathname) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname.startsWith('/admin/api/')) {         // the operator admin console: same-origin only
+    if (!LIVE || !adminConsole) { res.writeHead(404); return res.end(); }
+    try { if (await adminConsole.handle({ req, res, url, readBody: () => readBody(req), engine: role === 'active' ? engine : null, ip: clientIp(req) })) return; } catch (e) { console.error('admin console:', e); res.writeHead(500); return res.end(); }
+  }
   if (url.pathname.startsWith('/bo/api/')) {          // the client back office: same-origin only, no CORS headers
     if (!LIVE || !backoffice) { res.writeHead(404); return res.end(); }
     try { if (await backoffice.handle({ req, res, url, readBody: () => readBody(req), engine: role === 'active' ? engine : null, ip: clientIp(req) })) return; } catch (e) { console.error('back office:', e); res.writeHead(500); return res.end(); }

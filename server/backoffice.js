@@ -15,9 +15,13 @@ const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const httpErr = (status, code, message) => Object.assign(new Error(message || code), { status, code, expose: true });
 
 class BackOffice {
-  // opts: users (UserStore), clients (ClientRegistry), cookieSecure, now
+  // opts: users (UserStore), clients (ClientRegistry), cookieSecure, now.
+  // The same class runs the operator's own admin console: prefix '/admin/api/', fixedClient '_operator' (the staff of the game operator form one
+  // "client" with its own user store) and `routes`, the extra operator endpoints.
   constructor(opts) {
     this.users = opts.users; this.clients = opts.clients; this.now = opts.now || Date.now; this.cookieSecure = !!opts.cookieSecure;
+    this.prefix = opts.prefix || '/bo/api/'; this.fixedClient = opts.fixedClient || null; this.routes = opts.routes || null;
+    this.cookieName = this.fixedClient ? 'admin_session' : 'bo_session'; this.cookiePath = this.fixedClient ? '/admin' : '/bo';
     this.sessions = new Map(); this.fails = new Map(); this.dummy = null;
   }
 
@@ -26,24 +30,24 @@ class BackOffice {
     res.writeHead(code, Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }, extra));
     res.end(JSON.stringify(obj));
   }
-  _cookie(req) { const m = /(?:^|;\s*)bo_session=([0-9a-f]{64})/.exec(req.headers.cookie || ''); return m ? m[1] : null; }
-  _setCookie(token, maxAge) { return 'bo_session=' + token + '; Path=/bo; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (this.cookieSecure ? '; Secure' : ''); }
+  _cookie(req) { const m = new RegExp('(?:^|;\\s*)' + this.cookieName + '=([0-9a-f]{64})').exec(req.headers.cookie || ''); return m ? m[1] : null; }
+  _setCookie(token, maxAge) { return this.cookieName + '=' + token + '; Path=' + this.cookiePath + '; HttpOnly; SameSite=Strict; Max-Age=' + maxAge + (this.cookieSecure ? '; Secure' : ''); }
   _locked(key) { const f = this.fails.get(key); return !!f && f.until > this.now(); }
   _fail(key, limit) {
     const t = this.now(); let f = this.fails.get(key); if (!f || t - f.first > LOCK_MS) f = { n: 0, first: t, until: 0 };
     f.n++; if (f.n >= limit) f.until = t + LOCK_MS; this.fails.set(key, f); if (this.fails.size > 20000) this.fails.clear();
     return f.until > t;
   }
-  _clientExists(id, engine) { return !!(this.clients && this.clients.get(id)) || (id === 'default' && !!(engine && engine.wallet)); }
-  _clientActive(id, engine) { const c = this.clients && this.clients.get(id); return c ? c.status === 'active' : id === 'default' && !!(engine && engine.wallet); }
+  _clientExists(id, engine) { if (this.fixedClient) return id === this.fixedClient; return !!(this.clients && this.clients.get(id)) || (id === 'default' && !!(engine && engine.wallet)); }
+  _clientActive(id, engine) { if (this.fixedClient) return id === this.fixedClient; const c = this.clients && this.clients.get(id); return c ? c.status === 'active' : id === 'default' && !!(engine && engine.wallet); }
 
   // the session of this request (checked against the user store every time), or throws
-  _session(req, mutating) {
+  _session(req, mutating, engine) {
     const token = this._cookie(req), s = token && this.sessions.get(sha(token)), t = this.now();
     if (!s) throw httpErr(401, 'NOT_LOGGED_IN');
     if (t - s.lastSeen > IDLE_MS || t - s.created > ABSOLUTE_MS) { this.sessions.delete(sha(token)); throw httpErr(401, 'SESSION_EXPIRED'); }
     const u = this.users.get(s.client, s.username);
-    if (!u || u.status !== 'active') { this.sessions.delete(sha(token)); throw httpErr(401, 'NOT_LOGGED_IN'); }
+    if (!u || u.status !== 'active' || !this._clientActive(s.client, engine)) { this.sessions.delete(sha(token)); throw httpErr(401, 'NOT_LOGGED_IN'); }      // a suspended client ends its staff sessions too
     if (mutating) {
       if (String(req.headers['x-csrf-token'] || '') !== s.csrf) throw httpErr(403, 'BAD_CSRF');
       const o = req.headers.origin; if (o) { let ok = false; try { ok = new URL(o).host === req.headers.host; } catch (e) { /* bad origin */ } if (!ok) throw httpErr(403, 'BAD_ORIGIN'); }
@@ -57,7 +61,7 @@ class BackOffice {
 
   /* ---------- login ---------- */
   async login(body, ip, engine) {
-    const client = String(body.client || '').toLowerCase(), username = String(body.username || '').toLowerCase(), pw = String(body.password || '').slice(0, 256);
+    const client = this.fixedClient || String(body.client || '').toLowerCase(), username = String(body.username || '').toLowerCase(), pw = String(body.password || '').slice(0, 256);
     const kIp = 'ip:' + ip, kUser = 'user:' + client + ':' + username;
     if (this._locked(kIp) || this._locked(kUser)) throw httpErr(429, 'TOO_MANY_ATTEMPTS', 'Too many failed logins. Try again in a few minutes.');
     const u = this.users.get(client, username), ok = this._clientExists(client, engine) && u && u.status === 'active' && this._clientActive(client, engine);
@@ -85,8 +89,8 @@ class BackOffice {
   // ctx: { req, res, url, readBody, engine, ip }. Returns true when the request was for the back office.
   async handle(ctx) {
     const { req, res, url, engine, ip } = ctx;
-    if (!url.pathname.startsWith('/bo/api/')) return false;
-    const sub = url.pathname.slice('/bo/api/'.length), method = req.method;
+    if (!url.pathname.startsWith(this.prefix)) return false;
+    const sub = url.pathname.slice(this.prefix.length), method = req.method, isClient = !this.fixedClient;
     try {
       if (!engine) throw httpErr(503, 'STANDBY');
       if (sub === 'login' && method === 'POST') {
@@ -97,7 +101,7 @@ class BackOffice {
         const token = this._cookie(req); if (token) { const s = this.sessions.get(sha(token)); if (s && engine) engine.audit(s.client, { user: s.username, action: 'logout', ip }); this.sessions.delete(sha(token)); }
         return this._send(res, 200, { ok: true }, { 'Set-Cookie': this._setCookie('', 0) }), true;
       }
-      const mutating = method !== 'GET' && method !== 'HEAD', sess = this._session(req, mutating), c = sess.s.client, me = sess.u;
+      const mutating = method !== 'GET' && method !== 'HEAD', sess = this._session(req, mutating, engine), c = sess.s.client, me = sess.u;
       if (sub === 'me' && method === 'GET') return this._send(res, 200, Object.assign({ ok: true }, this._me({ session: sess.s, user: me }))), true;
       if (sub === 'password' && method === 'POST') {
         const b = JSON.parse(await ctx.readBody() || '{}');
@@ -119,21 +123,25 @@ class BackOffice {
         this.users.totpDisable(c, me.username); engine.audit(c, { user: me.username, action: 'totp_disabled', ip }); return this._send(res, 200, { ok: true }), true;
       }
 
+      if (!isClient && this.routes) {              // the operator console: clients, API keys, RTP, health
+        const handled = await this.routes({ ctx, sess, sub, method, c, me, ip, engine, send: (code, obj) => (this._send(res, code, obj), true), audit: (e) => engine.audit(c, Object.assign({ user: me.username, role: me.role, ip }, e)), need: (role) => this._need(sess, role), httpErr, endSessions: (cl, u) => this.endSessions(cl, u) });
+        if (handled) return true;
+      }
       /* reading (viewer) */
-      if (sub === 'client' && method === 'GET') return this._send(res, 200, { ok: true, client: this._clientInfo(c, engine) }), true;
-      if (sub === 'report' && method === 'GET') return this._send(res, 200, Object.assign({}, engine.clientReport(c), { rounds: engine.rounds(c, 30).rounds, rtpSetting: undefined })), true;
-      if (sub === 'rounds' && method === 'GET') return this._send(res, 200, engine.rounds(c, url.searchParams.get('limit'))), true;
-      if (sub === 'players' && method === 'GET') return this._send(res, 200, engine.players(c, { query: url.searchParams.get('query'), limit: url.searchParams.get('limit') })), true;
-      const pm = /^players\/([A-Za-z0-9_.@-]{1,64})(?:\/(block|unblock|close-sessions))?$/.exec(sub);
-      if (pm && method === 'GET' && !pm[2]) return this._send(res, 200, engine.playerDetail(c, pm[1])), true;
-      if (pm && method === 'POST' && pm[2]) {
+      if (isClient && sub === 'client' && method === 'GET') return this._send(res, 200, { ok: true, client: this._clientInfo(c, engine) }), true;
+      if (isClient && sub === 'report' && method === 'GET') return this._send(res, 200, Object.assign({}, engine.clientReport(c), { rounds: engine.rounds(c, 30).rounds, rtpSetting: undefined })), true;
+      if (isClient && sub === 'rounds' && method === 'GET') return this._send(res, 200, engine.rounds(c, url.searchParams.get('limit'))), true;
+      if (isClient && sub === 'players' && method === 'GET') return this._send(res, 200, engine.players(c, { query: url.searchParams.get('query'), limit: url.searchParams.get('limit') })), true;
+      const pm = isClient && /^players\/([A-Za-z0-9_.@-]{1,64})(?:\/(block|unblock|close-sessions))?$/.exec(sub);
+      if (isClient && pm && method === 'GET' && !pm[2]) return this._send(res, 200, engine.playerDetail(c, pm[1])), true;
+      if (isClient && pm && method === 'POST' && pm[2]) {
         this._need(sess, 'support'); const b = JSON.parse(await ctx.readBody() || '{}'), pk = engine.playerKey(c, pm[1]), reason = String(b.reason || '').slice(0, 200);
         engine.audit(c, { user: me.username, role: me.role, action: 'player_' + pm[2].replace('-', '_'), target: pm[1], detail: reason, ip });
         if (pm[2] === 'block') return this._send(res, 200, engine.blockPlayer(pk, 'backoffice:' + c + ':' + me.username)), true;
         if (pm[2] === 'unblock') return this._send(res, 200, engine.unblockPlayer(pk, 'backoffice:' + c + ':' + me.username)), true;
         return this._send(res, 200, { ok: true, closed: engine.closeSessions(pk) }), true;
       }
-      if ((sub === 'export/players.csv' || sub === 'export/rounds.csv') && method === 'GET') {
+      if (isClient && (sub === 'export/players.csv' || sub === 'export/rounds.csv') && method === 'GET') {
         engine.audit(c, { user: me.username, role: me.role, action: 'export', target: sub, ip });
         const csv = sub === 'export/players.csv' ? this._csv(['player', 'bets', 'staked', 'paid', 'net_for_player', 'last_bet', 'online', 'blocked'], engine.players(c, { limit: 500 }).players.map((p) => [p.playerId, p.bets, p.staked, p.paid, p.paid - p.staked, p.lastBetAt ? new Date(p.lastBetAt).toISOString() : '', p.online, p.blocked]))
           : this._csv(['race', 'time', 'winning_pair', 'odds', 'players', 'bets', 'staked', 'paid', 'ggr'], engine.rounds(c, 300).rounds.map((r) => [r.raceNo, new Date(r.at).toISOString(), r.combo, r.odds, r.players, r.bets, r.staked, r.paid, r.staked - r.paid]));
@@ -159,7 +167,7 @@ class BackOffice {
         engine.audit(c, { user: me.username, role: me.role, action: 'user_' + um[2].replace('-', '_'), target: name, detail: um[2] === 'role' ? b.role : um[2] === 'status' ? b.status : '', ip });
         return this._send(res, 200, Object.assign({ ok: true }, out)), true;
       }
-      if (sub === 'apikey/rotate' && method === 'POST') {
+      if (isClient && sub === 'apikey/rotate' && method === 'POST') {
         this._need(sess, 'admin'); if (!this.clients || !this.clients.get(c)) throw httpErr(400, 'NO_API_KEY', 'This client has no API key to rotate.');
         const b = JSON.parse(await ctx.readBody() || '{}'), grace = b.graceHours === undefined ? undefined : Math.max(0, Math.min(168, Number(b.graceHours) || 0)) * 3600000;
         const r = this.clients.rotateKey(c, grace); engine.audit(c, { user: me.username, role: me.role, action: 'api_key_rotated', detail: 'grace ' + (grace === undefined ? 24 : grace / 3600000) + ' h', ip });

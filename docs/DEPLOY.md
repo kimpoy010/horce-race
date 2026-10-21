@@ -62,6 +62,7 @@ see **docs/CLIENT_API.md**. Set `CLIENTS_KEY` first and back up `data/clients.js
 ## 6. Go-live checklist
 
 * [ ] `GAME_MODE=live`, `NODE_ENV=production`, `WALLET=http`, strong `WALLET_KEY` (requests are HMAC-signed, the platform verifies them), `data/sessions.json` kept private (it is written 0600; sessions survive restarts) and `CONTROLLER_KEY`, `.env` readable only by the service user.
+* [ ] Operator console: `node scripts/clients.js add-operator <name> --role admin` for each staff member, two-step sign-in on, `/admin` restricted by IP or VPN in nginx (docs/ADMIN_CONSOLE.md).
 * [ ] Back office: each client has its first administrator (`add-user`), `TRUST_PROXY=1` behind nginx, HTTPS in front (the session cookie is `Secure`), administrators asked to turn on two-step sign-in (docs/BACKOFFICE.md).
 * [ ] Clients registered (`node scripts/clients.js list`), each with its own wallet secret and API key given over a safe channel; `CLIENTS_KEY` set and backed up; `TRUST_PROXY=1` behind the proxy if you use `allowedIps`.
 * [ ] HTTPS works, `/controller` and `/api/admin` are restricted by IP or VPN.
