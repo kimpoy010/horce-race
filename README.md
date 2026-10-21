@@ -45,6 +45,8 @@ betting panel (balance, the 15 pairs, chips, rebet, results). Bets debit the wal
 the end of each race. See **docs/WALLET_API.md** for the four endpoints your platform implements and the idempotency
 rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> race (30 s) -> results (10 s) -> next round.
 
+**API documentation.** One reference for every interface: **docs/API.md** (also `docs/API.pdf`), machine-readable **docs/openapi.yaml** (game server: game, client and operator APIs) and **docs/openapi-wallet.yaml** (what a platform implements: wallet and webhooks). `node scripts/verify-draw.js <race> <url>` checks the fairness proof of a race.
+
 **Operator admin console.** The operator's staff sign in at `/admin` (personal accounts, roles viewer / support / admin, two-step sign-in) to manage clients, API keys, signing secrets, limits, webhooks and client users, change the RTP, and watch health: **docs/ADMIN_CONSOLE.md** (`node scripts/clients.js add-operator <name>`).
 
 **Back office.** Each client's staff sign in at `/backoffice` (own logins, roles viewer / support / admin, optional two-step sign-in, audit log) to see their players, races and revenue and to block players: **docs/BACKOFFICE.md**.

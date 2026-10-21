@@ -1,0 +1,596 @@
+openapi: 3.1.0
+info:
+  title: Retro Horse Race game server API
+  version: "1.0"
+  description: |
+    The game server's HTTP API: the player's game page (Game), a platform's server (Client) and the game operator (Operator).
+    The back-office (`/bo/api`) and admin console (`/admin/api`) APIs belong to the two web pages and are described in `API.md` sections 7 and 8.
+    What a platform has to implement (wallet, webhooks) is in `openapi-wallet.yaml`.
+
+    Money is always a whole number of **minor units** (100 = 1.00). Times are Unix milliseconds. A winning pair is written low to high ("1-2" ... "5-6").
+    Failures return `{ "ok": false, "error": "<CODE>" }` with an HTTP status; see the Error schema and `API.md` section 10.
+servers:
+  - url: https://game.example.com
+tags:
+  - name: Game
+    description: Called by the game page in the player's browser.
+  - name: Client
+    description: Called by a platform's server with its API key.
+  - name: Operator
+    description: Called by the game operator's scripts with the operator key.
+  - name: Health
+paths:
+  /api/public:
+    get:
+      tags: [Game]
+      summary: Live state of the table
+      description: No authentication. Poll about once a second. `race.order` is null until about 2 seconds before the start.
+      responses:
+        "200": { description: The table state, content: { application/json: { schema: { $ref: "#/components/schemas/PublicState" } } } }
+        "503": { $ref: "#/components/responses/NotActive" }
+  /api/auth:
+    post:
+      tags: [Game]
+      summary: Exchange the launch token for a game session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, description: One-time launch token issued by the platform }
+                client: { type: string, description: Client id; optional when the game serves a single platform, example: acme }
+      responses:
+        "200": { description: Session created, content: { application/json: { schema: { $ref: "#/components/schemas/AuthReply" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/NotActive" }
+  /api/me:
+    get:
+      tags: [Game]
+      summary: The player's balance, limits, current bets and last result
+      security: [{ playerSession: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/bet:
+    post:
+      tags: [Game]
+      summary: Place bets for the current round
+      description: |
+        All-or-nothing. The stake is debited from the wallet immediately. Do not retry a request that timed out without reading `/api/me`.
+        At most 12 requests per 5 seconds per session.
+      security: [{ playerSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bets]
+              properties:
+                bets:
+                  type: array
+                  minItems: 1
+                  maxItems: 15
+                  items: { $ref: "#/components/schemas/BetRequest" }
+      responses:
+        "200": { description: Bets placed, content: { application/json: { schema: { $ref: "#/components/schemas/BetReply" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "402": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+  /api/history:
+    get:
+      tags: [Game]
+      summary: The player's last rounds
+      security: [{ playerSession: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/History" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/round/{raceNo}:
+    get:
+      tags: [Game]
+      summary: Draw proof of a finished race
+      description: The seed is revealed after the race. `sha256(seed) == commit`; the odds layout and the result can be recomputed (`scripts/verify-draw.js`).
+      parameters:
+        - { name: raceNo, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Proof" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/client/info:
+    get:
+      tags: [Client]
+      summary: The client's settings (no secrets)
+      security: [{ clientKey: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, client: { $ref: "#/components/schemas/Client" } } } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/client/report:
+    get:
+      tags: [Client]
+      summary: Totals for the client's own players
+      security: [{ clientKey: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ClientReport" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/client/history:
+    get:
+      tags: [Client]
+      summary: A player's rounds and bets
+      security: [{ clientKey: [] }]
+      parameters:
+        - { name: playerId, in: query, required: true, schema: { type: string, pattern: "^[A-Za-z0-9_.@-]{1,64}$" } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/History" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/client/players/block:
+    post:
+      tags: [Client]
+      summary: "Block a player (self-exclusion): sessions end, launches are refused"
+      security: [{ clientKey: [] }]
+      requestBody: { $ref: "#/components/requestBodies/PlayerId" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, blocked: { type: boolean, const: true }, closed: { type: integer } } } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/client/players/unblock:
+    post:
+      tags: [Client]
+      summary: Lift a block
+      security: [{ clientKey: [] }]
+      requestBody: { $ref: "#/components/requestBodies/PlayerId" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, blocked: { type: boolean, const: false } } } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/client/players/close-sessions:
+    post:
+      tags: [Client]
+      summary: End all game sessions of a player
+      security: [{ clientKey: [] }]
+      requestBody: { $ref: "#/components/requestBodies/PlayerId" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, closed: { type: integer } } } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/admin:
+    get:
+      tags: [Operator]
+      summary: Live report of the whole game
+      security: [{ operatorKey: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, additionalProperties: true, description: "Totals, RTP figures, per-client and per-currency numbers, recent races and an `ops` block (health, alerts, queues, wallet, lease)." } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/admin/history:
+    get:
+      tags: [Operator]
+      summary: A player's history at any client
+      security: [{ operatorKey: [] }]
+      parameters:
+        - { name: client, in: query, schema: { type: string }, description: Client id; default is the implicit default client }
+        - { name: playerId, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/History" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/command:
+    post:
+      tags: [Operator]
+      summary: Operator commands
+      description: In live mode results can never be set.
+      security: [{ operatorKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { type: object, required: [cmd, rtp], properties: { cmd: { const: setRtp }, rtp: { type: number, description: "0.88 to 0.99 (or 88 to 99)" } } }
+                - { type: object, required: [cmd, rtp], properties: { cmd: { const: previewRtp }, rtp: { type: number } } }
+                - { type: object, required: [cmd, playerId], properties: { cmd: { enum: [closeSessions, blockPlayer, unblockPlayer] }, playerId: { type: string }, clientId: { type: string } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/clients:
+    get:
+      tags: [Operator]
+      summary: All clients with their numbers
+      security: [{ operatorKey: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, defaultClient: { type: boolean }, clients: { type: array, items: { $ref: "#/components/schemas/Client" } } } } } } }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Operator]
+      summary: Create a client
+      description: The API key and, when it was generated, the wallet signing secret are in the reply once and cannot be shown again.
+      security: [{ operatorKey: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { client: { $ref: "#/components/schemas/ClientInput" } } } } }
+      responses:
+        "200": { description: Created, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, client: { $ref: "#/components/schemas/Client" }, apiKey: { type: string, examples: ["hrk_acme_5d2833910d569945a71e54f2a8958ba55b1b639a3369e57e"] }, walletSecret: { type: string } } } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/clients/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Operator]
+      summary: One client with its report
+      security: [{ operatorKey: [] }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, client: { $ref: "#/components/schemas/Client" }, report: { $ref: "#/components/schemas/ClientReport" } } } } } }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [Operator]
+      summary: Change a client's settings
+      security: [{ operatorKey: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ClientInput" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, client: { $ref: "#/components/schemas/Client" } } } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/clients/{id}/rotate-key:
+    post:
+      tags: [Operator]
+      summary: Create a new API key (shown once)
+      security: [{ operatorKey: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { graceHours: { type: number, default: 24, description: Older keys keep working this long; 0 revokes them now } } } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, apiKey: { type: string }, client: { $ref: "#/components/schemas/Client" } } } } } }
+  /api/clients/{id}/revoke-key:
+    post:
+      tags: [Operator]
+      summary: Revoke one API key
+      security: [{ operatorKey: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [keyId], properties: { keyId: { type: string, examples: [k1] } } } } }
+      responses:
+        "200": { description: OK }
+  /api/clients/{id}/status:
+    post:
+      tags: [Operator]
+      summary: Suspend or enable a client
+      security: [{ operatorKey: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [status], properties: { status: { enum: [active, disabled] } } } } }
+      responses:
+        "200": { description: OK }
+  /api/clients/{id}/delete:
+    post:
+      tags: [Operator]
+      summary: Remove a client from the registry
+      security: [{ operatorKey: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [confirm], properties: { confirm: { type: string, description: The client id again } } } } }
+      responses:
+        "200": { description: OK }
+        "400": { $ref: "#/components/responses/Error" }
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Health of this instance
+      description: 200 only for the healthy active instance. 503 for a standby, starting or shutting-down instance, a broken ledger or a stalled round loop.
+      responses:
+        "200": { description: Healthy, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } }
+        "503": { description: Not the healthy active instance, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } }
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      security: [{ operatorKey: [] }]
+      responses:
+        "200": { description: Prometheus text format, content: { text/plain: { schema: { type: string } } } }
+        "401": { description: Bad operator key }
+components:
+  securitySchemes:
+    playerSession:
+      type: http
+      scheme: bearer
+      description: The `session` returned by `/api/auth`.
+    clientKey:
+      type: http
+      scheme: bearer
+      description: A client API key, `hrk_<client>_<48 hex>`.
+    operatorKey:
+      type: apiKey
+      in: header
+      name: X-Controller-Key
+      description: The operator key (also accepted as a Bearer token).
+  requestBodies:
+    PlayerId:
+      required: true
+      content: { application/json: { schema: { type: object, required: [playerId], properties: { playerId: { type: string, pattern: "^[A-Za-z0-9_.@-]{1,64}$" } } } } }
+  responses:
+    Error:
+      description: Failure. Branch on `error`.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotActive:
+      description: This instance is a standby or still starting.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  schemas:
+    Error:
+      type: object
+      required: [ok, error]
+      properties:
+        ok: { type: boolean, const: false }
+        error:
+          type: string
+          description: Error code
+          examples: [BETTING_CLOSED]
+          enum: [INVALID_TOKEN, INVALID_PLAYER_ID, INVALID_CLIENT, CLIENT_REQUIRED, CLIENT_DISABLED, PLAYER_BLOCKED, SESSION_EXPIRED, BETTING_CLOSED, BAD_REQUEST, BAD_BET, MAX_BET_EXCEEDED, MAX_ROUND_STAKE_EXCEEDED, DAILY_LOSS_LIMIT, INSUFFICIENT_FUNDS, TOO_MANY_REQUESTS, WALLET_REJECTED, WALLET_UNAVAILABLE, SHUTTING_DOWN, STANDBY, STARTING, NOT_FOUND, INVALID_API_KEY, BAD_CLIENT, CLIENT_EXISTS, RTP_OUT_OF_RANGE, SERVER_ERROR]
+        message: { type: string }
+    Pair:
+      type: string
+      pattern: "^[1-5]-[2-6]$"
+      examples: ["1-2"]
+    Order:
+      type: array
+      description: Horse numbers in finishing order. The first two are the winning pair, lower number first.
+      minItems: 6
+      maxItems: 6
+      items: { type: integer, minimum: 1, maximum: 6 }
+    Limits:
+      type: object
+      properties:
+        minBet: { type: integer, description: minor units }
+        maxBet: { type: integer, description: per pair, minor units }
+        maxRoundStake: { type: integer, description: per race, minor units }
+        dailyLossLimit: { type: integer, description: 0 = none }
+    Responsible:
+      type: object
+      properties:
+        realityCheckMinutes: { type: number }
+        startedAt: { type: integer }
+        staked: { type: integer }
+        paid: { type: integer }
+        dailyNetLoss: { type: integer }
+    PublicState:
+      type: object
+      properties:
+        mode: { const: live }
+        serverNow: { type: integer }
+        nextRaceNo: { type: integer }
+        timings:
+          type: object
+          properties: { countdown: { type: integer }, race: { type: integer }, results: { type: integer }, bet: { type: integer } }
+        rules:
+          type: object
+          properties:
+            combos: { type: array, items: { $ref: "#/components/schemas/Pair" } }
+            oddsValues: { type: array, items: { type: number } }
+            shuffleOdds: { type: boolean }
+            minBet: { type: integer }
+            maxBet: { type: integer }
+            maxRoundStake: { type: integer }
+            currency: { type: string }
+        round:
+          oneOf:
+            - { type: "null" }
+            - type: object
+              properties:
+                raceNo: { type: integer }
+                phase: { enum: [betting, closed, racing, results] }
+                openAt: { type: integer }
+                betCloseAt: { type: integer }
+                startAt: { type: [integer, "null"] }
+                commit: { type: string, description: SHA-256 of the secret seed, published before betting closes }
+                odds: { type: object, additionalProperties: { type: number }, description: Payout odds per pair for this race }
+                rtp: { type: number }
+                cheapRtp: { type: number }
+                cheapPairs: { type: array, items: { $ref: "#/components/schemas/Pair" } }
+        race:
+          oneOf:
+            - { type: "null" }
+            - type: object
+              properties:
+                raceNo: { type: integer }
+                startAt: { type: integer }
+                seed: { type: integer, description: Seed of the race animation }
+                order: { oneOf: [{ $ref: "#/components/schemas/Order" }, { type: "null" }] }
+        history:
+          type: array
+          items: { type: object, properties: { raceNo: { type: integer }, order: { $ref: "#/components/schemas/Order" } } }
+        reveals:
+          type: array
+          items: { $ref: "#/components/schemas/Proof" }
+    AuthReply:
+      type: object
+      properties:
+        ok: { type: boolean }
+        session: { type: string, description: 64 hex characters }
+        playerId: { type: string }
+        returnUrl: { type: [string, "null"] }
+        currency: { type: string }
+        decimals: { type: integer }
+        balance: { type: integer }
+        brandId: { type: [string, "null"] }
+        limits: { $ref: "#/components/schemas/Limits" }
+        responsible: { $ref: "#/components/schemas/Responsible" }
+        rules: { type: object, additionalProperties: true }
+    BetRequest:
+      type: object
+      required: [combo, stake]
+      properties:
+        combo: { $ref: "#/components/schemas/Pair" }
+        stake: { type: integer, minimum: 1, description: Whole minor units within the player's limits }
+    BetStatus:
+      enum: [open, won, lost, refunded]
+    BetReply:
+      type: object
+      properties:
+        ok: { type: boolean }
+        balance: { type: integer }
+        bets:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, description: "<betId>:<pair>", examples: ["9f2c41aa:1-2"] }
+              raceNo: { type: integer }
+              combo: { $ref: "#/components/schemas/Pair" }
+              stake: { type: integer }
+              odds: { type: number }
+              status: { $ref: "#/components/schemas/BetStatus" }
+              payout: { type: integer }
+    Me:
+      type: object
+      properties:
+        ok: { type: boolean }
+        playerId: { type: string }
+        currency: { type: string }
+        decimals: { type: integer }
+        balance: { type: integer }
+        limits: { $ref: "#/components/schemas/Limits" }
+        brandId: { type: [string, "null"] }
+        responsible: { $ref: "#/components/schemas/Responsible" }
+        returnUrl: { type: [string, "null"] }
+        raceNo: { type: [integer, "null"] }
+        bets: { type: array, items: { $ref: "#/components/schemas/MyBet" } }
+        last:
+          oneOf:
+            - { type: "null" }
+            - { type: object, properties: { raceNo: { type: integer }, combo: { $ref: "#/components/schemas/Pair" }, bets: { type: array, items: { $ref: "#/components/schemas/MyBet" } } } }
+    MyBet:
+      type: object
+      properties:
+        combo: { $ref: "#/components/schemas/Pair" }
+        stake: { type: integer }
+        odds: { type: number }
+        status: { $ref: "#/components/schemas/BetStatus" }
+        payout: { type: integer }
+    History:
+      type: object
+      properties:
+        ok: { type: boolean }
+        playerId: { type: string }
+        clientId: { type: string }
+        rounds:
+          type: array
+          items:
+            type: object
+            properties:
+              raceNo: { type: integer }
+              roundId: { type: string }
+              combo: { oneOf: [{ $ref: "#/components/schemas/Pair" }, { type: "null" }], description: null while the race is open }
+              order: { oneOf: [{ $ref: "#/components/schemas/Order" }, { type: "null" }] }
+              commit: { type: [string, "null"] }
+              staked: { type: integer }
+              paid: { type: integer, description: Wins, plus the stake of refunded bets }
+              bets:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    raceNo: { type: integer }
+                    betId: { type: string }
+                    combo: { $ref: "#/components/schemas/Pair" }
+                    stake: { type: integer }
+                    odds: { type: number }
+                    status: { $ref: "#/components/schemas/BetStatus" }
+                    payout: { type: integer }
+                    placedAt: { type: [integer, "null"] }
+                    currency: { type: [string, "null"] }
+                    brandId: { type: [string, "null"] }
+    Proof:
+      type: object
+      properties:
+        ok: { type: boolean }
+        hash: { const: sha256 }
+        raceNo: { type: integer }
+        roundId: { type: string }
+        commit: { type: string }
+        seed: { type: string, description: 64 hex characters, revealed after the race }
+        odds: { type: object, additionalProperties: { type: number } }
+        rtp: { type: number }
+        combo: { $ref: "#/components/schemas/Pair" }
+        order: { $ref: "#/components/schemas/Order" }
+    ClientReport:
+      type: object
+      properties:
+        ok: { type: boolean }
+        clientId: { type: string }
+        bets: { type: integer }
+        staked: { type: integer }
+        paid: { type: integer }
+        ggr: { type: integer, description: staked minus paid }
+        rtp: { type: [number, "null"] }
+        byCurrency: { type: object, additionalProperties: { type: object, properties: { staked: { type: integer }, paid: { type: integer } } } }
+        activeSessions: { type: integer }
+        pendingCredits: { type: integer }
+        pendingRollbacks: { type: integer }
+        blockedPlayers: { type: integer }
+        currentRound: { type: [integer, "null"] }
+        rtpSetting: { type: number }
+    ClientInput:
+      type: object
+      properties:
+        id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{1,31}$", examples: [acme] }
+        name: { type: string }
+        currency: { type: string, examples: [PHP] }
+        wallet:
+          type: object
+          properties:
+            type: { enum: [http, mock], description: "mock = play money, only outside production" }
+            url: { type: string, format: uri, description: https; plain http only for localhost }
+            secret: { type: string, minLength: 16, description: Signing secret; generated when omitted on create }
+            keyId: { type: string }
+            auth: { enum: [hmac, bearer], default: hmac }
+            timeoutMs: { type: integer, default: 8000 }
+        webhook:
+          type: [object, "null"]
+          properties:
+            url: { type: string, format: uri }
+            secret: { type: string, description: Defaults to the wallet secret }
+            events: { type: string, default: "round.settled,big.win" }
+        limits: { $ref: "#/components/schemas/Limits" }
+        currencyLimits: { type: object, additionalProperties: { $ref: "#/components/schemas/Limits" } }
+        realityCheckMinutes: { type: number }
+        bigWinMin: { type: integer }
+        allowedIps: { type: array, items: { type: string }, description: IPv4 addresses or CIDR ranges allowed for the client API }
+        returnUrlHosts: { type: array, items: { type: string } }
+    Client:
+      allOf:
+        - $ref: "#/components/schemas/ClientInput"
+        - type: object
+          properties:
+            status: { enum: [active, disabled] }
+            createdAt: { type: integer }
+            updatedAt: { type: integer }
+            apiKeys:
+              type: array
+              items: { type: object, properties: { id: { type: string }, createdAt: { type: integer }, expiresAt: { type: [integer, "null"] }, lastUsedAt: { type: [integer, "null"] } } }
+            stats: { $ref: "#/components/schemas/ClientReport" }
+            users: { type: integer }
+    Health:
+      type: object
+      properties:
+        ok: { type: boolean }
+        mode: { type: string }
+        role: { enum: [active, standby, starting, stopping] }
+        reasons: { type: array, items: { type: string } }

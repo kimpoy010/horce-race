@@ -1,0 +1,201 @@
+openapi: 3.1.0
+info:
+  title: "Retro Horse Race: what a platform implements"
+  version: "1.0"
+  description: |
+    The wallet API and the webhooks. **The game server is the client and your platform is the server.** Implement these endpoints on your side; the game calls them.
+
+    Every request is a `POST` with a JSON body and these headers: `X-Timestamp` (ms), `X-Nonce` (random hex), `X-Signature`
+    (hex HMAC-SHA256 of `timestamp \n nonce \n METHOD \n path \n sha256hex(rawBody)` with the signing secret) and optionally `X-Key-Id`.
+    Reject a request whose signature is wrong, whose timestamp is more than 5 minutes off, or whose nonce was seen before. Money is in minor units.
+    Each `txId` must be applied once: the same `txId` again returns the same reply. See `API.md` section 3 and `WALLET_API.md`.
+servers:
+  - url: https://platform.example.com/horse-api
+    description: Your wallet base URL (the client's `wallet.url`)
+security:
+  - signature: []
+paths:
+  /session/validate:
+    post:
+      summary: Validate a launch token
+      description: Mark the token as used. An invalid or used token must fail with HTTP 401.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [token], properties: { token: { type: string } } } } }
+      responses:
+        "200":
+          description: The player
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, playerId, currency, balance]
+                properties:
+                  ok: { const: true }
+                  playerId: { type: string, pattern: "^[A-Za-z0-9_.@-]{1,64}$" }
+                  currency: { type: string, examples: [PHP] }
+                  balance: { type: integer, description: minor units }
+                  returnUrl: { type: string, format: uri, description: The "back to lobby" link }
+                  brandId: { type: string }
+                  decimals: { type: integer, minimum: 0, maximum: 4 }
+                  limits:
+                    type: object
+                    properties: { minBet: { type: integer }, maxBet: { type: integer }, maxRoundStake: { type: integer }, dailyLossLimit: { type: integer } }
+                  realityCheckMinutes: { type: integer }
+                  blocked: { type: boolean, description: true refuses the launch (self-excluded player) }
+        "401": { $ref: "#/components/responses/Refusal" }
+  /wallet/balance:
+    post:
+      summary: Balance of a player
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [playerId], properties: { playerId: { type: string } } } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/BalanceReply" } } } }
+  /wallet/debit:
+    post:
+      summary: Take a bet from the player
+      description: Idempotent on `txId`. Fail with HTTP 402 `INSUFFICIENT_FUNDS` when the balance is too low. Refuse a debit whose `txId` was rolled back (HTTP 409 `TX_ROLLED_BACK`).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } }
+      responses:
+        "200": { description: Applied (or already applied), content: { application/json: { schema: { $ref: "#/components/schemas/BalanceReply" } } } }
+        "402": { $ref: "#/components/responses/Refusal" }
+        "409": { $ref: "#/components/responses/Refusal" }
+  /wallet/credit:
+    post:
+      summary: Pay a win or return a stake
+      description: Idempotent on `txId`. `transactionType` is `win` or `refund`. The game retries until you accept.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } }
+      responses:
+        "200": { description: Applied (or already applied), content: { application/json: { schema: { $ref: "#/components/schemas/BalanceReply" } } } }
+  /wallet/rollback:
+    post:
+      summary: Cancel a debit whose outcome the game does not know
+      description: |
+        `txId` is the debit to cancel. If it was applied, reverse it. Either way remember the `txId` as cancelled and refuse a later debit with it.
+        Idempotent. Optional: if you answer 404, 405 or 501 the game stops retrying and leaves the case for manual reconciliation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/Transaction"
+                - type: object
+                  properties: { rollbackTxId: { type: string, examples: ["rollback:bet:42:9f2c41aa"] } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { const: true }
+                  balance: { type: integer }
+                  status: { enum: [rolled_back, not_found, already_rolled_back] }
+webhooks:
+  horseEvent:
+    post:
+      summary: A game event (you implement this endpoint; the URL is the client's `webhook.url`)
+      description: |
+        Reply any 2xx to acknowledge. Other answers are retried with back-off, also after a restart, so **de-duplicate on `id`**.
+        Signed like the wallet calls (same headers).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/RoundSettled"
+                - $ref: "#/components/schemas/BigWin"
+      responses:
+        "200": { description: Received }
+components:
+  securitySchemes:
+    signature:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: HMAC-SHA256 signature, see the description at the top. Also sent are X-Timestamp, X-Nonce and optionally X-Key-Id.
+  responses:
+    Refusal:
+      description: A refusal. Use an HTTP 4xx status and, if you like, a code.
+      content: { application/json: { schema: { type: object, properties: { ok: { const: false }, error: { type: string, examples: [INSUFFICIENT_FUNDS] } } } } }
+  schemas:
+    BalanceReply:
+      type: object
+      required: [ok, balance]
+      properties:
+        ok: { const: true }
+        balance: { type: integer, description: The balance after the transaction, minor units }
+    Transaction:
+      type: object
+      required: [playerId, amount, txId]
+      properties:
+        playerId: { type: string }
+        amount: { type: integer, minimum: 1, description: minor units }
+        txId: { type: string, examples: ["bet:42:9f2c41aa"] }
+        gameId: { const: horse-race }
+        transactionType: { enum: [bet, win, refund, rollback] }
+        roundId: { type: string, description: The race number as text }
+        betId: { type: string }
+        betIds: { type: array, items: { type: string }, description: "For a win: the winning bets (<betId>:<pair>)" }
+        refTxId: { type: string, description: The debit a refund or rollback belongs to }
+        currency: { type: string }
+        brandId: { type: [string, "null"] }
+        meta: { type: object, additionalProperties: true, description: The same data again }
+    EventEnvelope:
+      type: object
+      required: [id, type, createdAt, gameId, clientId, data]
+      properties:
+        id: { type: string, description: "Stable and unique, de-duplicate on it", examples: ["horse-race:acme:round:42"] }
+        type: { type: string }
+        createdAt: { type: integer }
+        gameId: { const: horse-race }
+        clientId: { type: string }
+    RoundSettled:
+      allOf:
+        - $ref: "#/components/schemas/EventEnvelope"
+        - type: object
+          properties:
+            type: { const: round.settled }
+            data:
+              type: object
+              properties:
+                roundId: { type: string }
+                raceNo: { type: integer }
+                combo: { type: string, examples: ["3-5"] }
+                order: { type: array, items: { type: integer } }
+                odds: { type: object, additionalProperties: { type: number } }
+                oddsOfWinner: { type: number }
+                rtp: { type: number }
+                commit: { type: string }
+                seed: { type: string }
+                bets: { type: integer, description: Your players' bets in this race }
+                staked: { type: integer }
+                paid: { type: integer }
+                ledgerHash: { type: string, description: Newest hash of the game's tamper-evident ledger; keep it }
+                ledgerLines: { type: integer }
+    BigWin:
+      allOf:
+        - $ref: "#/components/schemas/EventEnvelope"
+        - type: object
+          properties:
+            type: { const: big.win }
+            data:
+              type: object
+              properties:
+                roundId: { type: string }
+                raceNo: { type: integer }
+                playerId: { type: string }
+                brandId: { type: [string, "null"] }
+                currency: { type: string }
+                stake: { type: integer }
+                payout: { type: integer }
+                odds: { type: number }
+                betIds: { type: array, items: { type: string } }
