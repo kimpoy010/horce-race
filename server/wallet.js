@@ -94,6 +94,7 @@ class HttpWallet {
 }
 
 function create(env) {
+  if (env.WALLET === 'none') return null;       // no implicit "default" client: every client comes from the registry (data/clients.json)
   if ((env.WALLET || 'mock') === 'http') {
     if (!env.WALLET_URL || !env.WALLET_KEY) throw new Error('WALLET=http needs WALLET_URL and WALLET_KEY');
     const auth = env.WALLET_AUTH || 'hmac';

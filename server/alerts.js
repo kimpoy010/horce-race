@@ -30,8 +30,15 @@ function rules(cfg, ctx) {
     snap.pending.rollbacks.count + ' rollback(s) not confirmed by the wallet, the oldest for ' + Math.round(snap.pending.rollbacks.oldestSeconds / 60) + ' min (a player may be charged for a bet that was not placed)');
   add('webhooks_stuck', 'warning', snap.pending.webhooks.count > 0 && snap.pending.webhooks.oldestSeconds > cfg.webhookMinutes * 60,
     snap.pending.webhooks.count + ' webhook event(s) not accepted by the platform, the oldest for ' + Math.round(snap.pending.webhooks.oldestSeconds / 60) + ' min');
-  add('wallet_failing', 'critical', win.calls >= 5 && win.failRate > cfg.walletFailRate, 'wallet calls failing: ' + Math.round(win.failRate * 100) + '% of ' + win.calls + ' in the last 5 minutes');
-  add('wallet_slow', 'warning', win.calls >= 5 && win.p95 > cfg.walletP95Ms, 'wallet is slow: the slowest 5% of calls took over ' + Math.round(win.p95) + ' ms in the last 5 minutes');
+  // one wallet per client: judge each client's wallet on its own, so a healthy client cannot hide a failing one
+  const wins = ctx.walletClients && Object.keys(ctx.walletClients).length ? ctx.walletClients : { default: win };
+  const single = Object.keys(wins).length === 1 && wins.default;
+  Object.keys(wins).forEach((cid) => {
+    const w = wins[cid], sfx = single ? '' : ':' + cid, who = single ? 'wallet' : 'wallet of client ' + cid;
+    add('wallet_failing' + sfx, 'critical', w.calls >= 5 && w.failRate > cfg.walletFailRate, who + ' calls failing: ' + Math.round(w.failRate * 100) + '% of ' + w.calls + ' in the last 5 minutes');
+    add('wallet_slow' + sfx, 'warning', w.calls >= 5 && w.p95 > cfg.walletP95Ms, who + ' is slow: the slowest 5% of calls took over ' + Math.round(w.p95) + ' ms in the last 5 minutes');
+  });
+  if (ctx.clientsError) add('clients_config_error', 'warning', true, 'the client registry file could not be loaded (the last good version is in use): ' + ctx.clientsError);
   add('rtp_drift', 'warning', snap.rounds >= cfg.rtpMinRounds && Math.abs(snap.rtpZ) > cfg.rtpZ,
     'payouts are ' + snap.rtpZ.toFixed(1) + ' standard deviations ' + (snap.rtpZ > 0 ? 'above' : 'below') + ' what the odds predict for the bets placed (' + snap.rounds + ' races)');
   if (ctx.diskFreeMb != null) add('disk_low', 'critical', ctx.diskFreeMb < cfg.diskFreeMb, 'only ' + Math.round(ctx.diskFreeMb) + ' MB free where the ledger is kept');

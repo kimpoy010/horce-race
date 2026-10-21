@@ -18,6 +18,7 @@ const { Engine } = require('./server/engine.js');
 const walletFactory = require('./server/wallet.js');
 const webhookFactory = require('./server/webhook.js');
 const { Lease } = require('./server/lease.js');
+const { ClientRegistry } = require('./server/clients.js');
 const { AlertManager, webhookNotifier, diskFreeMb } = require('./server/alerts.js');
 const metricsLib = require('./server/metrics.js');
 
@@ -26,14 +27,14 @@ const PORT = env.PORT || 8080;
 const HOST = env.HOST || '0.0.0.0';          // use HOST=127.0.0.1 behind a reverse proxy
 const LIVE = env.GAME_MODE === 'live';
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = env.DATA_DIR || path.join(__dirname, 'data');
 const generatedKey = !env.CONTROLLER_KEY;
 const KEY = env.CONTROLLER_KEY || crypto.randomBytes(5).toString('hex');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 /* ---------- demo mode: controller driven ---------- */
 let director = null, engine = null, lastSaved = '';
-let role = LIVE ? 'starting' : 'demo', lease = null, alerts = null;       // live: starting | standby | active | stopping
+let role = LIVE ? 'starting' : 'demo', lease = null, alerts = null, clients = null;       // live: starting | standby | active | stopping
 const timers = [];
 if (!LIVE) {
   try { director = new Director(JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'state.json'), 'utf8'))); } catch (e) { director = new Director(); }
@@ -55,8 +56,15 @@ function loadOdds() {          // ODDS='{"1-2":60,...}' or ODDS_FILE=path.json; 
 
 async function startLive() {
   const num = (v, d) => (v === undefined || v === '' ? d : Number(v));
+  const production = env.NODE_ENV === 'production';
+  clients = new ClientRegistry({ file: path.join(DATA_DIR, 'clients.json'), secret: env.CLIENTS_KEY, allowMock: env.ALLOW_MOCK_WALLET === '1' && !production, allowHttp: env.ALLOW_HTTP_WALLET === '1' });
+  if (clients.loadError) throw new Error('data/clients.json: ' + clients.loadError);
+  if (clients.count() && !env.CLIENTS_KEY) console.warn('WARNING: CLIENTS_KEY is not set, so the client wallet secrets in data/clients.json are stored in plain text (the file is owner-only).');
+  // the implicit "default" client comes from the WALLET / WEBHOOK settings; with WALLET unset and clients in the registry there is none
+  const defaultWallet = env.WALLET || clients.count() === 0 ? walletFactory.create(env) : null;
+  if (!defaultWallet && clients.count() === 0) console.warn('No clients yet: add one with  node scripts/clients.js add <id> ...  (or POST /api/clients) before players can launch the game.');
   engine = new Engine({
-    wallet: walletFactory.create(env), webhook: webhookFactory.create(env),
+    wallet: defaultWallet, webhook: defaultWallet ? webhookFactory.create(env) : null, clients,
     ledgerFile: path.join(DATA_DIR, 'ledger.jsonl'),
     config: {
       odds: loadOdds(), rtp: num(env.RTP, 0.9) > 1 ? num(env.RTP, 90) / 100 : num(env.RTP, 0.9), settingsFile: path.join(DATA_DIR, 'settings.json'), sessionsFile: path.join(DATA_DIR, 'sessions.json'), blockedFile: path.join(DATA_DIR, 'blocked.json'),
@@ -73,12 +81,23 @@ async function startLive() {
     engine.tick().catch((e) => { engine.metrics.tickErrors++; console.error('tick failed:', e.message); });
   }, 250));
   alerts = new AlertManager({ config: alertConfig(), notify: env.ALERT_WEBHOOK_URL ? webhookNotifier(env.ALERT_WEBHOOK_URL) : null });
-  timers.push(setInterval(() => { try { alerts.evaluate({ snapshot: engine.opsSnapshot(), wallet: engine.metrics.walletWindow(300000), tickAge: engine.metrics.tickAge(), diskFreeMb: diskFreeMb(DATA_DIR) }); } catch (e) { console.error('alert check failed:', e.message); } }, 10000));
-  if ((env.WALLET || 'mock') === 'mock') console.warn('WARNING: play-money MOCK wallet (ALLOW_MOCK_WALLET=1). Never use this in production.');
+  timers.push(setInterval(() => { if (clients.reload()) console.log('clients: registry reloaded (' + clients.count() + ' clients)'); }, 3000));
+  timers.push(setInterval(() => { try { alerts.evaluate({ snapshot: engine.opsSnapshot(), wallet: engine.metrics.walletWindow(300000), walletClients: walletClients(), clientsError: clients.loadError, tickAge: engine.metrics.tickAge(), diskFreeMb: diskFreeMb(DATA_DIR) }); } catch (e) { console.error('alert check failed:', e.message); } }, 10000));
+  if (defaultWallet && (env.WALLET || 'mock') === 'mock') console.warn('WARNING: play-money MOCK wallet (ALLOW_MOCK_WALLET=1). Never use this in production.');
   const pv = engine.previewRtp(engine.rtp);
   console.log('LIVE mode: wallet=' + (env.WALLET || 'mock') + ', RTP setting ' + (engine.rtp * 100).toFixed(2) + '% (best bets ' + (pv.bestRtp * 100).toFixed(2) + '%, three cheapest pairs ' + (pv.cheapRtp * 100).toFixed(2) + '%). Editable 88-99% in the controller.');
 }
 
+function walletClients() { const m = {}; engine.metrics.walletClients(300000).forEach((c) => { m[c] = engine.metrics.walletWindow(300000, c); }); return m; }
+function clientIp(req) {          // behind the reverse proxy set TRUST_PROXY=1 to use X-Forwarded-For
+  if (env.TRUST_PROXY === '1') { const f = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim(); if (f) return f; }
+  return (req.socket && req.socket.remoteAddress) || '';
+}
+function clientAuth(req) {        // the client API: Authorization: Bearer hrk_<client>_<secret>
+  const c = clients.authenticate(bearer(req), clientIp(req));
+  if (!c) throw Object.assign(new Error('INVALID_API_KEY'), { status: 401, code: 'INVALID_API_KEY' });
+  return c;
+}
 function alertConfig() {              // ALERT_CREDIT_MIN, ALERT_ROLLBACK_MIN, ALERT_WEBHOOK_MIN, ALERT_WALLET_FAIL_RATE, ALERT_WALLET_P95_MS, ALERT_RTP_Z, ALERT_DISK_FREE_MB, ALERT_REPEAT_MIN
   const m = { ALERT_CREDIT_MIN: 'creditMinutes', ALERT_ROLLBACK_MIN: 'rollbackMinutes', ALERT_WEBHOOK_MIN: 'webhookMinutes', ALERT_WALLET_FAIL_RATE: 'walletFailRate',
     ALERT_WALLET_P95_MS: 'walletP95Ms', ALERT_RTP_Z: 'rtpZ', ALERT_DISK_FREE_MB: 'diskFreeMb', ALERT_REPEAT_MIN: 'repeatMinutes' }, c = {};
@@ -140,7 +159,7 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 function fail(res, e) {
-  if (e && e.status) return json(res, e.status, { ok: false, error: e.code || e.message });
+  if (e && e.status) return json(res, e.status, e.code === 'BAD_CLIENT' ? { ok: false, error: e.code, message: e.message } : { ok: false, error: e.code || e.message });
   console.error(e); return json(res, 500, { ok: false, error: 'SERVER_ERROR' });
 }
 function authorized(req) {
@@ -193,7 +212,7 @@ const server = http.createServer(async (req, res) => {
       /* player endpoints (live mode only) */
       if (LIVE && url.pathname === '/api/auth' && req.method === 'POST') {
         const body = JSON.parse(await readBody(req) || '{}');
-        return json(res, 200, Object.assign({ ok: true, rules: engine.rules() }, await engine.auth(String(body.token || ''))));
+        return json(res, 200, Object.assign({ ok: true, rules: engine.rules() }, await engine.auth(String(body.token || ''), body.client ? String(body.client) : '')));
       }
       if (LIVE && url.pathname === '/api/me' && req.method === 'GET') return json(res, 200, Object.assign({ ok: true }, await engine.me(bearer(req))));
       if (LIVE && url.pathname === '/api/bet' && req.method === 'POST') {
@@ -208,18 +227,48 @@ const server = http.createServer(async (req, res) => {
       const pr = /^\/api\/round\/(\d{1,12})$/.exec(url.pathname);      // draw proof of a finished race (public: the seed is revealed after the race)
       if (LIVE && pr && req.method === 'GET') return json(res, 200, engine.proof(pr[1]));
 
+      /* client API: a platform with its own API key, limited to its own players (see docs/CLIENT_API.md) */
+      if (LIVE && url.pathname.startsWith('/api/client/')) {
+        const c = clientAuth(req), sub = url.pathname.slice('/api/client/'.length);
+        if (sub === 'info' && req.method === 'GET') return json(res, 200, { ok: true, client: clients.publicView(c) });
+        if (sub === 'report' && req.method === 'GET') return json(res, 200, engine.clientReport(c.id));
+        if (sub === 'history' && req.method === 'GET') return json(res, 200, engine.historyFor(engine.playerKey(c.id, url.searchParams.get('playerId')), url.searchParams.get('limit')));
+        if (req.method === 'POST' && ['players/block', 'players/unblock', 'players/close-sessions'].includes(sub)) {
+          const body = JSON.parse(await readBody(req) || '{}'), pk = engine.playerKey(c.id, body.playerId);
+          if (sub === 'players/block') return json(res, 200, engine.blockPlayer(pk, 'client:' + c.id));
+          if (sub === 'players/unblock') return json(res, 200, engine.unblockPlayer(pk, 'client:' + c.id));
+          return json(res, 200, { ok: true, closed: engine.closeSessions(pk) });
+        }
+        return json(res, 404, { ok: false, error: 'not found' });
+      }
+
       /* operator endpoints */
       if (!authorized(req)) return json(res, 401, { ok: false, error: 'bad controller key' });
       if (LIVE) {
         if ((url.pathname === '/api/admin' || url.pathname === '/api/report') && req.method === 'GET') return json(res, 200, Object.assign({ serverNow: now }, engine.report(), { ops: ops() }));
-        if (url.pathname === '/api/admin/history' && req.method === 'GET') return json(res, 200, engine.historyFor(String(url.searchParams.get('playerId') || ''), url.searchParams.get('limit')));
+        if (url.pathname === '/api/admin/history' && req.method === 'GET') return json(res, 200, engine.historyFor(engine.playerKey(url.searchParams.get('client'), url.searchParams.get('playerId')), url.searchParams.get('limit')));
+        /* the client registry: platforms that offer the game */
+        if (url.pathname === '/api/clients' && req.method === 'GET') return json(res, 200, { ok: true, clients: clients.list(), defaultClient: !!engine.wallet });
+        const audit = (action, id) => engine._log({ e: 'client_admin', action, clientId: id, who: 'controller' });          // who changed which client is in the ledger
+        if (url.pathname === '/api/clients' && req.method === 'POST') { const body = JSON.parse(await readBody(req) || '{}'); const r = clients.create(body.client || body); audit('created', r.client.id); return json(res, 200, Object.assign({ ok: true }, r)); }
+        const cm = /^\/api\/clients\/([a-z0-9-]{2,32})(?:\/(rotate-key|revoke-key|status|delete))?$/.exec(url.pathname);
+        if (cm && req.method === 'GET' && !cm[2]) { const c = clients.get(cm[1]); return c ? json(res, 200, { ok: true, client: clients.publicView(c), report: engine.clientReport(cm[1]) }) : json(res, 404, { ok: false, error: 'NOT_FOUND' }); }
+        if (cm && req.method === 'POST') {
+          const body = JSON.parse(await readBody(req) || '{}');
+          if (!cm[2]) { const r = clients.update(cm[1], body.client || body); audit('updated', cm[1]); return json(res, 200, { ok: true, client: r }); }
+          if (cm[2] === 'rotate-key') { const r = clients.rotateKey(cm[1], body.graceHours === undefined ? undefined : Number(body.graceHours) * 3600000); audit('key_rotated', cm[1]); return json(res, 200, Object.assign({ ok: true }, r)); }
+          if (cm[2] === 'revoke-key') { const r = clients.revokeKey(cm[1], String(body.keyId || '')); audit('key_revoked', cm[1]); return json(res, 200, { ok: true, client: r }); }
+          if (cm[2] === 'status') { const r = clients.setStatus(cm[1], body.status === 'disabled' ? 'disabled' : 'active'); audit(r.status === 'disabled' ? 'disabled' : 'enabled', cm[1]); return json(res, 200, { ok: true, client: r }); }
+          if (cm[2] === 'delete') { if (body.confirm !== cm[1]) return json(res, 400, { ok: false, error: 'send {"confirm":"<client id>"} to delete' }); clients.remove(cm[1]); audit('deleted', cm[1]); return json(res, 200, { ok: true }); }
+        }
         if (url.pathname === '/api/command' && req.method === 'POST') {          // the only live setting is the RTP; results can never be set
           const body = JSON.parse(await readBody(req) || '{}');
           if (body.cmd === 'setRtp') return json(res, 200, engine.setRtp(body.rtp, 'controller'));
           if (body.cmd === 'previewRtp') return json(res, 200, engine.previewRtp(body.rtp));
-          if (body.cmd === 'closeSessions') return json(res, 200, { ok: true, closed: engine.closeSessions(String(body.playerId || '')) });   // kick a player
-          if (body.cmd === 'blockPlayer') return json(res, 200, engine.blockPlayer(String(body.playerId || ''), 'controller'));          // self-exclusion: no new sessions, current ones end
-          if (body.cmd === 'unblockPlayer') return json(res, 200, engine.unblockPlayer(String(body.playerId || ''), 'controller'));
+          const pkOf = () => engine.playerKey(body.clientId, body.playerId);                                                            // clientId is optional (default client)
+          if (body.cmd === 'closeSessions') return json(res, 200, { ok: true, closed: engine.closeSessions(pkOf()) });   // kick a player
+          if (body.cmd === 'blockPlayer') return json(res, 200, engine.blockPlayer(pkOf(), 'controller'));          // self-exclusion: no new sessions, current ones end
+          if (body.cmd === 'unblockPlayer') return json(res, 200, engine.unblockPlayer(pkOf(), 'controller'));
           return json(res, 403, { ok: false, error: 'the controller cannot change results in live mode' });
         }
       } else {
@@ -252,7 +301,7 @@ const server = http.createServer(async (req, res) => {
 
 function ops() {          // what the controller page shows under "Health and alerts"
   return { role, health: engine.health(), alerts: alerts ? alerts.list() : [], recentAlerts: alerts ? alerts.history.slice(-10).reverse() : [], snapshot: engine.opsSnapshot(),
-    wallet: engine.metrics.walletWindow(300000), tickAge: engine.metrics.tickAge(), lease: lease ? lease.info() : null, uptime: Math.round(process.uptime()), diskFreeMb: diskFreeMb(DATA_DIR) };
+    wallet: engine.metrics.walletWindow(300000), clients: { count: clients.count(), error: clients.loadError }, tickAge: engine.metrics.tickAge(), lease: lease ? lease.info() : null, uptime: Math.round(process.uptime()), diskFreeMb: diskFreeMb(DATA_DIR) };
 }
 
 (async () => {

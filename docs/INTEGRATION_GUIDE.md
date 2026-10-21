@@ -134,9 +134,11 @@ Ordered by importance for a real-money launch.
    every N minutes, with CONTINUE and LEAVE (to `returnUrl`). The BACK TO LOBBY link is always there.
 10. **Server-to-server events. DONE.** Signed `round.settled` and `big.win` webhooks (`WEBHOOK_URL`), at least once, stable `id`,
     retried with back-off and recovered after a restart.
-11. **Multi-currency and multi-brand. DONE.** Currency, decimals and brand come per session; per-currency limit tables
-    (`CURRENCY_LIMITS`); the report shows staked and paid per currency. Currencies are not converted: the platform keeps one
-    wallet per currency.
+11. **Multi-currency and multi-brand. DONE.** Currency, decimals and brand come per session; per-currency limit tables (`CURRENCY_LIMITS`); the report shows staked and
+    paid per currency.
+    **Multi-client (several platforms on one game server). DONE (registry and client API).** Each client has its own wallet URL and signing secret, webhook, API keys (hashed,
+    rotating, optional IP allow list), currency, limits and return-link hosts; players are namespaced per client; a client API (`/api/client/...`) gives each client its own report,
+    history and player controls. See `CLIENT_API.md`. All clients share one race and one RTP. A back-office web panel with logins and roles is the next step.
 12. **Bonus / free-bet support.** Today there is only real-money debit and credit.
 
 ### Nice to have

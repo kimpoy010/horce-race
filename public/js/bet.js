@@ -17,6 +17,7 @@
     BETTING_CLOSED: 'Betting is closed for this race.', INSUFFICIENT_FUNDS: 'Not enough balance for that bet.',
     MAX_BET_EXCEEDED: 'That is above the maximum bet for one combination.', MAX_ROUND_STAKE_EXCEEDED: 'That is above the maximum total bet for one race.',
     BAD_BET: 'That bet is not allowed (check the minimum and maximum).', TOO_MANY_REQUESTS: 'Slow down a little and try again.',
+    INVALID_CLIENT: 'This launch link is not valid. Please open the game again from the lobby.', CLIENT_DISABLED: 'The game is not available from this site right now.', CLIENT_REQUIRED: 'This launch link is incomplete. Please open the game again from the lobby.', INVALID_PLAYER_ID: 'This player account cannot be used. Please contact support.',
     DAILY_LOSS_LIMIT: 'This bet would go over your daily loss limit.', PLAYER_BLOCKED: 'This account cannot play right now. Please contact support.',
     WALLET_UNAVAILABLE: 'The wallet is not responding. Your balance was not changed, please try again.', WALLET_REJECTED: 'The wallet rejected the bet.',
     SESSION_EXPIRED: 'Your session has expired. Please open the game again from the lobby.', INVALID_TOKEN: 'This launch link is invalid or has expired. Please open the game again from the lobby.'
@@ -260,7 +261,7 @@
     var token = qs.get('token');
     if (token) {
       history.replaceState(null, '', location.pathname);                  // never leave the launch token in the address bar
-      api('POST', 'api/auth', { token: token }).then(function (res) {
+      api('POST', 'api/auth', { token: token, client: qs.get('client') || undefined }).then(function (res) {
         if (res.data.ok) { S.session = res.data.session; S.currency = res.data.currency || S.currency; try { sessionStorage.setItem('hr.session', S.session); } catch (e) { /* ignore */ } refresh(); }
         else needLaunch(ERRORS[res.data.error] || ERRORS.INVALID_TOKEN);
       }).catch(function () { needLaunch('Cannot reach the game server.'); });

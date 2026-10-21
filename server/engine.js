@@ -16,12 +16,15 @@ const Core = require('../public/js/core.js');
 const oddsLib = require('./odds.js');
 const { Ledger } = require('./ledger.js');
 const { Metrics } = require('./metrics.js');
+const { ID_RE } = require('./clients.js');
+const PLAYER_ID_RE = /^[A-Za-z0-9_.@-]{1,64}$/;      // a player id from a client wallet; no ':' so that "client:player" is unambiguous
 
 function httpError(status, code) { const e = new Error(code); e.status = status; e.code = code; return e; }
 
 class Engine {
   constructor(opts) {
-    this.wallet = opts.wallet;
+    this.wallet = opts.wallet || null;                                 // wallet of the implicit "default" client (WALLET env); other clients come from the registry
+    this.clients = opts.clients || null;                               // server/clients.js
     this.now = opts.now || Date.now;
     this.cfg = Object.assign({
       rtp: 0.9, settingsFile: null, betMs: 25000, countdownMs: Core.COUNTDOWN_MS, raceMs: Core.RACE_MS, resultsMs: Core.RESULTS_MS,
@@ -47,7 +50,7 @@ class Engine {
     this.daily = new Map();                                            // per-player stake / payout of the current day (for loss limits)
     this.blocked = new Set(); this._loadBlocked();
     this.pendingRb = new Map();                                        // debits of unknown outcome that must be rolled back
-    this.stats = { rounds: 0, bets: 0, staked: 0, paid: 0, wins: {}, winsByOdds: {}, byCurrency: {} };
+    this.stats = { rounds: 0, bets: 0, staked: 0, paid: 0, wins: {}, winsByOdds: {}, byCurrency: {}, byClient: {} };
     rng.COMBOS.forEach((c) => { this.stats.wins[c] = 0; });
     this.recent = []; this.reveals = []; this.busy = false;
     this.log = [];
@@ -107,7 +110,7 @@ class Engine {
     });
     for (const [txId, ev] of due) if (!ok.has(txId)) this.pending.set(txId, { txId, playerId: ev.playerId, amount: ev.amount, raceNo: ev.raceNo, kind: ev.kind, extra: ev.extra || {}, since: ev.t || this.now(), tries: 0, nextAt: 0 });
     for (const [txId, ev] of rbDue) if (!rbDone.has(txId)) this.pendingRb.set(txId, { txId, playerId: ev.playerId, amount: ev.amount, raceNo: ev.raceNo, extra: ev.extra || {}, since: ev.t || this.now(), tries: 0, nextAt: 0 });
-    if (this.webhook) for (const [id, ev] of whDue) if (!whDone.has(id)) this.pendingWh.set(id, { ev, since: ev.createdAt || this.now(), tries: 0, nextAt: 0 });
+    if (this.webhook || this.clients) for (const [id, ev] of whDue) if (!whDone.has(id)) this.pendingWh.set(id, { ev, since: ev.createdAt || this.now(), tries: 0, nextAt: 0 });
     for (const r of rounds.values()) {
       r.odds = r.odds || this.table.odds;
       const staked = r.bets.reduce((a, b) => a + b.stake, 0);
@@ -116,7 +119,7 @@ class Engine {
         r.bets.forEach((b) => {                      // per-bet result, for the history and the per-currency totals
           const won = b.combo === r.combo; b.status = won ? 'won' : 'lost'; b.payout = won && r.odds ? this.payoutFor(b.stake, b.combo, r.odds) : 0;
           const cs = this.stats.byCurrency[b.currency] || (this.stats.byCurrency[b.currency] = { staked: 0, paid: 0 }); cs.staked += b.stake; cs.paid += b.payout;
-          this._track(b, r);
+          this._track(b, r); this._statClient(b);
         });
         this._archiveRound(r);
         this.stats.rounds++; this.stats.bets += r.bets.length; this.stats.staked += r.staked; this.stats.paid += r.paid; if (r.combo) this.stats.wins[r.combo]++;
@@ -144,23 +147,55 @@ class Engine {
     if (!this.cfg.sessionsFile) return;
     let list = []; try { list = JSON.parse(fs.readFileSync(this.cfg.sessionsFile, 'utf8')); } catch (e) { return; }
     const t = this.now();
-    for (const x of list) if (x && x.key && x.expires > t) this.sessions.set(x.key, Object.assign({}, x, { refreshed: 0, calls: [] }));
+    for (const x of list) if (x && x.key && x.expires > t) { const sp = this.splitPk(x.playerId); this.sessions.set(x.key, Object.assign({ clientId: sp.clientId, rawId: sp.playerId }, x, { refreshed: 0, calls: [] })); }
   }
   _saveSessions(force) {
     if (!this.cfg.sessionsFile || !this.sessionsDirty) return;
     if (!force && this.now() - (this.lastSessionSave || 0) < 5000) return;        // busy tables: at most one write every 5 s
     this.sessionsDirty = false; this.lastSessionSave = this.now();
-    const list = [...this.sessions.values()].map((x) => ({ key: x.key, playerId: x.playerId, brandId: x.brandId, currency: x.currency, decimals: x.decimals, balance: x.balance, returnUrl: x.returnUrl,
+    const list = [...this.sessions.values()].map((x) => ({ key: x.key, playerId: x.playerId, rawId: x.rawId, clientId: x.clientId, brandId: x.brandId, currency: x.currency, decimals: x.decimals, balance: x.balance, returnUrl: x.returnUrl,
       limits: x.limits, realityMinutes: x.realityMinutes, sStaked: x.sStaked, sPaid: x.sPaid, created: x.created, expires: x.expires }));
     try {
       const tmp = this.cfg.sessionsFile + '.tmp';
       fs.writeFileSync(tmp, JSON.stringify(list), { mode: 0o600 }); fs.renameSync(tmp, this.cfg.sessionsFile);
     } catch (e) { this.sessionsDirty = true; console.error('could not save sessions:', e.message); }
   }
-  _limitsFor(currency, info) {
+  /* ---------- clients: every player belongs to one client (platform). Internally a player is "clientId:playerId" ("default" client: just playerId) ---------- */
+  pk(clientId, playerId) { return !clientId || clientId === 'default' ? playerId : clientId + ':' + playerId; }
+  splitPk(pk) { const i = String(pk).indexOf(':'); return i < 0 ? { clientId: 'default', playerId: pk } : { clientId: pk.slice(0, i), playerId: pk.slice(i + 1) }; }
+  _regClient(id) { return this.clients ? this.clients.get(id) : null; }
+  _clientCfg(id) { return this._regClient(id) || { id, status: 'active', limits: {}, currencyLimits: {} }; }
+  _walletFor(id) {
+    if (this._regClient(id)) return this.clients.walletFor(id);
+    return id === 'default' ? this.wallet : null;
+  }
+  _webhookFor(id) {
+    if (this._regClient(id)) return this.clients.webhookFor(id);
+    return id === 'default' ? this.webhook : null;
+  }
+  _clientActive(id) { const c = this._regClient(id); return c ? c.status === 'active' : (id === 'default' && !!this.wallet); }
+  // which client a launch belongs to (the launch link may omit it when there is only one)
+  resolveClient(clientId) {
+    if (!clientId) {
+      if (this._walletFor('default')) return 'default';
+      const active = this.clients ? this.clients.list().filter((c) => c.status === 'active') : [];
+      if (active.length === 1) return active[0].id;
+      throw httpError(400, 'CLIENT_REQUIRED');
+    }
+    clientId = String(clientId);
+    if (!ID_RE.test(clientId)) throw httpError(400, 'INVALID_CLIENT');
+    const c = this._regClient(clientId);
+    if (c) { if (c.status !== 'active') throw httpError(403, 'CLIENT_DISABLED'); return clientId; }
+    if (clientId === 'default' && this.wallet) return 'default';
+    throw httpError(400, 'INVALID_CLIENT');
+  }
+  playerKey(clientId, playerId) { clientId = clientId || 'default'; if (!PLAYER_ID_RE.test(String(playerId || ''))) throw httpError(400, 'BAD_REQUEST'); return this.pk(clientId, String(playerId)); }
+
+  _limitsFor(currency, info, client) {
     const base = { minBet: this.cfg.minBet, maxBet: this.cfg.maxBet, maxRoundStake: this.cfg.maxRoundStake, dailyLossLimit: this.cfg.dailyLossLimit || 0 };
     const posInt = (v) => Number.isInteger(v) && v > 0;
-    for (const src of [(this.cfg.currencyLimits || {})[currency], info && info.limits]) {    // per-currency table, then what the platform sends for this player
+    client = client || {};
+    for (const src of [(this.cfg.currencyLimits || {})[currency], client.limits, (client.currencyLimits || {})[currency], info && info.limits]) {    // server table, then the client's settings, then what the platform sends for this player
       if (!src) continue;
       for (const k of ['minBet', 'maxBet', 'maxRoundStake']) if (posInt(src[k])) base[k] = src[k];
       if (Number.isInteger(src.dailyLossLimit) && src.dailyLossLimit >= 0) base.dailyLossLimit = src.dailyLossLimit;
@@ -169,22 +204,28 @@ class Engine {
     if (base.maxRoundStake < base.minBet) base.maxRoundStake = base.minBet;
     return base;
   }
-  _decimals(currency, info) {
-    const d = info && Number.isInteger(info.decimals) ? info.decimals : ((this.cfg.currencyLimits || {})[currency] || {}).decimals;
+  _decimals(currency, info, client) {
+    const d = info && Number.isInteger(info.decimals) ? info.decimals : (((client || {}).currencyLimits || {})[currency] || {}).decimals != null ? client.currencyLimits[currency].decimals : ((this.cfg.currencyLimits || {})[currency] || {}).decimals;
     return Number.isInteger(d) && d >= 0 && d <= 4 ? d : 2;
   }
-  async auth(token) {
+  async auth(token, clientHint) {
     let info;
     if (this.closing) throw httpError(503, 'SHUTTING_DOWN');
-    try { info = await this._w('validate', () => this.wallet.validateToken(token)); } catch (e) { throw httpError(401, 'INVALID_TOKEN'); }
-    if (info.blocked || this.blocked.has(info.playerId)) throw httpError(403, 'PLAYER_BLOCKED');
-    const id = crypto.randomBytes(24).toString('hex'), key = this._skey(id), currency = info.currency || this.cfg.currency;
-    const rm = Number.isInteger(info.realityCheckMinutes) ? info.realityCheckMinutes : this.cfg.realityCheckMinutes;
-    this.sessions.set(key, { key, playerId: info.playerId, brandId: info.brandId ? String(info.brandId) : null, currency, decimals: this._decimals(currency, info), balance: info.balance,
-      returnUrl: info.returnUrl || null, limits: this._limitsFor(currency, info), realityMinutes: rm > 0 ? rm : 0, sStaked: 0, sPaid: 0,
+    const clientId = this.resolveClient(clientHint), client = this._clientCfg(clientId), wallet = this._walletFor(clientId);
+    if (!wallet) throw httpError(400, 'INVALID_CLIENT');
+    try { info = await this._w('validate', () => wallet.validateToken(token), clientId); } catch (e) { throw httpError(401, 'INVALID_TOKEN'); }
+    if (!PLAYER_ID_RE.test(String(info.playerId || ''))) throw httpError(401, 'INVALID_PLAYER_ID');
+    const pk = this.pk(clientId, String(info.playerId));
+    if (info.blocked || this.blocked.has(pk)) throw httpError(403, 'PLAYER_BLOCKED');
+    const id = crypto.randomBytes(24).toString('hex'), key = this._skey(id), currency = info.currency || client.currency || this.cfg.currency;
+    const rm = Number.isInteger(info.realityCheckMinutes) ? info.realityCheckMinutes : (client.realityCheckMinutes !== undefined ? client.realityCheckMinutes : this.cfg.realityCheckMinutes);
+    let returnUrl = info.returnUrl || null;
+    if (returnUrl && client.returnUrlHosts && client.returnUrlHosts.length) { try { if (!client.returnUrlHosts.includes(new URL(returnUrl).hostname.toLowerCase())) returnUrl = null; } catch (e) { returnUrl = null; } }
+    this.sessions.set(key, { key, playerId: pk, rawId: String(info.playerId), clientId, brandId: info.brandId ? String(info.brandId) : null, currency, decimals: this._decimals(currency, info, client), balance: info.balance,
+      returnUrl, limits: this._limitsFor(currency, info, client), realityMinutes: rm > 0 ? rm : 0, sStaked: 0, sPaid: 0,
       created: this.now(), expires: this.now() + this.cfg.sessionTtlMs, refreshed: this.now(), calls: [] });
     this.sessionsDirty = true; this._saveSessions(true);
-    return Object.assign({ session: id, playerId: info.playerId, returnUrl: info.returnUrl || null }, this._sessionView(this.sessions.get(key)));
+    return Object.assign({ session: id, playerId: String(info.playerId), returnUrl }, this._sessionView(this.sessions.get(key)));
   }
   _sessionView(s) {
     return { currency: s.currency, decimals: s.decimals, balance: s.balance, limits: s.limits, brandId: s.brandId,
@@ -192,7 +233,7 @@ class Engine {
   }
   session(id) {
     const key = this._skey(id), s = this.sessions.get(key);
-    if (!s || s.expires < this.now()) { if (s) { this.sessions.delete(key); this.sessionsDirty = true; } return null; }
+    if (!s || s.expires < this.now() || !this._clientActive(s.clientId || 'default')) { if (s) { this.sessions.delete(key); this.sessionsDirty = true; } return null; }     // a disabled client ends its sessions
     return s;
   }
   // operator / platform: end a player's sessions (all of them) at once
@@ -245,13 +286,13 @@ class Engine {
     (this.history.get(playerId) || []).forEach(add);
     if (this.cur && this.cur.status !== 'settled') this.cur.bets.filter((b) => b.playerId === playerId).forEach((b) => add({ raceNo: b.raceNo, betId: b.id, combo: b.combo, stake: b.stake, odds: this.cur.odds[b.combo], status: 'open', payout: 0, placedAt: b.placedAt || null, currency: b.currency || null, brandId: b.brandId || null }));
     const rounds = [...byRound.values()].sort((a, b) => b.raceNo - a.raceNo).slice(0, limit);
-    return { ok: true, playerId, rounds };
+    return { ok: true, playerId: this.splitPk(playerId).playerId, clientId: this.splitPk(playerId).clientId, rounds };
   }
 
   // every wallet call goes through here: timing and failures feed /metrics and the alerts
-  async _w(op, fn) {
+  async _w(op, fn, clientId) {
     const t0 = process.hrtime.bigint();
-    const done = (ok) => this.metrics.walletCall(op, Number(process.hrtime.bigint() - t0) / 1e6, ok);
+    const done = (ok) => this.metrics.walletCall(op, Number(process.hrtime.bigint() - t0) / 1e6, ok, clientId || 'default');
     try { const r = await fn(); done(true); return r; }
     catch (e) {
       // a normal refusal (no funds, a rejected transaction) is an answer; no answer, a server error or a rejected signature is a failure
@@ -317,8 +358,10 @@ class Engine {
     return { bets: placed.map((b) => ({ id: b.id, raceNo: b.raceNo, combo: b.combo, stake: b.stake, status: b.status, payout: b.payout, odds: r.odds[b.combo] })), balance: s.balance };
   }
   async _debit(playerId, amount, txId, meta) {
+    const who = this.splitPk(playerId), wallet = this._walletFor(who.clientId);
+    if (!wallet) throw httpError(502, 'WALLET_UNAVAILABLE');
     for (let attempt = 0; attempt < 2; attempt++) {
-      try { return await this._w('debit', () => this.wallet.debit(playerId, amount, txId, meta)); }
+      try { return await this._w('debit', () => wallet.debit(who.playerId, amount, txId, meta), who.clientId); }
       catch (e) {
         if (e.message === 'INSUFFICIENT_FUNDS') throw httpError(402, 'INSUFFICIENT_FUNDS');
         if (e.definitive) throw httpError(502, 'WALLET_REJECTED');
@@ -345,9 +388,12 @@ class Engine {
     const t = this.now();
     for (const p of [...this.pendingRb.values()]) {
       if (p.nextAt > t) continue;
-      if (typeof this.wallet.rollback !== 'function') { this.pendingRb.delete(p.txId); this._log({ e: 'rollback_unsupported', txId: p.txId }); continue; }
+      const w0 = this._walletFor(this.splitPk(p.playerId).clientId);
+      if (w0 && typeof w0.rollback !== 'function') { this.pendingRb.delete(p.txId); this._log({ e: 'rollback_unsupported', txId: p.txId }); continue; }
       try {
-        const res = await this._w('rollback', () => this.wallet.rollback(p.playerId, p.amount, p.txId, Object.assign({ raceNo: p.raceNo, roundId: String(p.raceNo), kind: 'rollback', refTxId: p.txId }, p.extra)));
+        const who = this.splitPk(p.playerId), wallet = this._walletFor(who.clientId);
+        if (!wallet) throw Object.assign(new Error('no wallet for client'), { unsupported: false });
+        const res = await this._w('rollback', () => wallet.rollback(who.playerId, p.amount, p.txId, Object.assign({ raceNo: p.raceNo, roundId: String(p.raceNo), kind: 'rollback', refTxId: p.txId }, p.extra)), who.clientId);
         this.pendingRb.delete(p.txId); this._log({ e: 'rollback_ok', txId: p.txId, status: res && res.status });
         for (const s of this.sessions.values()) if (s.playerId === p.playerId && res && res.balance != null) s.balance = res.balance;
       } catch (e) {
@@ -361,7 +407,9 @@ class Engine {
     for (const p of [...this.pending.values()]) {
       if (p.nextAt > t) continue;
       try {
-        const res = await this._w('credit', () => this.wallet.credit(p.playerId, p.amount, p.txId, Object.assign({ raceNo: p.raceNo, roundId: String(p.raceNo), kind: p.kind }, p.extra)));
+        const who = this.splitPk(p.playerId), wallet = this._walletFor(who.clientId);
+        if (!wallet) throw new Error('no wallet for client ' + who.clientId);
+        const res = await this._w('credit', () => wallet.credit(who.playerId, p.amount, p.txId, Object.assign({ raceNo: p.raceNo, roundId: String(p.raceNo), kind: p.kind }, p.extra)), who.clientId);
         this.pending.delete(p.txId); this._log({ e: 'credit_ok', txId: p.txId, raceNo: p.raceNo });
         for (const s of this.sessions.values()) if (s.playerId === p.playerId && res && res.balance != null) s.balance = res.balance;
       } catch (e) { p.tries++; p.nextAt = t + Math.min(60000, 1000 * Math.pow(2, Math.min(p.tries, 6))); }
@@ -390,7 +438,7 @@ class Engine {
         const w = payouts.get(b.playerId) || { amount: 0, stake: 0, betIds: [], currency: b.currency, brandId: b.brandId, odds: r.odds[b.combo] };
         w.amount += b.payout; w.stake += b.stake; w.betIds.push(b.id); payouts.set(b.playerId, w);
       } else { b.status = 'lost'; b.payout = 0; }
-      this._track(b, r);
+      this._track(b, r); this._statClient(b);
       const cur = b.currency || this.cfg.currency, cs = this.stats.byCurrency[cur] || (this.stats.byCurrency[cur] = { staked: 0, paid: 0 });
       cs.paid += b.payout;
     });
@@ -408,26 +456,36 @@ class Engine {
     this.reveals.push({ raceNo: r.raceNo, seed: r.seed, commit: r.commit, combo: r.combo, order: r.order, odds: r.odds, rtp: r.rtp });
     if (this.reveals.length > 20) this.reveals.shift();
     this._archiveRound(r);
-    this._emit('round.settled', 'round:' + r.raceNo, { roundId: String(r.raceNo), raceNo: r.raceNo, combo: r.combo, order: r.order, odds: r.odds, oddsOfWinner: wo, rtp: r.rtp, commit: r.commit, seed: r.seed, bets: r.bets.length, staked, paid, ledgerHash: this.ledger.head, ledgerLines: this.ledger.lines });
+    const per = new Map();                         // every client with a webhook gets the result; the money figures are its own players'
+    r.bets.forEach((b) => { const c = this.splitPk(b.playerId).clientId, x = per.get(c) || { bets: 0, staked: 0, paid: 0 }; x.bets++; x.staked += b.stake; x.paid += b.payout; per.set(c, x); });
+    const cids = new Set(['default']); if (this.clients) this.clients.list().forEach((c) => cids.add(c.id));
+    for (const cid of cids) {
+      const x = per.get(cid) || { bets: 0, staked: 0, paid: 0 };
+      this._emit('round.settled', 'round:' + r.raceNo, { roundId: String(r.raceNo), raceNo: r.raceNo, combo: r.combo, order: r.order, odds: r.odds, oddsOfWinner: wo, rtp: r.rtp, commit: r.commit, seed: r.seed, bets: x.bets, staked: x.staked, paid: x.paid, ledgerHash: this.ledger.head, ledgerLines: this.ledger.lines }, cid);
+    }
     for (const [playerId, w] of payouts) {
-      if (w.amount >= this.cfg.bigWinMin) this._emit('big.win', 'win:' + r.raceNo + ':' + playerId, { roundId: String(r.raceNo), raceNo: r.raceNo, playerId, brandId: w.brandId, currency: w.currency, stake: w.stake, payout: w.amount, odds: w.odds, betIds: w.betIds });
+      const who = this.splitPk(playerId), cc = this._clientCfg(who.clientId);
+      if (w.amount >= (cc.bigWinMin || this.cfg.bigWinMin)) this._emit('big.win', 'win:' + r.raceNo + ':' + who.playerId, { roundId: String(r.raceNo), raceNo: r.raceNo, playerId: who.playerId, brandId: w.brandId, currency: w.currency, stake: w.stake, payout: w.amount, odds: w.odds, betIds: w.betIds }, who.clientId);
     }
     await this._flushCredits();
   }
 
   /* ---------- webhooks to the platform (at least once; the platform de-duplicates on `id`) ---------- */
-  _emit(type, key, data) {
-    if (!this.webhook || !this.webhook.wants(type)) return;
-    const ev = { id: this.cfg.gameId + ':' + key, type, createdAt: this.now(), gameId: this.cfg.gameId, data };
+  _emit(type, key, data, clientId) {
+    clientId = clientId || 'default';
+    const wh = this._clientActive(clientId) ? this._webhookFor(clientId) : null;
+    if (!wh || !wh.wants(type)) return;
+    const ev = { id: this.cfg.gameId + ':' + (clientId === 'default' ? '' : clientId + ':') + key, type, createdAt: this.now(), gameId: this.cfg.gameId, clientId, data };
     this._log({ e: 'webhook_due', ev });
     this.pendingWh.set(ev.id, { ev, since: this.now(), tries: 0, nextAt: 0 });
   }
   async _flushWebhooks() {
-    if (!this.webhook) return;
     const t = this.now();
     for (const [id, p] of [...this.pendingWh]) {
       if (p.nextAt > t) continue;
-      try { await this.webhook.send(p.ev); this.pendingWh.delete(id); this._log({ e: 'webhook_ok', id }); }
+      const cid = p.ev.clientId || 'default', wh = this._clientActive(cid) ? this._webhookFor(cid) : null;
+      if (!wh) { this.pendingWh.delete(id); this._log({ e: 'webhook_dropped', id, reason: 'client has no webhook any more' }); continue; }
+      try { await wh.send(p.ev); this.pendingWh.delete(id); this._log({ e: 'webhook_ok', id }); }
       catch (e) { p.tries++; p.nextAt = t + Math.min(60000, 1000 * Math.pow(2, Math.min(p.tries, 6))); }
     }
   }
@@ -456,13 +514,23 @@ class Engine {
     T.staked += b.stake; T.paid += b.payout; if (p == null) return;
     const w = b.stake * (r.odds[b.combo]); T.exp += w * p; T.varsum += w * w * p * (1 - p);
   }
+  _statClient(b) { const c = this.splitPk(b.playerId).clientId, s = this.stats.byClient[c] || (this.stats.byClient[c] = { bets: 0, staked: 0, paid: 0 }); s.bets++; s.staked += b.stake; s.paid += b.payout; }
   rtpZ() { const T = this.rtpTrack; return T.varsum > 0 ? (T.paid - T.exp) / Math.sqrt(T.varsum) : 0; }
 
+  // numbers for one client (its own back office / client API)
+  clientReport(clientId) {
+    const st = this.stats.byClient[clientId] || { bets: 0, staked: 0, paid: 0 }, mine = (pk) => this.splitPk(pk).clientId === clientId;
+    let sessions = 0; for (const s of this.sessions.values()) if (s.clientId === clientId) sessions++;
+    const count = (m) => { let n = 0; for (const p of m.values()) if (mine(p.playerId)) n++; return n; };
+    let blocked = 0; for (const b of this.blocked) if (mine(b)) blocked++;
+    return { ok: true, clientId, bets: st.bets, staked: st.staked, paid: st.paid, rtp: st.staked ? st.paid / st.staked : null, activeSessions: sessions,
+      pendingCredits: count(this.pending), pendingRollbacks: count(this.pendingRb), blockedPlayers: blocked, currentRound: this.cur ? this.cur.raceNo : null, rtpSetting: this.rtp };
+  }
   opsSnapshot() {
     const t = this.now(), age = (m, f) => { let o = 0; for (const p of m.values()) o = Math.max(o, (t - (p.since || t)) / 1000); return o; };
     const s = this.stats;
     return {
-      round: this.cur ? this.cur.raceNo : 0, rounds: s.rounds, bets: s.bets, byCurrency: s.byCurrency, rtpSetting: this.rtp, rtpActual: s.staked ? s.paid / s.staked : 0, rtpZ: this.rtpZ(),
+      round: this.cur ? this.cur.raceNo : 0, rounds: s.rounds, bets: s.bets, byCurrency: s.byCurrency, byClient: s.byClient, rtpSetting: this.rtp, rtpActual: s.staked ? s.paid / s.staked : 0, rtpZ: this.rtpZ(),
       sessions: this.sessions.size, closing: this.closing,
       pending: { credits: { count: this.pending.size, oldestSeconds: age(this.pending) }, rollbacks: { count: this.pendingRb.size, oldestSeconds: age(this.pendingRb) }, webhooks: { count: this.pendingWh.size, oldestSeconds: age(this.pendingWh) } },
       ledger: { ok: this.ledger.ok, lines: this.ledger.lines, head: this.ledger.head, broken: this.ledger.check.broken }
@@ -516,10 +584,10 @@ class Engine {
     const s = this.session(sessionId); if (!s) throw httpError(401, 'SESSION_EXPIRED');
     if (this.now() - s.refreshed > 15000) {
       s.refreshed = this.now();
-      try { s.balance = await this._w('balance', () => this.wallet.balance(s.playerId)); } catch (e) { /* keep the cached balance */ }
+      try { s.balance = await this._w('balance', () => this._walletFor(s.clientId).balance(s.rawId), s.clientId); } catch (e) { /* keep the cached balance */ }
     }
     const mine = (r) => r.bets.filter((b) => b.playerId === s.playerId).map((b) => ({ combo: b.combo, stake: b.stake, odds: r.odds[b.combo], status: b.status, payout: b.payout }));
-    const out = Object.assign({ playerId: s.playerId, returnUrl: s.returnUrl, raceNo: null, bets: [], last: null }, this._sessionView(s));
+    const out = Object.assign({ playerId: s.rawId, returnUrl: s.returnUrl, raceNo: null, bets: [], last: null }, this._sessionView(s));
     if (this.cur) { out.raceNo = this.cur.raceNo; out.bets = mine(this.cur); }
     const prev = this.cur && this.cur.status === 'settled' ? this.cur : this.done[this.done.length - 1];
     if (prev && prev !== this.cur) { const b = mine(prev); if (b.length) out.last = { raceNo: prev.raceNo, combo: prev.combo, bets: b }; }
@@ -533,7 +601,7 @@ class Engine {
       theoreticalRtp: this.rtp, shuffleOdds: this.shuffle, oddsValues: this.values, winsByOdds: s.winsByOdds,
       oddsProb: p.rows.reduce((o, r) => { o[r.odds] = r.probability; return o; }, {}), limits: { minBet: this.cfg.minBet, maxBet: this.cfg.maxBet, maxRoundStake: this.cfg.maxRoundStake },
       rounds: s.rounds, bets: s.bets, staked: s.staked, paid: s.paid, actualRtp: paidIn ? s.paid / paidIn : null,
-      houseWin: paidIn - s.paid, wins: s.wins, pendingCredits: this.pending.size, pendingRollbacks: this.pendingRb.size, pendingWebhooks: this.pendingWh.size, blockedPlayers: this.blocked.size, byCurrency: s.byCurrency, activeSessions: this.sessions.size, currency: this.cfg.currency,
+      houseWin: paidIn - s.paid, wins: s.wins, pendingCredits: this.pending.size, pendingRollbacks: this.pendingRb.size, pendingWebhooks: this.pendingWh.size, blockedPlayers: this.blocked.size, byCurrency: s.byCurrency, byClient: s.byClient, activeSessions: this.sessions.size, currency: this.cfg.currency,
       recent: this.recent.slice(-50).reverse(), commit: this.cur ? this.cur.commit : null, currentRound: this.cur ? this.cur.raceNo : null
     };
   }

@@ -51,6 +51,9 @@ The app listens on `127.0.0.1:8080` only; the proxy terminates TLS (the launch t
 
 ## 5. Connect the platform
 
+Several platforms on one game server: register each one as a client (own wallet, secrets, API key, limits, webhook) with `node scripts/clients.js add ...`;
+see **docs/CLIENT_API.md**. Set `CLIENTS_KEY` first and back up `data/clients.json` together with it. With only registry clients use `WALLET=none` and `TRUST_PROXY=1` behind nginx.
+
 * Your platform redirects the player to `https://game.example.com/?token=<one-time launch token>`.
 * The game calls your wallet API (see `docs/WALLET_API.md`) from this server: allow its IP on your side and test with
   one small bet before opening the game to players.
@@ -59,6 +62,7 @@ The app listens on `127.0.0.1:8080` only; the proxy terminates TLS (the launch t
 ## 6. Go-live checklist
 
 * [ ] `GAME_MODE=live`, `NODE_ENV=production`, `WALLET=http`, strong `WALLET_KEY` (requests are HMAC-signed, the platform verifies them), `data/sessions.json` kept private (it is written 0600; sessions survive restarts) and `CONTROLLER_KEY`, `.env` readable only by the service user.
+* [ ] Clients registered (`node scripts/clients.js list`), each with its own wallet secret and API key given over a safe channel; `CLIENTS_KEY` set and backed up; `TRUST_PROXY=1` behind the proxy if you use `allowedIps`.
 * [ ] HTTPS works, `/controller` and `/api/admin` are restricted by IP or VPN.
 * [ ] `data/` is on persistent disk, owned by the service user, mode 700, and backed up (it holds the ledger and seeds).
 * [ ] One active instance; the service restarts on failure (systemd `Restart=always` or Docker `unless-stopped`); optional standby, section 9.

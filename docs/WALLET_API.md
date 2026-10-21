@@ -35,11 +35,17 @@ that cannot verify signatures yet).
 All amounts are **integers in minor units** (centavos). A reply is `{ "ok": true, ... }`. For a refusal reply with HTTP 4xx
 (or `{"ok": false, "error": "CODE"}`); use the error code `INSUFFICIENT_FUNDS` when the player is short.
 
+## Several platforms (clients)
+
+One game server can serve many platforms. Each one is registered as a **client** with its own wallet URL, signing secret, API key and webhook; see `CLIENT_API.md`.
+The launch link then carries the client id: `https://GAME_HOST/?client=acme&token=<token>`. Everything below applies to each client's wallet separately; the `WALLET_*`
+settings describe the implicit `default` client used when no registry entry exists.
+
 ## Launch (redirect)
 
 1. The player clicks "Horse Race" in your lobby.
 2. Your backend creates a **one-time launch token** (random, short lived, tied to the player) and redirects the browser to
-   `https://GAME_HOST/?token=<token>`.
+   `https://GAME_HOST/?client=<your client id>&token=<token>` (`client` can be left out when the game serves a single platform).
 3. The game server calls `POST /session/validate` and then keeps its own session; the token is removed from the browser URL.
 
 ## Endpoints you implement

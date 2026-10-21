@@ -45,6 +45,8 @@ betting panel (balance, the 15 pairs, chips, rebet, results). Bets debit the wal
 the end of each race. See **docs/WALLET_API.md** for the four endpoints your platform implements and the idempotency
 rules. Round timeline: bets open (`BET_MS`, 25 s) -> draw -> 6 s countdown -> race (30 s) -> results (10 s) -> next round.
 
+**Several platforms.** One game server can serve many clients, each with its own wallet, secrets, API key, limits and webhook, and a client API limited to its own players: **docs/CLIENT_API.md** (`node scripts/clients.js`).
+
 **Operations.**
 * `data/ledger.jsonl` is the append-only audit log (rounds, seeds, bets, draws, settlements, credits). It contains
   secret seeds: restrict file permissions and back it up. After a crash the game settles a drawn race and refunds bets on

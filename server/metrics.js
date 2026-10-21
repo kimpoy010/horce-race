@@ -12,19 +12,21 @@ class Metrics {
     this.recent = [];           // last wallet calls: { t, op, ok, ms }
     this.lastTick = this.now(); this.tickErrors = 0;
   }
-  walletCall(op, ms, ok) {
-    const c = this.calls[op] || (this.calls[op] = { ok: 0, fail: 0, sum: 0, count: 0, buckets: BUCKETS.map(() => 0) });
+  walletCall(op, ms, ok, client) {
+    client = client || 'default';
+    const ck = client + '|' + op, c = this.calls[ck] || (this.calls[ck] = { client, op, ok: 0, fail: 0, sum: 0, count: 0, buckets: BUCKETS.map(() => 0) });
     c[ok ? 'ok' : 'fail']++; c.sum += ms / 1000; c.count++;
     BUCKETS.forEach((b, i) => { if (ms / 1000 <= b) c.buckets[i]++; });
-    this.recent.push({ t: this.now(), op, ok, ms });
+    this.recent.push({ t: this.now(), op, ok, ms, client });
     if (this.recent.length > 3000) this.recent.shift();
   }
   // calls in the last windowMs: { calls, failures, failRate, p95 (ms) }
-  walletWindow(windowMs) {
-    const since = this.now() - windowMs, r = this.recent.filter((x) => x.t >= since);
+  walletWindow(windowMs, client) {
+    const since = this.now() - windowMs, r = this.recent.filter((x) => x.t >= since && (!client || x.client === client));
     const ms = r.map((x) => x.ms).sort((a, b) => a - b), fails = r.filter((x) => !x.ok).length;
     return { calls: r.length, failures: fails, failRate: r.length ? fails / r.length : 0, p95: ms.length ? ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.95))] : 0 };
   }
+  walletClients(windowMs) { const since = this.now() - windowMs, set = new Set(); this.recent.forEach((x) => { if (x.t >= since) set.add(x.client); }); return [...set]; }
   tickDone() { this.lastTick = this.now(); }
   tickAge() { return (this.now() - this.lastTick) / 1000; }
 }
@@ -63,13 +65,15 @@ function render(engine, extra) {
   help('horse_ledger_ok', '1 when the ledger hash chain is intact'); out.push(line('horse_ledger_ok', rep.ledger.ok ? 1 : 0));
   help('horse_ledger_lines', 'ledger lines'); out.push(line('horse_ledger_lines', rep.ledger.lines));
   help('horse_wallet_calls_total', 'wallet calls by result', 'counter');
-  Object.keys(m.calls).forEach((op) => { out.push(line('horse_wallet_calls_total', m.calls[op].ok, { op, result: 'ok' })); out.push(line('horse_wallet_calls_total', m.calls[op].fail, { op, result: 'error' })); });
+  Object.keys(m.calls).forEach((k) => { const c = m.calls[k]; out.push(line('horse_wallet_calls_total', c.ok, { client: c.client, op: c.op, result: 'ok' })); out.push(line('horse_wallet_calls_total', c.fail, { client: c.client, op: c.op, result: 'error' })); });
   help('horse_wallet_latency_seconds', 'wallet call duration', 'histogram');
-  Object.keys(m.calls).forEach((op) => {
-    const c = m.calls[op];
-    BUCKETS.forEach((b, i) => out.push(line('horse_wallet_latency_seconds_bucket', c.buckets[i], { op, le: b })));
-    out.push(line('horse_wallet_latency_seconds_bucket', c.count, { op, le: '+Inf' })); out.push(line('horse_wallet_latency_seconds_sum', c.sum, { op })); out.push(line('horse_wallet_latency_seconds_count', c.count, { op }));
+  Object.keys(m.calls).forEach((k) => {
+    const c = m.calls[k], l = { client: c.client, op: c.op };
+    BUCKETS.forEach((b, i) => out.push(line('horse_wallet_latency_seconds_bucket', c.buckets[i], Object.assign({ le: b }, l))));
+    out.push(line('horse_wallet_latency_seconds_bucket', c.count, Object.assign({ le: '+Inf' }, l))); out.push(line('horse_wallet_latency_seconds_sum', c.sum, l)); out.push(line('horse_wallet_latency_seconds_count', c.count, l));
   });
+  help('horse_client_staked_total', 'amount staked (minor units) per client', 'counter'); help('horse_client_paid_total', 'amount paid out (minor units) per client', 'counter'); help('horse_client_bets_total', 'bets per client', 'counter');
+  Object.keys(rep.byClient || {}).forEach((c) => { out.push(line('horse_client_staked_total', rep.byClient[c].staked, { client: c })); out.push(line('horse_client_paid_total', rep.byClient[c].paid, { client: c })); out.push(line('horse_client_bets_total', rep.byClient[c].bets, { client: c })); });
   help('horse_alert_firing', '1 for every active alert'); (extra.alerts || []).forEach((a) => out.push(line('horse_alert_firing', 1, { name: a.name, severity: a.severity })));
   return out.join('\n') + '\n';
 }
