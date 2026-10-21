@@ -74,6 +74,7 @@ All calls are `POST`, JSON, header `Authorization: Bearer <WALLET_KEY>`, amounts
 | `/wallet/credit` | `{playerId, amount, txId, meta:{raceNo, kind:"win"\|"refund"}}` | `{ok, balance}` |
 
 Rules the wallet must follow:
+
 * **Idempotent on `txId`**: the same `txId` twice is applied once and returns the same reply.
 * A debit that times out may or may not have been applied. The game retries once with the same `txId`; if it still fails the bet is
   rejected and logged as `debit_unknown` for manual reconciliation.
