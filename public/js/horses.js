@@ -10,7 +10,7 @@
   if (window.HORSE_VARIANT == null) window.HORSE_VARIANT = 5; // 0 = old straight-leg body, 5 = slim tucked-up belly (default)
 
   var COLS = 89, PADX = 6, PADY = 4, SW = COLS + PADX * 2 + 2, SH = 60 + PADY * 2;
-  var OX = PADX + 44, OY = PADY + 56, STEPS = 12;
+  var OX = PADX + 44, OY = PADY + 56, STEPS = 16;
 
   var BODY = [
     '........................................................KKKKKK...........................',
@@ -95,13 +95,6 @@
 
   function grid() { var g = []; for (var y = 0; y < SH; y++) { g.push(new Array(SW).fill(' ')); } return g; }
 
-  // gait: theta 0 = leg forward at the start of stance, pi = fully back, then it swings through folded
-  function legAngles(theta, hind) {
-    var a1 = 0.62 * Math.cos(theta) - (hind ? 0.1 : 0), swing = Math.max(0, -Math.sin(theta));
-    var flex = swing * (hind ? 0.95 : 1.1);
-    return [a1, a1 - flex + (hind ? 0.12 : 0.05)];
-  }
-
   function stamp(T, x, y, w, h, ch) {
     var x0 = Math.round(x - w / 2), y0 = Math.round(y - h / 2);
     for (var j = 0; j < h; j++) for (var i = 0; i < w; i++) {
@@ -113,6 +106,7 @@
   // paints one leg with a black contour over whatever is already in out
   function paintLeg(out, hx, hy, ang, wTop, L1, L2) {
     var T = grid(), a1 = ang[0], a2 = ang[1], t, n;
+    var k = ang[2] || 1; L1 *= k; L2 *= k;                       // a planted leg is a little longer so the hoof meets the ground
     var K = [hx + L1 * Math.sin(a1), hy + L1 * Math.cos(a1)], F = [K[0] + L2 * Math.sin(a2), K[1] + L2 * Math.cos(a2)];
     n = Math.ceil(L1 * 2);
     for (t = 0; t <= n; t++) { var f = t / n, w = Math.round(wTop + (3 - wTop) * f); stamp(T, hx + (K[0] - hx) * f, hy + (K[1] - hy) * f, w, w, 'W'); }
@@ -132,18 +126,11 @@
   }
 
   function makeSprite(no, dir, step, standing) {
-    var P = HORSE[no], phi = step / STEPS * Math.PI * 2, out = grid(), r, c;
-    var legs = {
-      hf: legAngles(phi + Math.PI * 0.85 + 0.7, true), ff: legAngles(phi + 0.7, false),
-      hn: legAngles(phi + Math.PI * 0.85, true), fn: legAngles(phi, false)
-    };
-    if ((window.HORSE_VARIANT | 0) >= 4 && !standing) {
-      var cl = function (v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
-      legs.hn = [cl(legs.hn[0], -0.95, 0.12), cl(legs.hn[1], -1.0, 0.2)]; legs.hf = [cl(legs.hf[0], -0.95, 0.12), cl(legs.hf[1], -1.0, 0.2)];
-      legs.fn = [cl(legs.fn[0], -0.2, 0.95), cl(legs.fn[1], -0.5, 1.0)]; legs.ff = [cl(legs.ff[0], -0.2, 0.95), cl(legs.ff[1], -0.5, 1.0)];
-    }
+    var P = HORSE[no], out = grid(), r, c;
+    var gp = window.HorseGait.pose(step / STEPS);                       // real gallop: see gait.js
+    var legs = { hf: gp.hf, ff: gp.ff, hn: gp.hn, fn: gp.fn };
     if (standing) legs = { hf: [-0.05, -0.05], ff: [-0.08, -0.08], hn: [0.05, 0.05], fn: [0, 0] };
-    var bob = standing ? 0 : -Math.round(2.6 * Math.abs(Math.sin(phi * 0.5 + 0.4)));
+    var bob = standing ? 0 : -Math.round(3.4 * gp.lift);                  // the body rises in the air phase and sinks over the planted forelegs
 
     // legs first (the body is painted over their tops)
     var V = window.HORSE_VARIANT | 0;

@@ -42,3 +42,23 @@ console.log('core tests passed');
   }
   console.log('combination tests passed');
 }
+
+// ---- gallop gait: smooth over the stride, hooves on the ground only part of the time, legs folded in the air ----
+{
+  const G = require('../public/js/gait.js');
+  const a = G.pose(0.99999), b = G.pose(0.00001);
+  ['hf', 'hn', 'ff', 'fn'].forEach((k) => a[k].forEach((v, i) => assert(Math.abs(v - b[k][i]) < 0.01, 'gait jumps at the stride wrap: ' + k)));
+  let air = 0, N = 200;
+  for (let i = 0; i < N; i++) {
+    const p = G.pose(i / N), cycle = i / N;
+    ['hf', 'hn', 'ff', 'fn'].forEach((k) => p[k].forEach((v) => assert(Number.isFinite(v))));
+    const onGround = [['hf', G.LAND.hf, G.STANCE.hind], ['hn', G.LAND.hn, G.STANCE.hind], ['ff', G.LAND.ff, G.STANCE.fore], ['fn', G.LAND.fn, G.STANCE.fore]]
+      .some(([k, td, len]) => ((cycle - td + 1) % 1) < len);
+    if (!onGround) air++;
+  }
+  assert(air / N > 0.25 && air / N < 0.45, 'suspension phase should be about a third of the stride: ' + air / N);   // real gallop: all four hooves off the ground
+  const folded = G.pose(G.LAND.fn + 0.4).fn;                          // a foreleg in the air has the cannon folded back under the forearm
+  assert(folded[1] < -1);
+  assert(G.pose(G.LAND.fn + 0.1).fn[1] > -0.3);                        // and is nearly straight while the hoof is planted
+  console.log('gait tests passed');
+}

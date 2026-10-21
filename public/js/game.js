@@ -488,7 +488,7 @@
     items.forEach(function (it) {
       var hx = Math.round(it.pos.x) - camX, hy = Math.round(it.pos.y) - camY + 6;
       if (hx < -70 || hx > VW + 70) return;
-      var phs = it.u * TOTAL / 26 * Math.PI * 2;
+      var phs = it.u * TOTAL / 36 * Math.PI * 2;          // about 3.6 strides a second
       if (!it.standing && !(it.pos.hd > 0.2 && it.pos.hd < 2.9)) drawDust(g, hx, hy, it.pos.dir, phs);
       drawHorse(g, hx, hy, it.pos.dir, phs, it.standing, it.no, it.pos.hd);
     });

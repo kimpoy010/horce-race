@@ -7,7 +7,7 @@
 (function () {
   'use strict';
   var HS = window.HorseSprites, PAL = HS.COLORS;
-  var TW = 100, TH = 92, TOX = 50, TOY = 78, SCALE = 1.38, PITCH = 0.36, H = 0.3, FRAMES = 6;
+  var TW = 100, TH = 92, TOX = 50, TOY = 78, SCALE = 1.38, PITCH = 0.36, H = 0.3, FRAMES = 8;
   var DIGITS = {
     1: ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
     2: ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
@@ -21,12 +21,6 @@
   function hex(h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }
   function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 
-  // legs as in the side view: theta 0 = leg forward at the start of stance, pi = fully back, then folded swing
-  function legAngles(theta, hind) {
-    var a1 = 0.62 * Math.cos(theta) - (hind ? 0.1 : 0), swing = Math.max(0, -Math.sin(theta));
-    var flex = swing * (hind ? 0.95 : 1.1);
-    return [a1, a1 - flex + (hind ? 0.12 : 0.05)];
-  }
 
   /* ---------- solid model ---------- */
   function Model(no) { this.no = no; this.v = []; }
@@ -66,14 +60,12 @@
     var key = no + ':' + (standing ? 's' : step), m = models[key];
     if (m) return m;
     m = new Model(no);
-    var phi = step / FRAMES * Math.PI * 2, bob = standing ? 0 : 0.9 * Math.abs(Math.sin(phi * 0.5 + 0.4));
-    var legs = standing ? { fn: [0, 0], ff: [-0.05, -0.05], hn: [0.05, 0.05], hf: [-0.05, -0.05] } : {
-      fn: legAngles(phi, false), ff: legAngles(phi + 0.7, false), hn: legAngles(phi + Math.PI * 0.85, true), hf: legAngles(phi + Math.PI * 0.85 + 0.7, true)
-    };
+    var gp = window.HorseGait.pose(step / FRAMES), bob = standing ? 0 : 1.1 * gp.lift;     // real gallop: see gait.js
+    var legs = standing ? { fn: [0, 0], ff: [-0.05, -0.05], hn: [0.05, 0.05], hf: [-0.05, -0.05] } : { fn: gp.fn, ff: gp.ff, hn: gp.hn, hf: gp.hf };
     var b = bob;
     // legs: groups 2 (+z side) and 3 (-z side): thigh/forearm, knee, cannon, sock, fetlock, hoof
     function leg(hx, hy, hz, ang, grp, thick, hind) {
-      var L1 = 8.6, L2 = 9.6, k = [hx + L1 * Math.sin(ang[0]), hy - L1 * Math.cos(ang[0]), hz], f = [k[0] + L2 * Math.sin(ang[1]), k[1] - L2 * Math.cos(ang[1]), hz];
+      var st = ang[2] || 1, L1 = 8.6 * st, L2 = 9.6 * st, k = [hx + L1 * Math.sin(ang[0]), hy - L1 * Math.cos(ang[0]), hz], f = [k[0] + L2 * Math.sin(ang[1]), k[1] - L2 * Math.cos(ang[1]), hz];
       var mid = [k[0] + (f[0] - k[0]) * 0.34, k[1] + (f[1] - k[1]) * 0.34, hz], sk = [k[0] + (f[0] - k[0]) * 0.9, k[1] + (f[1] - k[1]) * 0.9, hz];
       m.capsule([hx, hy, hz], k, thick, 1.9, C_COAT, grp);
       if (hind) m.ellipsoid([hx - 0.5, hy + 1.2, hz * 1.08], [3.6, 4.6, 2.6], C_COAT, grp);   // thigh muscle
