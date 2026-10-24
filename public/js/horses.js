@@ -143,12 +143,12 @@
         stamp(out, PADX + u * u * x0 + 2 * u * t * bx + t * t * x1, PADY + bob + u * u * y0 + 2 * u * t * by + t * t * y1, Math.round(w0 + (w1 - w0) * t), Math.round(w0 + (w1 - w0) * t), ch);
       }
     }
-    limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');                                 // solid croup / thigh
-    limb(26, 21, 21, 27, 24, 24, 6, 6, 'C');
     // long tail: leaves the rump, swells and hangs steeply back and down to a blunt tip
     var tail = [[23, 19, 11, 27, 16, 19, 3, 5], [11, 27, 0, 42, 4, 32, 5, 2]];
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6] + 2, t[7] + 2, 'K'); });
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], 'C'); });
+    limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');                                 // solid croup / thigh
+    limb(26, 21, 21, 27, 24, 24, 6, 6, 'C');
     limb(22, 22, 15, 26, 18, 23, 6, 3, 'C');                                  // rounded rump: closes the wedge between the tail root and the hind leg
     limb(24, 20, 21, 23, 23, 21, 7, 7, 'C');                                  // root: joins the tail to the back without a line
     for (c = 22; c < 70; c++) for (r = cut(c) + 1; r <= cut(c) + 3; r++) {     // deeper belly under the cut
@@ -163,6 +163,26 @@
     var nx = PADX + TAG.x + 5, ny = PADY + TAG.y + 3 + bob;
     for (r = 0; r < 9; r++) for (c = 0; c < 5; c++) if (gl[rowMap[r]][c] === '#') { out[ny + r][nx + c] = 'N'; if (c < 4 && gl[rowMap[r]][c + 1] !== '#') out[ny + r][nx + c + 1] = 'N'; }
 
+    // close any thin slit between the tail and the hind leg (the tail merges into the thigh)
+    for (r = PADY + bob + 21; r <= PADY + bob + 46; r++) {
+      var c0 = PADX + 2;
+      while (c0 <= PADX + 30) {
+        if (out[r][c0] !== ' ') { c0++; continue; }
+        var c1 = c0; while (c1 <= PADX + 34 && out[r][c1] === ' ') c1++;
+        if (c0 > PADX + 2 && out[r][c0 - 1] !== ' ' && c1 <= PADX + 34 && out[r][c1] !== ' ' && c1 - c0 <= 7) for (c = c0; c < c1; c++) out[r][c] = 'C';
+        c0 = c1;
+      }
+    }
+    var reach = [], stack = [], rr, cc;                                   // fill any enclosed hole left inside the silhouette
+    for (rr = 0; rr < SH; rr++) reach.push(new Array(SW).fill(false));
+    for (c = 0; c < SW; c++) { stack.push([0, c], [SH - 1, c]); }
+    for (r = 0; r < SH; r++) { stack.push([r, 0], [r, SW - 1]); }
+    while (stack.length) {
+      var q0 = stack.pop(); rr = q0[0]; cc = q0[1];
+      if (rr < 0 || cc < 0 || rr >= SH || cc >= SW || reach[rr][cc] || out[rr][cc] !== ' ') continue;
+      reach[rr][cc] = true; stack.push([rr + 1, cc], [rr - 1, cc], [rr, cc + 1], [rr, cc - 1]);
+    }
+    for (r = 0; r < SH; r++) for (c = 0; c < SW; c++) if (out[r][c] === ' ' && !reach[r][c] && c < PADX + 40) out[r][c] = 'C';
     var ol = [];                                                          // thin black outline round the whole horse
     for (r = 0; r < SH; r++) for (c = 0; c < SW; c++) if (out[r][c] === ' ' && ((r > 0 && out[r - 1][c] !== ' ') || (r < SH - 1 && out[r + 1][c] !== ' ') || (c > 0 && out[r][c - 1] !== ' ') || (c < SW - 1 && out[r][c + 1] !== ' '))) ol.push([r, c]);
     ol.forEach(function (q) { out[q[0]][q[1]] = 'K'; });
