@@ -1,0 +1,324 @@
+/*
+ * Controller page. Talks to server.js when available (?api=https://host also works),
+ * otherwise runs the Director itself and shares state with the game page of the same
+ * browser through localStorage ("local mode").
+ */
+(function () {
+  'use strict';
+  var C = window.HorseCore;
+  var qs = new URLSearchParams(location.search);
+  var $ = function (id) { return document.getElementById(id); };
+  var NAMES = { 1: 'White', 2: 'Pink', 3: 'Red', 4: 'Blue', 5: 'Yellow', 6: 'Green' };
+  var backend = null, admin = null, plan = [], lastVersion = -1, saveTimer = null, pending = false;
+
+  function chip(n) { return '<span class="chip h' + n + '">' + n + '</span>'; }
+
+  /* ---------- backends ---------- */
+  function LocalBackend() {
+    var KEY = 'horserace.director', PUB = 'horserace.public', saved = null;
+    try { saved = JSON.parse(localStorage.getItem(KEY)); } catch (e) { /* fresh */ }
+    var d = new C.Director(saved);
+    function persist() {
+      var now = Date.now();
+      localStorage.setItem(KEY, JSON.stringify(d.serialize()));
+      localStorage.setItem(PUB, JSON.stringify(d.publicState(now, true)));
+    }
+    persist();
+    setInterval(function () { d.tick(Date.now()); persist(); }, 400);
+    return {
+      mode: 'local',
+      admin: function () { return Promise.resolve(d.adminState(Date.now())); },
+      command: function (c) { var r = C.execCommand(d, c, Date.now()); persist(); return Promise.resolve(r); }
+    };
+  }
+
+  function ServerBackend(base) {
+    function key() { return localStorage.getItem('horserace.key') || qs.get('key') || ''; }
+    function call(path, opts) {
+      opts = opts || {}; opts.headers = { 'x-controller-key': key(), 'content-type': 'application/json' }; opts.cache = 'no-store';
+      return fetch(base + path, opts).then(function (r) {
+        if (r.status === 401) { var e = new Error('auth'); e.auth = true; throw e; }
+        return r.json();
+      });
+    }
+    return {
+      mode: 'server',
+      admin: function () { return call('/api/admin'); },
+      command: function (c) { return call('/api/command', { method: 'POST', body: JSON.stringify(c) }); },
+      request: function (method, path, body) { return call(path, { method: method, body: body === undefined ? undefined : JSON.stringify(body) }); }
+    };
+  }
+
+  /* ---------- UI ---------- */
+  function buildPad() {
+    var pad = $('pad'); pad.innerHTML = '';
+    for (var n = 1; n <= 6; n++) {
+      var b = document.createElement('button');
+      b.className = 'padbtn h' + n; b.dataset.n = n; b.title = NAMES[n]; b.textContent = n;
+      b.addEventListener('click', onPad);
+      pad.appendChild(b);
+    }
+  }
+
+  function onPad(ev) {
+    var n = +ev.currentTarget.dataset.n, e = plan[admin.index];
+    if (!e) return;
+    if (e.a === n) { e.a = e.b; e.b = null; }
+    else if (e.b === n) e.b = null;
+    else if (!e.a) e.a = n;
+    else if (!e.b) e.b = n;
+    else e.b = n;
+    changed(); renderPlanRows(); renderPad();
+  }
+
+  function renderPad() {
+    var e = plan[admin.index] || C.normEntry();
+    [].forEach.call($('pad').children, function (b) {
+      var n = +b.dataset.n;
+      b.classList.toggle('sel', e.a === n || e.b === n);
+      var tag = b.querySelector('.tag'); if (tag) tag.remove();
+      if (e.a === n || e.b === n) {
+        var t = document.createElement('span'); t.className = 'tag'; t.textContent = e.a === n ? 'A' : 'B'; b.appendChild(t);
+      }
+    });
+    $('padRace').textContent = '(race ' + (admin.index + 1) + ')';
+    $('padExact').checked = !!e.exact;
+    $('padText').textContent = e.a && e.b
+      ? 'Horses ' + e.a + ' and ' + e.b + ' will finish 1st and 2nd' + (e.exact ? ' (' + e.a + ' wins, ' + e.b + ' second).' : ' in random order.')
+      : (e.a || e.b) ? 'One horse chosen - the second winner will be random.' : 'Nothing set: this race will be completely random.';
+  }
+
+  function selectHTML(val, field, i) {
+    var o = '<option value="">random</option>';
+    for (var n = 1; n <= 6; n++) o += '<option value="' + n + '"' + (val === n ? ' selected' : '') + '>' + n + ' ' + NAMES[n] + '</option>';
+    return '<select data-i="' + i + '" data-f="' + field + '">' + o + '</select>';
+  }
+
+  function buildTable() {
+    var tb = document.querySelector('#plan tbody'), html = '';
+    plan.forEach(function (e, i) {
+      html += '<tr data-row="' + i + '"><td>' + (i + 1) + '</td><td>' + selectHTML(e.a, 'a', i) + '</td><td>' + selectHTML(e.b, 'b', i) +
+        '</td><td><input type="checkbox" data-i="' + i + '" data-f="exact"' + (e.exact ? ' checked' : '') + '></td>' +
+        '<td class="res"></td><td><button data-next="' + i + '">next</button></td></tr>';
+    });
+    tb.innerHTML = html;
+  }
+
+  function renderPlanRows() {
+    var rows = document.querySelectorAll('#plan tbody tr');
+    [].forEach.call(rows, function (tr, i) {
+      var e = plan[i]; if (!e) return;
+      tr.querySelector('[data-f=a]').value = e.a || '';
+      tr.querySelector('[data-f=b]').value = e.b || '';
+      tr.querySelector('[data-f=exact]').checked = !!e.exact;
+    });
+  }
+
+  function renderMeta() {
+    var now = admin.serverNow, c = admin.current, tm = admin.timings;
+    var results = {};
+    admin.history.forEach(function (h) { results[h.raceNo] = h; });
+    [].forEach.call(document.querySelectorAll('#plan tbody tr'), function (tr, i) {
+      var h = results[i + 1], running = h && now < h.startAt + tm.race;
+      tr.className = i === admin.index ? 'next' : h ? (running ? 'running' : 'done') : '';
+      tr.querySelector('.res').innerHTML = h ? (running ? 'running...' : (function (c) { return chip(c[0]) + '-' + chip(c[1]); })(C.combination(h.order))) : '';
+    });
+
+    $('nextNo').textContent = admin.index + 1;
+    var st = 'Idle - ready to start.';
+    if (c) {
+      var t = (now - c.startAt) / 1000;
+      if (t < 0) st = 'Race ' + c.raceNo + ' starts in ' + Math.ceil(-t) + 's';
+      else if (t * 1000 < tm.race) st = 'Race ' + c.raceNo + ' running (' + Math.floor(t) + 's)';
+      else if (t * 1000 < tm.race + tm.results) st = 'Showing results of race ' + c.raceNo;
+    }
+    $('status').textContent = st;
+    $('current').textContent = c ? 'Last/current race ' + c.raceNo + ' finishing order: ' + c.order.join(' - ') : '';
+    $('start').disabled = admin.busy;
+    $('auto').checked = admin.auto;
+    $('mode').textContent = backend.mode === 'server' ? 'SERVER MODE' : 'LOCAL MODE (same browser only)';
+  }
+
+  /* ---------- plan saving ---------- */
+  function changed() {
+    pending = true; $('saved').textContent = 'saving...';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      backend.command({ cmd: 'setPlan', plan: plan }).then(function (r) {
+        pending = false; if (r.version != null) lastVersion = r.version;
+        $('saved').textContent = r.ok ? 'saved' : 'error: ' + r.error;
+      }).catch(function () { pending = false; $('saved').textContent = 'save failed'; });
+    }, 200);
+  }
+
+  document.addEventListener('change', function (ev) {
+    var t = ev.target, i = t.dataset && t.dataset.i;
+    if (i == null || !plan[i]) return;
+    var e = plan[i], f = t.dataset.f;
+    if (f === 'exact') e.exact = t.checked; else e[f] = t.value ? +t.value : null;
+    if (e.a && e.a === e.b) { if (f === 'a') e.b = null; else e.a = null; }
+    changed(); renderPlanRows(); if (+i === admin.index) renderPad();
+  });
+  document.addEventListener('click', function (ev) {
+    var n = ev.target.dataset && ev.target.dataset.next;
+    if (n != null) backend.command({ cmd: 'setIndex', index: +n }).then(function () { lastVersion = -1; });
+  });
+
+  $('padExact').addEventListener('change', function () { plan[admin.index].exact = this.checked; changed(); renderPlanRows(); renderPad(); });
+  $('padClear').addEventListener('click', function () { plan[admin.index] = C.normEntry(); changed(); renderPlanRows(); renderPad(); });
+  $('more').addEventListener('click', function () {
+    for (var i = 0; i < 10 && plan.length < C.MAX_PLAN; i++) plan.push(C.normEntry());
+    changed(); buildTable(); renderPlanRows(); renderMeta();
+  });
+  $('randomize').addEventListener('click', function () {
+    plan.forEach(function (e, i) {
+      if (i < admin.index || (e.a && e.b)) return;
+      var a = 1 + Math.floor(Math.random() * 6), b; do { b = 1 + Math.floor(Math.random() * 6); } while (b === a);
+      e.a = a; e.b = b;
+    });
+    changed(); renderPlanRows(); renderPad();
+  });
+  $('start').addEventListener('click', function () { backend.command({ cmd: 'start' }).then(function (r) { if (!r.ok) alert(r.error); refresh(); }); });
+  $('auto').addEventListener('change', function () { backend.command({ cmd: 'setAuto', auto: this.checked }); });
+  $('reset').addEventListener('click', function () {
+    if (confirm('Reset to race 1 and clear the results history?')) backend.command({ cmd: 'reset' }).then(function () { lastVersion = -1; refresh(); });
+  });
+  $('keySave').addEventListener('click', function () {
+    localStorage.setItem('horserace.key', $('keyInput').value); $('keyErr').textContent = ''; refresh();
+  });
+
+  /* ---------- loop ---------- */
+  function money(m, cur) { return (cur ? cur + ' ' : '') + (m / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function ago(ms) { var s = Math.max(0, Math.round((Date.now() - ms) / 1000)); return s < 90 ? s + ' s ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago'; }
+  function renderOps(o) {
+    if (!o) { $('opsStatus').innerHTML = ''; return; }
+    var crit = o.alerts.filter(function (a) { return a.severity === 'critical'; }).length, warn = o.alerts.length - crit;
+    $('opsStatus').innerHTML = o.alerts.length ? '<span class="pill bad">' + (crit ? crit + ' CRITICAL' : '') + (crit && warn ? ' + ' : '') + (warn ? warn + ' WARNING' : '') + '</span>' : '<span class="pill ok">ALL SYSTEMS NORMAL</span>';
+    $('opsAlerts').innerHTML = o.alerts.map(function (a) { return '<div class="alert ' + a.severity + '"><b>' + a.name.replace(/_/g, ' ').toUpperCase() + '</b> - ' + a.message + ' <span class="small">(since ' + ago(a.since) + ')</span></div>'; }).join('') +
+      (o.recentAlerts.length && !o.alerts.length ? '<div class="small">Last alert: ' + o.recentAlerts[0].name.replace(/_/g, ' ') + ' ' + o.recentAlerts[0].status + ' ' + ago(o.recentAlerts[0].at) + '</div>' : '');
+    var s = o.snapshot, w = o.wallet, p = s.pending, q = function (k, name) { return [name, p[k].count + (p[k].count ? ' (oldest ' + Math.round(p[k].oldestSeconds) + ' s)' : '')]; };
+    var items = [['Role', o.role + (o.lease ? ' - lease renewed ' + o.lease.ageSeconds + ' s ago' : '')], ['Uptime', Math.round(o.uptime / 60) + ' min'], ['Round loop', o.tickAge < 2 ? 'running' : 'STALLED ' + Math.round(o.tickAge) + ' s'],
+      ['Wallet, last 5 min', w.calls + ' calls, ' + (w.failRate * 100).toFixed(0) + '% failed, p95 ' + Math.round(w.p95) + ' ms'], q('credits', 'Wins / refunds pending'), q('rollbacks', 'Rollbacks pending'), q('webhooks', 'Webhooks pending'),
+      ['Payouts vs odds', (s.rtpZ >= 0 ? '+' : '') + s.rtpZ.toFixed(1) + ' standard deviations'], ['Disk free', o.diskFreeMb == null ? '-' : Math.round(o.diskFreeMb) + ' MB']];
+    $('opsStats').innerHTML = items.map(function (x) { return '<div class="stat"><span class="small">' + x[0] + '</span><b style="font-size:14px">' + x[1] + '</b></div>'; }).join('');
+    $('opsLedger').textContent = 'Ledger: ' + (s.ledger.ok ? 'hash chain intact' : 'BROKEN at line ' + s.ledger.broken.line + ' (' + s.ledger.broken.reason + ')') + ', ' + s.ledger.lines + ' lines. Newest hash ' + s.ledger.head.slice(0, 16) + '... (also sent in every round.settled webhook).';
+  }
+  /* ---------- clients (platforms): the registry, API keys and back-office logins ---------- */
+  function el(tag, attrs) { var e = document.createElement(tag), i, k; if (attrs) for (k in attrs) { if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), attrs[k]); else if (k === 'class') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); } for (i = 2; i < arguments.length; i++) { var c = arguments[i]; if (c == null) continue; (Array.isArray(c) ? c : [c]).forEach(function (x) { e.appendChild(x && x.nodeType ? x : document.createTextNode(String(x))); }); } return e; }
+  var clientsTimer = 0;
+  function loadClients() {
+    if (!backend || !backend.request) return;
+    backend.request('GET', '/api/clients').then(function (d) {
+      var box = $('clientsTbl'), tb = box.querySelector('tbody'); while (tb.firstChild) tb.removeChild(tb.firstChild);
+      if (!d.clients.length) tb.appendChild(el('tr', null, el('td', { colspan: 7 }, 'No clients yet. Add one below' + (d.defaultClient ? ' (the game currently serves the implicit default client from the WALLET settings).' : '.'))));
+      d.clients.forEach(function (c) {
+        var s = c.stats || {}, act = el('div', { class: 'row' });
+        function post(path, body, after) { backend.request('POST', '/api/clients/' + c.id + path, body).then(function (r) { if (!r.ok) return $('clientsOut').replaceChildren(el('div', { class: 'err' }, r.message || r.error)); if (after) after(r); loadClients(); }); }
+        function secret(title, lines) { $('clientsOut').replaceChildren(el('div', { class: 'secretbox' }, el('b', null, title), lines.map(function (l) { return el('div', null, l[0] + ' ', el('code', null, l[1])); }), el('div', { class: 'small' }, 'Shown once. Give it to the client over a safe channel.'))); }
+        act.appendChild(el('button', { onclick: function () { post('/status', { status: c.status === 'active' ? 'disabled' : 'active' }); } }, c.status === 'active' ? 'Disable' : 'Enable'));
+        act.appendChild(el('button', { onclick: function () { if (confirm('New API key for ' + c.id + '? The old keys stop working after 24 hours.')) post('/rotate-key', {}, function (r) { secret('New API key for ' + c.id, [['Key:', r.apiKey]]); }); } }, 'Rotate key'));
+        act.appendChild(el('button', { onclick: function () { var u = prompt('Username of the new back-office user (letters, digits . _ @ -):'); if (!u) return; var role = prompt('Role: viewer, support or admin', 'admin'); if (!role) return; post('/users', { username: u, role: role }, function (r) { secret('Back-office user ' + r.user.username + ' (' + r.user.role + ') for ' + c.id, [['Temporary password:', r.tempPassword]]); }); } }, 'Add back-office user'));
+        tb.appendChild(el('tr', null, el('td', null, el('b', null, c.id), el('div', { class: 'small' }, c.name)), el('td', null, el('span', { class: 'badge' }, c.status)), el('td', null, c.currency || '-'),
+          el('td', null, c.wallet.type === 'mock' ? 'mock wallet' : c.wallet.url, el('div', { class: 'small' }, c.webhook ? 'webhook ' + c.webhook.url : 'no webhook')),
+          el('td', null, (s.bets || 0) + ' bets', el('div', { class: 'small' }, 'staked ' + money(s.staked || 0) + ', paid ' + money(s.paid || 0))), el('td', null, (c.users || 0) + ' users', el('div', { class: 'small' }, (s.activeSessions || 0) + ' online')), el('td', null, act)));
+      });
+    }).catch(function () { /* not allowed or offline */ });
+  }
+  function initClients() {
+    var f = $('clientForm'); if (!f || f.dataset.ready) return; f.dataset.ready = '1';
+    f.addEventListener('submit', function (ev) {
+      ev.preventDefault(); var v = function (n) { return f.elements[n].value.trim(); };
+      var client = { id: v('id'), name: v('name'), currency: v('currency').toUpperCase() || undefined, wallet: { url: v('walletUrl') } };
+      if (f.elements.mock.checked) client.wallet = { type: 'mock' };
+      if (v('webhookUrl')) client.webhook = { url: v('webhookUrl') };
+      backend.request('POST', '/api/clients', { client: client }).then(function (r) {
+        if (!r.ok) return $('clientsOut').replaceChildren(el('div', { class: 'err' }, r.message || r.error));
+        var lines = [['API key:', r.apiKey]]; if (r.walletSecret) lines.push(['Wallet signing secret:', r.walletSecret]);
+        $('clientsOut').replaceChildren(el('div', { class: 'secretbox' }, el('b', null, 'Client ' + r.client.id + ' created. Next: add its first back-office administrator with the button in its row.'), lines.map(function (l) { return el('div', null, l[0] + ' ', el('code', null, l[1])); }), el('div', { class: 'small' }, 'Shown once. Give both to the client over a safe channel.')));
+        f.reset(); loadClients();
+      });
+    });
+    loadClients(); clientsTimer = setInterval(loadClients, 8000);
+  }
+  function renderReport(r) {
+    if (r.standby) { $('report').hidden = true; $('mode').textContent = 'STANDBY'; return; }
+    $('report').hidden = false;
+    renderOps(r.ops); initClients();
+    [].forEach.call(document.querySelectorAll('[data-demo]'), function (n) { n.hidden = true; });
+    $('mode').textContent = 'LIVE MODE';
+    var pct = function (x) { return x == null ? '-' : (x * 100).toFixed(2) + '%'; };
+    var st = [['RTP setting', pct(r.rtpSetting)], ['RTP of the current race', pct(r.rtpOfCurrentRace)], ['Best bets return', pct(r.bestBetRtp)], ['3 cheapest pairs return', pct(r.cheapPairsRtp)],
+      ['Actual RTP so far', pct(r.actualRtp)], ['Rounds', r.rounds], ['Bets', r.bets], ['Odds', r.shuffleOdds ? 'shuffled every race' : 'fixed layout'],
+      ['Total staked', money(r.staked, r.currency)], ['Total paid', money(r.paid, r.currency)], ['House win', money(r.houseWin, r.currency)],
+      ['Credits pending', r.pendingCredits], ['Rollbacks pending', r.pendingRollbacks], ['Active sessions', r.activeSessions], ['Min / max bet', money(r.limits.minBet) + ' / ' + money(r.limits.maxBet)], ['Max per race', money(r.limits.maxRoundStake)]];
+    $('stats').innerHTML = st.map(function (x) { return '<div class="stat"><span class="small">' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
+    $('combos').innerHTML = Object.keys(r.wins).map(function (c) {
+      var p = c.split('-'); return '<div>' + chip(p[0]) + '-' + chip(p[1]) + '<br>' + r.wins[c] + (r.rounds ? ' (' + (100 * r.wins[c] / r.rounds).toFixed(1) + '%)' : '') + '</div>';
+    }).join('');
+    $('byodds').innerHTML = r.oddsValues.map(function (v) {
+      var w = r.winsByOdds[v] || 0; return '<div><b>x' + v + '</b><br>' + w + (r.rounds ? ' (' + (100 * w / r.rounds).toFixed(1) + '%)' : '') + '<br><span class="small">exp. ' + (100 * r.oddsProb[v]).toFixed(2) + '%</span></div>';
+    }).join('');
+    $('recent').querySelector('tbody').innerHTML = r.recent.map(function (x) {
+      var p = x.combo.split('-');
+      return '<tr><td>' + x.raceNo + '</td><td>' + chip(p[0]) + '-' + chip(p[1]) + ' x' + x.odds + '</td><td>' + x.order.join(' ') + '</td><td>' + x.bets + '</td><td>' + money(x.staked) + '</td><td>' + money(x.paid) + '</td></tr>';
+    }).join('');
+    var inp = $('rtpIn');
+    if (document.activeElement !== inp && inp.dataset.set !== String(r.rtpSetting)) { inp.value = (r.rtpSetting * 100).toFixed(1); inp.dataset.set = String(r.rtpSetting); previewRtp(); }
+    $('commit').textContent = r.commit ? 'Current round ' + r.currentRound + ' commit: ' + r.commit : '';
+  }
+
+  var previewTimer = null;
+  function previewRtp() {
+    var v = parseFloat($('rtpIn').value);
+    if (!(v >= 88 && v <= 99)) { $('rtpSum').textContent = 'Enter a value from 88 to 99.'; return; }
+    backend.command({ cmd: 'previewRtp', rtp: v / 100 }).then(function (p) {
+      if (!p.ok) { $('rtpSum').textContent = p.error; return; }
+      var pc = function (x) { return (x * 100).toFixed(2) + '%'; };
+      $('rtpSum').textContent = 'Best bets return ' + pc(p.bestRtp) + (p.cheapRtp < p.bestRtp - 0.0005 ? ', the 3 cheapest pairs ' + pc(p.cheapRtp) : '') + ', average over an even spread ' + pc(p.evenSpreadRtp) + '.';
+      $('rtpPrev').querySelector('tbody').innerHTML = p.rows.map(function (x) {
+        return '<tr><td>x' + x.odds + '</td><td>' + pc(x.probability) + '</td><td>' + pc(x.rtp) + '</td><td>' + (x.cheap && x.rtp < p.bestRtp - 0.0005 ? 'lower (3 cheapest)' : '') + '</td></tr>';
+      }).join('');
+    });
+  }
+  $('rtpIn').addEventListener('input', function () { clearTimeout(previewTimer); previewTimer = setTimeout(previewRtp, 250); });
+  $('rtpApply').addEventListener('click', function () {
+    var v = parseFloat($('rtpIn').value);
+    if (!(v >= 88 && v <= 99)) { $('rtpMsg').textContent = 'RTP must be 88 to 99.'; return; }
+    backend.command({ cmd: 'setRtp', rtp: v / 100 }).then(function (res) {
+      $('rtpMsg').textContent = res.ok ? 'Saved: ' + (res.rtp * 100).toFixed(1) + '% from race ' + res.appliesFromRace + ' (race ' + (res.appliesFromRace - 1) + ' keeps ' + (res.currentRaceRtp * 100).toFixed(1) + '%)' : 'Rejected: ' + res.error;
+      $('rtpIn').dataset.set = String(res.rtp);
+    });
+  });
+
+  function refresh() {
+    return backend.admin().then(function (a) {
+      $('keyBox').hidden = true;
+      if (a.mode === 'live') return renderReport(a);
+      admin = a;
+      if (!pending && a.version !== lastVersion) {
+        plan = a.plan.map(function (e) { return Object.assign({}, e); });
+        lastVersion = a.version; buildTable(); renderPlanRows();
+      }
+      renderPad(); renderMeta();
+    }).catch(function (e) {
+      if (e && e.auth) { $('keyBox').hidden = false; $('keyErr').textContent = localStorage.getItem('horserace.key') ? 'Wrong key' : ''; }
+      else $('status').textContent = 'Cannot reach server...';
+    });
+  }
+
+  function init() {
+    buildPad();
+    var base = (qs.get('api') || '').replace(/\/$/, '');
+    if (base) $('openGame').href = 'index.html?api=' + encodeURIComponent(base);
+    if (qs.get('mode') === 'local') backend = LocalBackend();
+    else {
+      fetch((base || '.') + '/api/public', { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error(); backend = ServerBackend(base || '.'); })
+        .catch(function () { backend = LocalBackend(); })
+        .then(function () { refresh(); setInterval(refresh, 600); });
+      return;
+    }
+    refresh(); setInterval(refresh, 600);
+  }
+  init();
+})();

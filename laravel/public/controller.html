@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Horse Race Controller</title>
+<link rel="stylesheet" href="css/controller.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>HORSE RACE CONTROLLER</h1>
+    <span id="mode" class="badge">...</span>
+    <a id="openGame" href="index.html" target="_blank">open game &#8599;</a>
+  </header>
+
+  <section id="keyBox" hidden>
+    <label>Controller key <input id="keyInput" type="password" autocomplete="off"></label>
+    <button id="keySave">Connect</button>
+    <span id="keyErr" class="err"></span>
+  </section>
+
+  <section id="report" class="panel" hidden>
+    <h2>Live game report <span class="small">(results are drawn by the server; the controller cannot change them)</span></h2>
+    <div class="opsbox" id="clientsBox">
+      <h2>Clients (platforms) <span class="small">(each has its own wallet, keys and back office at <a href="backoffice" target="_blank">/backoffice</a>; all share the same race and RTP)</span></h2>
+      <div id="clientsOut"></div>
+      <div class="scroll"><table id="clientsTbl"><thead><tr><th>Client</th><th>Status</th><th>Currency</th><th>Wallet</th><th>Business</th><th>People</th><th></th></tr></thead><tbody></tbody></table></div>
+      <details style="margin-top:10px"><summary>Add a client</summary>
+        <form id="clientForm" class="row" style="gap:10px;margin-top:8px">
+          <label>Id <input name="id" required pattern="[a-z0-9][a-z0-9-]{1,31}" placeholder="acme" style="width:110px;font:inherit;padding:6px"></label>
+          <label>Name <input name="name" placeholder="Acme Casino" style="width:150px;font:inherit;padding:6px"></label>
+          <label>Currency <input name="currency" placeholder="PHP" maxlength="5" style="width:70px;font:inherit;padding:6px"></label>
+          <label>Wallet URL <input name="walletUrl" placeholder="https://platform.example/horse-api" style="width:260px;font:inherit;padding:6px"></label>
+          <label>Webhook URL <input name="webhookUrl" placeholder="https://platform.example/horse-events" style="width:260px;font:inherit;padding:6px"></label>
+          <label class="toggle"><input type="checkbox" name="mock"> play-money mock wallet (testing)</label>
+          <button class="primary" type="submit">Create client</button>
+        </form>
+        <p class="small">Limits, IP allow list and other settings: <code>node scripts/clients.js update ...</code> (docs/CLIENT_API.md).</p>
+      </details>
+    </div>
+    <div class="opsbox">
+      <h2>Health and alerts <span class="small">(updates every few seconds; the same data is at /metrics for Prometheus)</span></h2>
+      <div id="opsStatus"></div>
+      <div id="opsAlerts"></div>
+      <div class="stats" id="opsStats"></div>
+      <p class="small" id="opsLedger"></p>
+    </div>
+    <div class="rtpbox">
+      <h2>RTP setting <span class="small">(88% to 99%, applies from the next race; the odds never change)</span></h2>
+      <div class="row">
+        <label>RTP % <input id="rtpIn" type="number" min="88" max="99" step="0.1" style="width:90px;font:inherit;padding:6px"></label>
+        <button id="rtpApply" class="primary">Apply from next race</button>
+        <span id="rtpMsg" class="small"></span>
+      </div>
+      <p class="small" id="rtpSum"></p>
+      <table id="rtpPrev"><thead><tr><th>Odds</th><th>Win chance</th><th>RTP of a bet</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="stats" id="stats"></div>
+    <h2 style="margin-top:14px">Wins per pair <span class="small">(each pair wins 6.67% of races in the long run)</span></h2>
+    <div class="combos" id="combos"></div>
+    <h2 style="margin-top:14px">Wins by odds value <span class="small">(expected = (1/odds) / sum(1/odds): cheap odds win often, big odds rarely)</span></h2>
+    <div class="combos" id="byodds"></div>
+    <h2 style="margin-top:14px">Recent races</h2>
+    <table id="recent"><thead><tr><th>Race</th><th>Winning pair</th><th>Finish order</th><th>Bets</th><th>Staked</th><th>Paid</th></tr></thead><tbody></tbody></table>
+    <p class="small" id="commit"></p>
+  </section>
+
+  <section class="panel" data-demo>
+    <div class="row">
+      <div>
+        <div class="small">NEXT RACE</div>
+        <div id="nextNo" class="big">--</div>
+      </div>
+      <div class="grow">
+        <div class="small">STATUS</div>
+        <div id="status">...</div>
+      </div>
+      <button id="start" class="primary">START RACE</button>
+      <label class="toggle"><input id="auto" type="checkbox"> AUTO-RUN</label>
+      <button id="reset" class="danger">RESET</button>
+    </div>
+    <div id="current" class="small"></div>
+  </section>
+
+  <section class="panel" data-demo>
+    <h2>Winning combination for next race <span id="padRace"></span></h2>
+    <div class="pad" id="pad"></div>
+    <div class="row">
+      <label class="toggle"><input id="padExact" type="checkbox"> Exact order (first pick = 1st, second = 2nd)</label>
+      <button id="padClear">Clear (random)</button>
+    </div>
+    <div id="padText" class="small"></div>
+  </section>
+
+  <section class="panel" data-demo>
+    <h2>Race plan</h2>
+    <table id="plan">
+      <thead><tr><th>#</th><th>Horse A</th><th>Horse B</th><th>Exact order</th><th>Result</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="row">
+      <button id="more">+ 10 races</button>
+      <button id="randomize">Randomize empty rows</button>
+      <span id="saved" class="small"></span>
+    </div>
+    <p class="small">Leave a row empty for a random result. "Any order" means the two chosen horses finish 1st and 2nd
+      with the lower number first (as the combination is written); "Exact order" means Horse A wins and Horse B is second. All other horses finish in random order.</p>
+  </section>
+</main>
+<script src="js/core.js"></script>
+<script src="js/controller.js"></script>
+</body>
+</html>

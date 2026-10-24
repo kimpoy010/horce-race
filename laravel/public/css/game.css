@@ -1,0 +1,191 @@
+/* The size of the screen that is really visible: on iPhone Safari 100vh includes the area under the toolbars, so orient.js sets --vh from
+   window.innerHeight (1% of the visible height). Safe areas (notch, home bar) are left out. */
+:root {
+  --vh: 1vh; --sat: env(safe-area-inset-top, 0px); --sar: env(safe-area-inset-right, 0px); --sab: env(safe-area-inset-bottom, 0px); --sal: env(safe-area-inset-left, 0px);
+  --aw: calc(100vw - var(--sal) - var(--sar)); --ah: calc(var(--vh) * 100 - var(--sat) - var(--sab));
+  --sw: min(var(--aw), calc(var(--ah) * 1.7778));          /* width of the race screen (16:9) */
+  --pw: calc(var(--sw) * .6);                               /* width of the betting panel: 60% of the race screen */
+}
+html, body { margin: 0; height: calc(var(--vh) * 100); background: #0b0b14; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; }
+
+.stage {
+  --u: 4px; /* 1% of the stage width, set from JS */
+  position: relative;
+  width: var(--sw);
+  aspect-ratio: 16 / 9;
+  font-family: "Courier New", Courier, ui-monospace, monospace;
+  font-weight: 900;
+  font-size: calc(var(--u) * 2.2);
+  color: #fff;
+  text-transform: uppercase;
+  text-shadow: calc(var(--u) * .25) calc(var(--u) * .25) 0 #000;
+  user-select: none;
+}
+.stage canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+}
+
+.bar { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: calc(var(--u) * 1.5); padding: 0 calc(var(--u) * 1.5); box-sizing: border-box; }
+.bar.top { top: 0; height: 7.4%; background: rgba(8, 20, 40, .6); }
+.bar.bottom { bottom: 0; height: 6.4%; background: rgba(8, 20, 40, .72); font-size: calc(var(--u) * 1.6); }
+.race-no { color: #111; background: #ffd21c; padding: 0 .7em; transform: skewX(-10deg); text-shadow: none; white-space: nowrap; border: calc(var(--u) * .25) solid #111; }
+.status { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; }
+.last { white-space: nowrap; display: flex; align-items: center; gap: calc(var(--u) * .6); }
+.history { flex: 1; display: flex; align-items: center; gap: calc(var(--u) * 1.4); overflow: hidden; white-space: nowrap; }
+.history .item { display: flex; align-items: center; gap: calc(var(--u) * .4); color: #cde; }
+.conn { color: #6f6; font-size: calc(var(--u) * 1.3); }
+.conn.off { color: #f66; }
+#snd {
+  font: inherit; font-size: calc(var(--u) * 1.3); color: #fff; background: #333; cursor: pointer;
+  border: calc(var(--u) * .25) solid #888; padding: calc(var(--u) * .3) calc(var(--u) * 1);
+}
+#snd.on { background: #1a6b2a; border-color: #5f5; }
+
+.chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.5em; height: 1.5em; box-sizing: border-box;
+  border: calc(var(--u) * .3) solid #000; color: #000; text-shadow: none; line-height: 1;
+}
+.chip.big { width: 2.2em; height: 2.2em; font-size: 1.5em; }
+.h1 { background: #f4f4f4; } .h2 { background: #ff6ee0; } .h3 { background: #ff4040; }
+.h4 { background: #4a78ff; color: #fff; } .h5 { background: #ffe83a; } .h6 { background: #2fbf6a; }
+.h4 { text-shadow: none; }
+
+.tote {
+  position: absolute; left: 0; right: 0; top: 7.4%; height: 7.6%; font-size: .75em;
+  background: rgba(8, 20, 40, .55); pointer-events: none; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .8);
+  text-align: center; white-space: nowrap; overflow: hidden;
+}
+.dash { margin: 0 .15em; }
+.tote .label { color: #ffd23c; }
+.tote .rank { display: flex; flex-direction: column; align-items: center; font-size: .7em; color: #cde; gap: calc(var(--u) * .1); }
+.tote .win { color: #7dff7d; }
+.blink { animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+
+.countdown {
+  position: absolute; left: 0; right: 0; top: 27%; text-align: center; pointer-events: none;
+  font-size: calc(var(--u) * 11); color: #ffd23c; text-shadow: calc(var(--u) * .7) calc(var(--u) * .7) 0 #000;
+}
+.countdown.go { font-size: calc(var(--u) * 7); color: #7dff7d; }
+
+.results {
+  position: absolute; left: 14%; right: 14%; top: 24%; padding: calc(var(--u) * 1.5);
+  background: rgba(8, 20, 40, .93); border: calc(var(--u) * .5) solid #ffd23c; box-sizing: border-box;
+  text-align: center; box-shadow: calc(var(--u) * 1) calc(var(--u) * 1) 0 rgba(0, 0, 0, .6);
+}
+.results .title { color: #ffd23c; font-size: 1.15em; }
+.results .combo { margin: calc(var(--u) * 1) 0; color: #7dff7d; display: flex; justify-content: center; align-items: center; gap: calc(var(--u) * 1.2); }
+.results .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * .8); font-size: .8em; }
+.results .cell { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * .6); }
+
+/* ===== live mode: betting panel slides in over the right half of the race screen ===== */
+.layout { position: relative; display: flex; align-items: center; justify-content: center; width: var(--aw); height: var(--ah); margin: var(--sat) var(--sar) var(--sab) var(--sal); overflow: hidden; }
+body.live { display: block; }
+
+/* Phone held upright: the game keeps its landscape layout. The landscape screen is rotated a quarter turn inside the portrait one (the top of the
+   game is on the right edge, so tilt the phone to the left to read it the natural way). Touches are mapped by the browser. Desktop keeps its layout. */
+@media (orientation: portrait) and (pointer: coarse) {
+  :root { --aw: calc(var(--vh) * 100 - var(--sat) - var(--sab)); --ah: calc(100vw - var(--sal) - var(--sar)); }
+  .layout { position: fixed; top: 0; left: 0; margin: 0; transform-origin: 0 0; transform: translate(calc(100vw - var(--sar)), var(--sat)) rotate(90deg); }
+}
+
+.bet {
+  box-sizing: border-box; padding: 12px; background: rgba(16, 23, 44, .95); color: #e8ecf5; border-left: 3px solid #2c3a66;
+  font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700; font-size: 14px;
+  position: absolute; z-index: 20; width: var(--pw); height: calc(var(--sw) * .5625);
+  top: 50%; margin-top: calc(var(--sw) * -.28125); right: calc((100% - var(--sw)) / 2);
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  transition: transform .28s ease;
+}
+.bet.closed { transform: translateX(100%); visibility: hidden; transition: transform .28s ease, visibility 0s linear .28s; }   /* fully hidden: nothing of it stays on screen, not even outside the race screen */
+/* the handle stays visible on the screen edge when the panel is hidden */
+.tab {
+  position: absolute; z-index: 25; right: calc((100% - var(--sw)) / 2);
+  bottom: calc(50% - var(--sw) * .28125 + var(--sw) * .036 + 8px);       /* just above the bottom bar of the race screen */
+  font: inherit; font-size: 12px; font-weight: 900; line-height: 1.2; letter-spacing: 1px; text-align: center; cursor: pointer; text-shadow: none;
+  color: #111; background: #ffd23c; border: 2px solid #111; border-right: 0; border-radius: 8px 0 0 8px; padding: 9px 5px;
+  box-shadow: 0 0 0 1px #ffd23c, 0 3px 10px rgba(0, 0, 0, .6);
+  writing-mode: vertical-rl; transition: right .28s ease; font-family: "Courier New", Courier, ui-monospace, monospace;
+}
+.tab:hover { background: #fff27a; }
+.tab.attn { animation: tabpulse 1s ease-in-out infinite; }                   /* panel hidden while bets are open: ask for attention */
+@keyframes tabpulse { 0%, 100% { box-shadow: 0 0 0 1px #ffd23c, 0 0 6px 1px rgba(255, 210, 60, .5); } 50% { box-shadow: 0 0 0 2px #fff, 0 0 16px 5px rgba(255, 210, 60, .95); } }
+.tab.open { right: calc((100% - var(--sw)) / 2 + var(--pw)); }
+.tab[hidden] { display: none; }
+.bet[hidden] { display: none; }
+.bet .lbl { font-size: 11px; color: #8d9bc4; letter-spacing: 1px; }
+.bet .val { color: #fff; }
+.bet .big { font-size: 22px; color: #7dff7d; }
+.bet-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; margin-bottom: 10px; }
+.bet-head .bal { text-align: right; }
+.bet-round { background: #182246; border: 2px solid #2c3a66; padding: 8px; margin-bottom: 8px; }
+.bet-round .rnd { color: #ffd23c; }
+.bet-round .timer { font-size: 26px; color: #fff; }
+.bar-track { height: 8px; background: #0a0f20; margin: 4px 0; }
+.bar-fill { height: 100%; width: 0; background: #7dff7d; }
+.bar-fill.low { background: #ff6a5a; }
+.bet-round .pay { font-size: 12px; color: #ffd23c; }
+.msg { margin: 6px 0; padding: 6px 8px; background: #4a1e28; border: 2px solid #b04a5a; color: #ffd0d6; font-size: 13px; }
+.msg.ok { background: #1c4a2a; border-color: #4ab06a; color: #d6ffe0; }
+
+.board { display: grid; grid-template-columns: 34px repeat(5, 1fr); margin: 8px 0 2px; background: #000; padding: 6px; border: 2px solid #1e2fd6; }
+.board > * { border: 2px solid #1e2fd6; margin: -1px; box-sizing: border-box; }
+.board .bh, .board .bl { display: flex; align-items: center; justify-content: center; color: #3cd8ff; font-size: 17px; min-height: 32px; }
+.board .bl { min-height: 56px; }
+.board .bc, .board .blank { border-color: transparent; }
+.board .cell {
+  position: relative; background: #000; color: #fff; cursor: pointer; font: inherit; min-height: 56px; padding: 3px 4px;
+  display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
+}
+.board .cell:hover:not(:disabled) { background: #0a1040; }
+.board .cell:disabled { opacity: .6; cursor: not-allowed; }
+.board .odds { color: #d4a62a; font-size: 14px; }
+.board .bt { color: #e02a2a; font-size: 13px; }
+.board .cell.on .bt { color: #ff6a5a; }
+.board .cell.pend { background: #16205a; border-color: #ffd23c; z-index: 1; }
+.board .minus { position: absolute; top: -8px; left: -8px; width: 18px; height: 18px; border-radius: 9px; background: #b04a5a; color: #fff; font-size: 13px; line-height: 16px; text-align: center; cursor: pointer; }
+.legend { font-size: 11px; margin: 2px 0 6px; } .legend .lo { color: #d4a62a; } .legend .lb { color: #e02a2a; margin-left: 8px; }
+.legend .lo::before { content: '- '; } .legend .lb::before { content: '- '; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.chipbtn { font: inherit; background: #223062; color: #fff; border: 2px solid #3a4a82; border-radius: 20px; padding: 6px 10px; cursor: pointer; }
+.chipbtn.sel { background: #ffd23c; color: #111; border-color: #fff; }
+.bet-actions { display: flex; gap: 6px; }
+.bet-actions button { font: inherit; flex: 0 0 auto; background: #2a3768; color: #fff; border: 2px solid #46537f; padding: 8px 10px; cursor: pointer; }
+.bet-actions button.primary { flex: 1; background: #1e8a3c; border-color: #4fe07a; }
+.bet-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.placed, .last-result, .fair { margin-top: 10px; font-size: 12px; }
+.placed .row, .last-result .row { display: flex; justify-content: space-between; gap: 6px; padding: 2px 0; border-bottom: 1px solid #263256; }
+.placed .ttl, .last-result .ttl { color: #8d9bc4; font-size: 11px; letter-spacing: 1px; margin-bottom: 2px; }
+.last-result .won { color: #7dff7d; } .last-result .lost { color: #ff9a9a; }
+.fair { color: #6f7aa0; word-break: break-all; font-size: 10px; }
+.back { display: inline-block; margin-top: 12px; color: #7ab8ff; }
+.histbtn { margin-top: 10px; font: inherit; font-size: 11px; background: none; border: 1px solid #46537f; color: #9fb4e8; padding: 4px 8px; cursor: pointer; }
+.reality { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(5, 8, 20, .82); padding: 16px; }
+.reality[hidden] { display: none; }
+.reality .box { max-width: 420px; background: #10172c; border: 3px solid #ffd23c; padding: 18px; text-align: center; color: #e8ecf5; font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 700; }
+.reality .rtitle { color: #ffd23c; font-size: 20px; margin: 0 0 8px; }
+.reality p { margin: 6px 0; line-height: 1.4; }
+.reality .ract { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.reality button { font: inherit; padding: 8px 14px; background: #2a3768; color: #fff; border: 2px solid #46537f; cursor: pointer; }
+.reality button.primary { background: #1e8a3c; border-color: #4fe07a; }
+.reality button[hidden] { display: none; }
+.start {
+  position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer;
+  background: rgba(5, 8, 20, .93); color: #fff; font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 900; text-transform: uppercase; padding: 16px;
+  user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.start[hidden] { display: none; }
+.start .box { max-width: 520px; }
+.start .stitle { margin: 0 0 6vh; font-size: clamp(26px, 8vmin, 64px); line-height: 1.05; color: #ffd23c; letter-spacing: 3px; text-shadow: 4px 4px 0 #b03a1a; }
+.start .go { margin: 0; font-size: clamp(18px, 5vmin, 34px); color: #7dff7d; letter-spacing: 3px; }
+.start .sub { margin: 10px 0 0; font-size: clamp(11px, 2.6vmin, 16px); color: #9fb4e8; letter-spacing: 2px; }
+.launch-needed { padding: 16px; text-align: center; line-height: 1.5; }
+.back[hidden] { display: none; }
+
+/* short screens (laptops, phones): compact panel, only the panel scrolls */
+/* (class `short` is set by orient.js when the landscape screen is under 760px tall, rotated or not) */html.short .bet { padding: 8px; font-size: 12px; }html.short .bet-head { margin-bottom: 6px; }html.short .bet .big { font-size: 18px; }html.short .bet-round { padding: 4px 8px; margin-bottom: 4px; }html.short .bet-round .timer { font-size: 16px; }html.short .bet-round .pay, html.short .fair { display: none; }html.short 

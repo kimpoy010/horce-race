@@ -1,0 +1,9 @@
+{
+  "name": "Retro Horse Race",
+  "short_name": "Horse Race",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0b14",
+  "theme_color": "#0b0b14"
+}

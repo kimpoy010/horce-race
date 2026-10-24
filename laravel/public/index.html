@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Horse Race">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Retro Horse Race</title>
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<div class="layout" id="layout">
+<div class="stage" id="stage">
+  <canvas id="screen" width="544" height="306"></canvas>
+
+  <div class="bar top">
+    <div id="hRace" class="race-no">RACE --</div>
+    <div id="hStatus" class="status">CONNECTING...</div>
+    <div id="hLast" class="last"></div>
+  </div>
+
+  <div class="tote" id="tote"></div>
+  <div class="countdown" id="countdown" hidden></div>
+  <div class="results" id="results" hidden></div>
+
+  <div class="bar bottom">
+    <div id="hHistory" class="history"></div>
+    <button id="snd" type="button" class="blink">TAP FOR SOUND</button>
+    <span id="conn" class="conn">...</span>
+  </div>
+</div>
+
+<aside class="bet" id="bet" hidden>
+  <div class="bet-head">
+    <div><div class="lbl">PLAYER</div><div id="bPlayer" class="val">-</div></div>
+    <div class="bal"><div class="lbl">BALANCE</div><div id="bBalance" class="val big">-</div></div>
+  </div>
+  <div class="bet-round">
+    <div id="bRound" class="rnd">RACE --</div>
+    <div id="bTimer" class="timer">--</div>
+    <div class="bar-track"><div id="bProg" class="bar-fill"></div></div>
+    <div id="bPay" class="pay"></div>
+  </div>
+  <div id="bMsg" class="msg" hidden></div>
+  <div id="bGrid" class="board"></div>
+  <div id="bLegend" class="legend"></div>
+  <div class="chips" id="bChips"></div>
+  <div class="bet-actions">
+    <button id="bClear" type="button">CLEAR</button>
+    <button id="bRebet" type="button">REBET</button>
+    <button id="bPlace" type="button" class="primary">PLACE BET <span id="bTotal"></span></button>
+  </div>
+  <div id="bPlaced" class="placed"></div>
+  <div id="bLast" class="last-result"></div>
+  <button id="bHistBtn" type="button" class="histbtn">MY HISTORY</button>
+  <div id="bHist" class="placed hist" hidden></div>
+  <div id="bFair" class="fair"></div>
+  <a id="bBack" class="back" href="#" hidden>&larr; BACK TO LOBBY</a>
+</aside>
+<div class="start" id="start" role="button" tabindex="0" aria-label="Tap to play" hidden>
+  <div class="box">
+    <p class="stitle">RETRO<br>HORSE RACE</p>
+    <p class="go blink">TAP TO PLAY</p>
+    <p class="sub">SOUND ON</p>
+  </div>
+</div>
+<div class="reality" id="bReality" hidden>
+  <div class="box">
+    <p class="rtitle">REALITY CHECK</p>
+    <p id="bRealityTxt"></p>
+    <div class="ract"><button id="bRealityGo" type="button" class="primary">CONTINUE PLAYING</button><button id="bRealityLeave" type="button" hidden>LEAVE GAME</button></div>
+  </div>
+</div>
+<button id="betTab" class="tab open" type="button" hidden aria-controls="bet" aria-expanded="true">BET &#9656;</button>
+</div>
+<noscript>This game needs JavaScript.</noscript>
+<script src="js/core.js"></script>
+<script src="js/gait.js"></script>
+<script src="js/horses.js"></script>
+<script src="js/horses3d.js"></script>
+<script src="js/game.js"></script>
+<script src="js/bet.js"></script>
+<script src="js/orient.js"></script>
+</body>
+</html>
