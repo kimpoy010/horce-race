@@ -143,9 +143,10 @@
         stamp(out, PADX + u * u * x0 + 2 * u * t * bx + t * t * x1, PADY + bob + u * u * y0 + 2 * u * t * by + t * t * y1, Math.round(w0 + (w1 - w0) * t), Math.round(w0 + (w1 - w0) * t), ch);
       }
     }
-    limb(23, 19, 2, 27, 11, 16, 6, 2, 'K');                                  // tail outline, then the fill
-    limb(23, 19, 2, 27, 11, 16, 4, 1, 'C');
+    limb(23, 20, 2, 27, 11, 17, 8, 3, 'K');                                  // tail outline, then the fill
+    limb(23, 20, 2, 27, 11, 17, 6, 1, 'C');
     limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');
+    limb(26, 21, 20, 28, 23, 25, 9, 9, 'C');                                 // croup: closes the gap between the tail root, back and thigh
     for (c = 22; c < 70; c++) for (r = cut(c) + 1; r <= cut(c) + 3; r++) {     // deeper belly under the cut
       var by = r + PADY + bob; if (out[by][c + PADX] === ' ' || out[by][c + PADX] === 'A') out[by][c + PADX] = 'C';
     }
