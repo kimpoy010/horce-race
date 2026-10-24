@@ -132,6 +132,7 @@
       if (ch === '.' || r > cut(c) || (c < 22 && r < 26)) continue;     // the tail is redrawn below
       if (ch === 'F' && c < 50 && r < 20) ch = 'S';                      // no speckled highlights in the silks
       if (ch === 'K' && r < 6) continue;
+      if (ch === 'T' && (r < TAG.y || r >= TAG.y + TAG.h || c < TAG.x || c >= TAG.x + TAG.w)) ch = 'S';   // no gold specks in the jockey's silks
       var yy = r + PADY + bob, xx = c + PADX;
       if (yy >= 0 && yy < SH) out[yy][xx] = ch;
     }
