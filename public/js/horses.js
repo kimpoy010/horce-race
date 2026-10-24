@@ -121,9 +121,9 @@
     });
 
     // far legs (accent) first, then the near legs in the coat colour, then the body over their tops
-    paintLeg(out, HIP.hf[0], PADY + HIP.hf[1] + bob, legs.hf, 7, 14, 14, 'A');
+    paintLeg(out, HIP.hf[0], PADY + HIP.hf[1] + bob, legs.hf, 10, 14, 14, 'A');
     paintLeg(out, HIP.ff[0], PADY + HIP.ff[1] + bob, legs.ff, 8, 14, 14, 'A');
-    paintLeg(out, HIP.hn[0], PADY + HIP.hn[1] + bob, legs.hn, 8, 14, 14, 'C');
+    paintLeg(out, HIP.hn[0], PADY + HIP.hn[1] + bob, legs.hn, 12, 14, 14, 'C');
     paintLeg(out, HIP.fn[0], PADY + HIP.fn[1] + bob, legs.fn, 9, 14, 14, 'C');
 
     var gl = DIGITS[no];
@@ -143,19 +143,14 @@
         stamp(out, PADX + u * u * x0 + 2 * u * t * bx + t * t * x1, PADY + bob + u * u * y0 + 2 * u * t * by + t * t * y1, Math.round(w0 + (w1 - w0) * t), Math.round(w0 + (w1 - w0) * t), ch);
       }
     }
-    limb(24, 22, 18, 31, 21, 27, 7, 5, 'C');                                 // solid croup / thigh
-    limb(26, 21, 21, 27, 24, 24, 4, 4, 'C');
+    limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');                                 // solid croup / thigh
+    limb(26, 21, 21, 27, 24, 24, 6, 6, 'C');
     // long tail with a flourish: arches up from the rump, sweeps back and down, then flicks out at the tip
     var tail = [[23, 19, 4, 29, 9, 14, 4, 7], [4, 29, -3, 40, 0, 35, 7, 4], [-3, 40, -11, 37, -8, 44, 4, 1]];
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6] + 2, t[7] + 2, 'K'); });
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], 'C'); });
-    limb(22, 22, 11, 28, 16, 23, 5, 3, 'C');                                  // rounded rump: closes the wedge between the tail root and the hind leg
-    limb(24, 20, 21, 23, 23, 21, 5, 5, 'C');                                  // root: joins the tail to the back without a line
-    for (var pass = 0; pass < 2; pass++) for (r = PADY + 17 + bob; r < PADY + 31 + bob; r++) for (c = PADX + 10; c < PADX + 26; c++) {   // no black specks inside the rump
-      if (out[r][c] !== 'K') continue;
-      var nb = [out[r - 1][c], out[r + 1][c], out[r][c - 1], out[r][c + 1]];
-      if (nb.indexOf(' ') < 0 && nb.filter(function (v) { return v === 'C'; }).length >= 3) out[r][c] = 'C';
-    }
+    limb(22, 22, 11, 28, 16, 23, 7, 4, 'C');                                  // rounded rump: closes the wedge between the tail root and the hind leg
+    limb(24, 20, 21, 23, 23, 21, 7, 7, 'C');                                  // root: joins the tail to the back without a line
     for (c = 22; c < 70; c++) for (r = cut(c) + 1; r <= cut(c) + 3; r++) {     // deeper belly under the cut
       var by = r + PADY + bob; if (out[by][c + PADX] === ' ' || out[by][c + PADX] === 'A') out[by][c + PADX] = 'C';
     }
