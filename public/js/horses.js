@@ -145,11 +145,11 @@
     }
     limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');                                 // solid croup / thigh
     limb(26, 21, 21, 27, 24, 24, 6, 6, 'C');
-    // long tapering tail: leaves the rump, sweeps back and down in one curve
-    var tail = [[23, 19, -7, 36, 4, 18, 5, 2]];
+    // long tail: leaves the rump, swells and hangs steeply back and down to a blunt tip
+    var tail = [[23, 19, 11, 27, 16, 19, 3, 5], [11, 27, 0, 42, 4, 32, 5, 2]];
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6] + 2, t[7] + 2, 'K'); });
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], 'C'); });
-    limb(22, 22, 11, 28, 16, 23, 7, 4, 'C');                                  // rounded rump: closes the wedge between the tail root and the hind leg
+    limb(22, 22, 15, 26, 18, 23, 6, 3, 'C');                                  // rounded rump: closes the wedge between the tail root and the hind leg
     limb(24, 20, 21, 23, 23, 21, 7, 7, 'C');                                  // root: joins the tail to the back without a line
     for (c = 22; c < 70; c++) for (r = cut(c) + 1; r <= cut(c) + 3; r++) {     // deeper belly under the cut
       var by = r + PADY + bob; if (out[by][c + PADX] === ' ' || out[by][c + PADX] === 'A') out[by][c + PADX] = 'C';
