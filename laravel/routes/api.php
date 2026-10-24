@@ -36,3 +36,5 @@ Route::post('/clients/{id}/rotate-key', [ClientAdminController::class, 'rotateKe
 Route::post('/clients/{id}/revoke-key', [ClientAdminController::class, 'revokeKey'])->where('id', '[a-z0-9-]{2,32}');
 Route::post('/clients/{id}/status', [ClientAdminController::class, 'status'])->where('id', '[a-z0-9-]{2,32}');
 Route::post('/clients/{id}/delete', [ClientAdminController::class, 'destroy'])->where('id', '[a-z0-9-]{2,32}');
+Route::match(['get', 'post'], '/clients/{id}/users', [ClientAdminController::class, 'users'])->where('id', '[a-z0-9-]{2,32}');
+Route::post('/clients/{id}/users/{name}/{what}', [ClientAdminController::class, 'userAction'])->where(['id' => '[a-z0-9-]{2,32}', 'name' => '[a-z0-9._@-]{3,64}', 'what' => 'reset-password|status|delete']);

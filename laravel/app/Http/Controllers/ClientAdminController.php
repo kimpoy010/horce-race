@@ -5,13 +5,14 @@ namespace App\Http\Controllers;
 use App\Game\Clients\ClientRegistry;
 use App\Game\Engine;
 use App\Game\GameError;
+use App\Game\Staff\UserStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /** The operator's client registry calls (header X-Controller-Key): list, create, change, rotate keys, disable, delete. Every change is written to the ledger. */
 class ClientAdminController extends Controller
 {
-    public function __construct(private Engine $engine, private ClientRegistry $clients) {}
+    public function __construct(private Engine $engine, private ClientRegistry $clients, private UserStore $users) {}
 
     private function operator(Request $r): void
     {
@@ -111,5 +112,47 @@ class ClientAdminController extends Controller
         $this->operator($r);
 
         return response()->json($this->engine->historyFor($this->engine->playerKey($r->query('client'), $r->query('playerId')), $r->query('limit')));
+    }
+
+    /* ---------- the back-office logins of a client, managed by the operator (the first administrator is created here) ---------- */
+
+    private function knownClient(string $id): void
+    {
+        if (! $this->clients->get($id) && ! ($id === 'default' && config('horse.wallet') !== 'none')) {
+            throw new GameError(404, 'NOT_FOUND');
+        }
+    }
+
+    public function users(Request $r, string $id): JsonResponse
+    {
+        $this->operator($r);
+        $this->knownClient($id);
+        if ($r->isMethod('GET')) {
+            return response()->json(['ok' => true, 'users' => $this->users->list($id)]);
+        }
+        $b = $r->json()->all();
+        $out = $this->users->create($id, ['username' => $b['username'] ?? null, 'role' => $b['role'] ?? null, 'password' => $b['password'] ?? null], 'operator');
+        $this->audit('user_created:'.$out['user']['username'], $id);
+
+        return response()->json(['ok' => true] + $out);
+    }
+
+    public function userAction(Request $r, string $id, string $name, string $what): JsonResponse
+    {
+        $this->operator($r);
+        $this->knownClient($id);
+        $b = $r->json()->all();
+        $out = [];
+        if ($what === 'reset-password') {
+            $out = $this->users->resetPassword($id, $name);
+        } elseif ($what === 'status') {
+            $out = ['user' => $this->users->setStatus($id, $name, (string) ($b['status'] ?? ''))];
+        } else {
+            $this->users->remove($id, $name);
+        }
+        app('horse.backoffice')->endSessions($id, $name);
+        $this->audit('user_'.str_replace('-', '_', $what).':'.$name, $id);
+
+        return response()->json(['ok' => true] + $out);
     }
 }

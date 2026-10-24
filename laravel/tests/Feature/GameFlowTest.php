@@ -153,7 +153,7 @@ class GameFlowTest extends TestCase
         // the ledger chain is intact and holds the whole story
         $l = $this->engine->ledger()->verify();
         $this->assertTrue($l['ok']);
-        $events = DB::table('ledger')->pluck('line')->map(fn ($x) => json_decode($x, true)['e'])->unique()->values()->all();
+        $events = DB::table('ledger')->orderBy('seq')->pluck('line')->map(fn ($x) => json_decode($x, true)['e'])->unique()->values()->all();
         foreach (['open', 'bet', 'draw', 'settled', 'credit_due', 'credit_ok'] as $e) {
             $this->assertContains($e, $events);
         }

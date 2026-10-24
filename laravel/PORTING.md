@@ -21,8 +21,11 @@ URLs, so the game does not change for the player. `bin/sync-frontend.sh` copies 
 | Per-client players (`client:player` keys), wallets, limits, `?client=` launch, a disabled client ends its sessions | done |
 | Webhooks to the platform (`round.settled`, `big.win`), signed, at least once with retries | done |
 | Taking over the Node server's clients (`php artisan clients import data/clients.json`, same key) | done: secrets and API keys carry over |
-| Back office (`/bo/api`, client staff logins, roles, TOTP) and operator admin console (`/admin/api`) | **not yet** (the HTML/JS pages are copied, the APIs are missing) |
-| `/metrics`, alerts, ops snapshot | **not yet** |
+| Back office `/backoffice` (`/bo/api`): login with client + user + password (+ authenticator code), roles viewer / support / admin, cookie sessions with CSRF token, Origin check, idle (30 min) and absolute (12 h) timeouts, throttling, players, races, reports, CSV export, user management, API key rotation, audit log | done |
+| Operator admin console `/admin` (`/admin/api`): overview (health, game numbers, RTP, clients), RTP setting, clients and their keys / secrets, client users, own staff, audit log | done |
+| Staff accounts: `php artisan staff ...` and the operator calls `/api/clients/{id}/users...` | done |
+| Wallet call timings per client, payouts-vs-odds z-score, ledger check, queue ages (what the overview shows) | done |
+| `/metrics` (Prometheus), alert rules and notifications | **not yet** (the overview shows no alerts until they are ported) |
 | Demo mode (controller-driven races without betting) | not planned: the Laravel app is the live game |
 
 Like the Node server it has the implicit "default" client (`HORSE_WALLET=mock|http`) next to the registry clients; `HORSE_WALLET=none` runs with
@@ -64,13 +67,27 @@ wallet) is refused when `APP_ENV=production`; use `HORSE_WALLET=http` with `HORS
 
 * `tests/Unit/ParityTest.php`: Node and PHP agree on odds, RTP weights, draws, commits, ledger hashes and request signatures.
   The vectors come from the Node code: `node tests/fixtures/make-parity.cjs` regenerates `tests/fixtures/parity.json`.
+* `tests/Feature/BackOfficeTest.php` and `AdminConsoleTest.php`: login, cookie flags, CSRF and Origin, roles, throttling, forced password change, TOTP (RFC 6238
+  vectors, a code works once), disabled users and clients, one client never sees another's players, CSV neutralising, user management rules, the admin
+  console's clients / keys / RTP / staff, the `staff` command. The whole suite also passes on PostgreSQL:
+  `DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_DATABASE=horserace_test DB_USERNAME=... php artisan test` (SQLite is the default for speed).
 * `tests/Feature/ClientsTest.php`: the registry (validation, keys and rotation, IP allow list, brute-force block, encryption in the Node format, import of a Node `clients.json`),
   two clients side by side with their own wallets, limits, webhooks and return links, the client API and the operator calls.
 * `tests/Feature/GameFlowTest.php`: a whole race (bets, draw, settlement, payout, proof, history), limits, a lost debit answer
   (rollback), a credit that has to be retried, blocking, the controller, health, and ledger lines byte-identical to Node's.
 
+## Staff accounts
+
+    php artisan staff add-operator olga --role=admin          # the first login of the operator's console (/admin); prints a temporary password
+    php artisan staff add-user acme ann --role=admin          # the first administrator of a client's back office (/backoffice)
+
+A temporary password must be changed at the first sign-in. Set `HORSE_COOKIE_SECURE=true` behind https (the default is Secure in production).
+
 ## Known differences from the Node server
 
+* Staff passwords are argon2id (Node: scrypt). The two formats cannot be converted, so the staff of a Node installation get new temporary passwords
+  (`php artisan staff reset-password ...`); clients, API keys and secrets do carry over (`php artisan clients import`).
+* The overview has no alerts yet (the alert rules are the next piece), and the wallet timings are kept in the database for an hour.
 * The daily loss limit adds up the bets placed today (UTC) and their payouts; Node counts a payout on the day it is settled.
   They differ only for a race that straddles midnight.
 * Sessions and the current round are in the database, so any number of web workers can serve players.

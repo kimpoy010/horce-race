@@ -107,7 +107,7 @@ class ClientsTest extends TestCase
         $this->postJson('/api/clients/acme/delete', [], $k)->assertStatus(400)->assertJsonPath('error', 'CONFIRM_REQUIRED');
         $this->postJson('/api/clients/acme/delete', ['confirm' => 'acme'], $k)->assertOk();
         $this->getJson('/api/clients/acme', $k)->assertStatus(404);
-        $actions = DB::table('ledger')->pluck('line')->map(fn ($l) => json_decode($l, true))->where('e', 'client_admin')->pluck('action')->all();
+        $actions = DB::table('ledger')->orderBy('seq')->pluck('line')->map(fn ($l) => json_decode($l, true))->where('e', 'client_admin')->pluck('action')->all();
         $this->assertSame(['created', 'updated', 'disabled', 'deleted'], array_values($actions));
     }
 
@@ -268,7 +268,7 @@ class ClientsTest extends TestCase
         $zetaUp = true;
         $this->engine->tick();
         $this->assertSame(0, DB::table('pending_ops')->where('kind', 'webhook')->count(), 'delivered after the platform recovered');
-        $types = DB::table('ledger')->pluck('line')->map(fn ($l) => json_decode($l, true))->whereIn('e', ['webhook_due', 'webhook_ok'])->pluck('e')->countBy()->all();
+        $types = DB::table('ledger')->orderBy('seq')->pluck('line')->map(fn ($l) => json_decode($l, true))->whereIn('e', ['webhook_due', 'webhook_ok'])->pluck('e')->countBy()->all();
         $this->assertGreaterThanOrEqual(2, $types['webhook_ok']);
     }
 

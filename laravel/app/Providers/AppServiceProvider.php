@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Game\Clients\ClientRegistry;
 use App\Game\Engine;
+use App\Game\Staff\AdminRoutes;
+use App\Game\Staff\BackOffice;
+use App\Game\Staff\UserStore;
 use App\Game\Ledger;
 use App\Game\Wallet\HttpWallet;
 use App\Game\Wallet\MockWallet;
@@ -54,6 +57,12 @@ class AppServiceProvider extends ServiceProvider
 
             return new ClientRegistry((string) config('horse.clients_key'), $mock, (bool) config('horse.allow_http_wallet'));
         });
+        $this->app->singleton(UserStore::class, fn () => new UserStore((string) config('horse.clients_key'), null, (array) config('horse.argon')));
+        $secure = fn () => config('horse.cookie_secure') ?? $this->app->environment('production');
+        // the clients' back office (/bo) and the operator's admin console (/admin): the same engine, two cookies, two sets of routes
+        $this->app->singleton('horse.backoffice', fn ($app) => new BackOffice($app->make(UserStore::class), $app->make(ClientRegistry::class), $app->make(Engine::class), 'bo', null, (bool) $secure()));
+        $this->app->singleton('horse.admin', fn ($app) => new BackOffice($app->make(UserStore::class), $app->make(ClientRegistry::class), $app->make(Engine::class), 'admin', '_operator', (bool) $secure(),
+            AdminRoutes::make($app->make(ClientRegistry::class), $app->make(UserStore::class), fn () => $app->make('horse.backoffice'))));
         $this->app->singleton(Ledger::class);
         $this->app->singleton(Engine::class, fn ($app) => new Engine($app->make('horse.default_wallet'), $app->make(Ledger::class), config('horse'), null, $app->make(ClientRegistry::class), $app->make('horse.default_webhook')));
     }

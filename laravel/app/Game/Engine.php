@@ -202,6 +202,7 @@ final class Engine
                 }
             }
             DB::table('rounds')->where('race_no', $r->race_no)->update(['status' => 'settled', 'staked' => $staked, 'paid' => $paid, 'settled_at' => $this->now()]);
+            $this->trackRtp($bets, $odds, $r);
             $list = [];
             foreach ($payouts as $pk => $w) {
                 $list[] = ['playerId' => $pk, 'amount' => $w['amount']];
@@ -231,6 +232,36 @@ final class Engine
         $this->flushCredits();
     }
 
+    /** each bet is a lottery ticket: it pays stake x odds with probability p. Summing expectation and variance over all bets says whether the payouts are in line with the odds */
+    private function trackRtp($bets, array $odds, object $r): void
+    {
+        $prob = $this->tableOf($r)['prob'];
+        $exp = 0.0;
+        $var = 0.0;
+        $staked = 0;
+        $paid = 0;
+        foreach ($bets as $b) {
+            $p = $prob[$b->combo];
+            $w = $b->stake * $odds[$b->combo];
+            $exp += $w * $p;
+            $var += $w * $w * $p * (1 - $p);
+            $staked += $b->stake;
+            if ($b->combo === $r->combo) {
+                $paid += self::payoutFor($b->stake, $odds[$b->combo]);
+            }
+        }
+        $T = json_decode((string) DB::table('settings')->where('key', 'rtp_track')->value('value'), true) ?: ['exp' => 0, 'varsum' => 0, 'paid' => 0, 'staked' => 0];
+        $T = ['exp' => $T['exp'] + $exp, 'varsum' => $T['varsum'] + $var, 'paid' => $T['paid'] + $paid, 'staked' => $T['staked'] + $staked];
+        DB::table('settings')->updateOrInsert(['key' => 'rtp_track'], ['value' => json_encode($T)]);
+    }
+
+    public function rtpZ(): float
+    {
+        $T = json_decode((string) DB::table('settings')->where('key', 'rtp_track')->value('value'), true);
+
+        return $T && $T['varsum'] > 0 ? ($T['paid'] - $T['exp']) / sqrt($T['varsum']) : 0.0;
+    }
+
     /** the daemon calls this every 250 ms */
     public function tick(): void
     {
@@ -254,6 +285,7 @@ final class Engine
         $this->flushRollbacks();
         $this->flushWebhooks();
         DB::table('game_sessions')->where('expires_at', '<', $t)->delete();
+        DB::table('wallet_calls')->where('at', '<', $t - 3600000)->delete();
         Cache::put('horse:tick', $t, 3600);
     }
 
@@ -331,7 +363,7 @@ final class Engine
                 $extra = json_decode($p->extra ?? '{}', true) ?: [];
                 [$cid, $raw] = self::splitPk($p->player_key);
                 $w = $this->walletFor($cid) ?? throw new \RuntimeException('no wallet for client '.$cid);
-                $res = $this->walletCall(fn () => $w->credit($raw, $p->amount, $p->tx_id, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => $p->tx_kind] + $extra));
+                $res = $this->walletCall(fn () => $w->credit($raw, $p->amount, $p->tx_id, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => $p->tx_kind] + $extra), 'credit', $cid);
                 DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
                 $this->log(['e' => 'credit_ok', 'txId' => $p->tx_id, 'raceNo' => $p->race_no]);
                 if (isset($res['balance'])) {
@@ -352,7 +384,7 @@ final class Engine
                 $extra = json_decode($p->extra ?? '{}', true) ?: [];
                 [$cid, $raw] = self::splitPk($p->player_key);
                 $w = $this->walletFor($cid) ?? throw new \RuntimeException('no wallet for client '.$cid);
-                $res = $this->walletCall(fn () => $w->rollback($raw, $p->amount, $orig, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => 'rollback', 'refTxId' => $orig] + $extra));
+                $res = $this->walletCall(fn () => $w->rollback($raw, $p->amount, $orig, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => 'rollback', 'refTxId' => $orig] + $extra), 'rollback', $cid);
                 DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
                 $this->log(['e' => 'rollback_ok', 'txId' => $orig, 'status' => $res['status'] ?? null]);
                 if (isset($res['balance'])) {
@@ -372,9 +404,37 @@ final class Engine
         }
     }
 
-    private function walletCall(Closure $fn): mixed
+    /** every wallet call goes through here: timing and failures feed the overview and /metrics. A normal refusal is an answer; no answer, a server error or a rejected signature is a failure. */
+    private function walletCall(Closure $fn, string $op = 'call', string $clientId = 'default'): mixed
     {
-        return $fn();
+        $t0 = hrtime(true);
+        $ok = true;
+        try {
+            return $fn();
+        } catch (\Throwable $e) {
+            $ok = $e->getMessage() === 'INSUFFICIENT_FUNDS' || ($e instanceof WalletException && $e->definitive && ! in_array($e->status, [401, 403], true));
+            throw $e;
+        } finally {
+            try {
+                DB::table('wallet_calls')->insert(['at' => $this->now(), 'client' => $clientId, 'op' => $op, 'ms' => (int) round((hrtime(true) - $t0) / 1e6), 'ok' => $ok]);
+            } catch (\Throwable $e) {
+                // metrics must never break a bet
+            }
+        }
+    }
+
+    /** calls in the last $windowMs: calls, failures, failRate, p95 (ms) */
+    public function walletWindow(int $windowMs, ?string $client = null): array
+    {
+        $q = DB::table('wallet_calls')->where('at', '>=', $this->now() - $windowMs);
+        if ($client !== null) {
+            $q->where('client', $client);
+        }
+        $ms = (clone $q)->orderBy('ms')->pluck('ms')->all();
+        $n = count($ms);
+        $fails = (int) (clone $q)->where('ok', false)->count();
+
+        return ['calls' => $n, 'failures' => $fails, 'failRate' => $n ? $fails / $n : 0, 'p95' => $n ? $ms[min($n - 1, (int) floor($n * 0.95))] : 0];
     }
 
     /* ---------- clients: every player belongs to one client (platform). Internally a player is "clientId:playerId" ("default" client: just playerId) ---------- */
@@ -506,7 +566,7 @@ final class Engine
             throw new GameError(400, 'INVALID_CLIENT');
         }
         try {
-            $info = $this->walletCall(fn () => $wallet->validateToken($token));
+            $info = $this->walletCall(fn () => $wallet->validateToken($token), 'validate', $clientId);
         } catch (\Throwable $e) {
             throw new GameError(401, 'INVALID_TOKEN');
         }
@@ -715,7 +775,7 @@ final class Engine
         }
         for ($attempt = 0; $attempt < 2; $attempt++) {
             try {
-                return $this->walletCall(fn () => $wallet->debit($raw, $amount, $txId, $meta));
+                return $this->walletCall(fn () => $wallet->debit($raw, $amount, $txId, $meta), 'debit', $cid);
             } catch (WalletException $e) {
                 if ($e->getMessage() === 'INSUFFICIENT_FUNDS') {
                     throw new GameError(402, 'INSUFFICIENT_FUNDS');
@@ -803,7 +863,7 @@ final class Engine
             DB::table('game_sessions')->where('key', $s->key)->update(['refreshed_at' => $this->now()]);
             try {
                 $w = $this->walletFor($s->client_id) ?? throw new \RuntimeException('no wallet');
-                $bal = $this->walletCall(fn () => $w->balance($s->raw_id));
+                $bal = $this->walletCall(fn () => $w->balance($s->raw_id), 'balance', $s->client_id);
                 DB::table('game_sessions')->where('key', $s->key)->update(['balance' => $bal]);
             } catch (\Throwable $e) {
                 // keep the cached balance
@@ -861,6 +921,128 @@ final class Engine
 
         return ['ok' => true, 'hash' => 'sha256', 'raceNo' => (int) $r->race_no, 'roundId' => (string) $r->race_no, 'commit' => $r->commit, 'seed' => $r->seed, 'odds' => $this->odds($r),
             'rtp' => (float) $r->rtp, 'combo' => $r->combo, 'order' => json_decode($r->order, true)];
+    }
+
+    /* ---------- back office: audit log, races, players ---------- */
+
+    /** back-office actions are kept in the ledger and in a short list per client */
+    public function audit(string $clientId, array $entry): void
+    {
+        $at = $this->now();
+        DB::table('audit_log')->insert(['client' => $clientId, 'at' => $at, 'entry' => json_encode($entry, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]);
+        $this->log(['e' => 'bo_action', 'clientId' => $clientId] + $entry);
+    }
+
+    public function auditFor(string $clientId, mixed $limit = 100): array
+    {
+        $limit = max(1, min(500, (int) $limit ?: 100));
+        $rows = DB::table('audit_log')->where('client', $clientId)->orderByDesc('id')->limit($limit)->get();
+
+        return ['ok' => true, 'entries' => $rows->map(fn ($r) => ['at' => (int) $r->at] + json_decode($r->entry, true))->all()];
+    }
+
+    /** one line per settled race for a client: its own bets, players, staked and paid */
+    public function rounds(string $clientId, mixed $limit = 50): array
+    {
+        $limit = max(1, min(300, (int) $limit ?: 50));
+        $agg = $this->ofClient(DB::table('bets')->whereIn('status', ['won', 'lost']), $clientId)->groupBy('race_no')
+            ->select(['race_no', DB::raw('count(distinct player_key) as players'), DB::raw('count(*) as bets'), DB::raw('sum(stake) as staked'), DB::raw('sum(payout) as paid')]);
+        $rows = DB::query()->fromSub($agg, 'a')->join('rounds', 'rounds.race_no', '=', 'a.race_no')->where('rounds.status', 'settled')->orderByDesc('a.race_no')->limit($limit)
+            ->get(['a.race_no', 'a.players', 'a.bets', 'a.staked', 'a.paid', 'rounds.combo', 'rounds.order as ord', 'rounds.odds', 'rounds.settled_at']);
+
+        return ['ok' => true, 'rounds' => $rows->map(fn ($x) => ['raceNo' => (int) $x->race_no, 'combo' => $x->combo, 'odds' => json_decode($x->odds, true)[$x->combo] ?? null, 'order' => json_decode($x->ord, true),
+            'at' => (int) $x->settled_at, 'players' => (int) $x->players, 'bets' => (int) $x->bets, 'staked' => (int) $x->staked, 'paid' => (int) $x->paid])->all()];
+    }
+
+    /** the players of a client that the game knows from their bets, sessions and the block list */
+    public function players(string $clientId, array $opts = []): array
+    {
+        $q = strtolower((string) ($opts['query'] ?? ''));
+        $by = [];
+        $get = function (string $pk) use (&$by) {
+            return $by[$pk] ??= ['playerId' => self::splitPk($pk)[1], 'bets' => 0, 'staked' => 0, 'paid' => 0, 'lastBetAt' => null, 'online' => false, 'blocked' => false];
+        };
+        $match = fn (string $pk) => $q === '' || str_contains(strtolower(self::splitPk($pk)[1]), $q);
+        foreach ($this->ofClient(DB::table('bets')->where('status', '!=', 'refunded'), $clientId)->groupBy('player_key')->selectRaw('player_key, count(*) as n, sum(stake) as s, sum(payout) as p, max(placed_at) as last')->get() as $r) {
+            if ($match($r->player_key)) {
+                $x = &$by[$r->player_key];
+                $x = $get($r->player_key);
+                $x['bets'] = (int) $r->n;
+                $x['staked'] = (int) $r->s;
+                $x['paid'] = (int) $r->p;
+                $x['lastBetAt'] = (int) $r->last;
+                unset($x);
+            }
+        }
+        foreach ($this->ofClient(DB::table('game_sessions')->where('expires_at', '>', $this->now()), $clientId)->pluck('player_key') as $pk) {
+            if ($match($pk)) {
+                $by[$pk] = $get($pk);
+                $by[$pk]['online'] = true;
+            }
+        }
+        foreach ($this->ofClient(DB::table('blocked_players'), $clientId)->pluck('player_key') as $pk) {
+            if ($match($pk)) {
+                $by[$pk] = $get($pk);
+                $by[$pk]['blocked'] = true;
+            }
+        }
+        $all = array_values($by);
+        usort($all, fn ($a, $b) => ($b['lastBetAt'] ?? 0) <=> ($a['lastBetAt'] ?? 0));
+
+        return ['ok' => true, 'total' => count($all), 'players' => array_slice($all, 0, max(1, min(500, (int) ($opts['limit'] ?? 100) ?: 100)))];
+    }
+
+    public function playerDetail(string $clientId, string $playerId): array
+    {
+        $pk = $this->playerKey($clientId, $playerId);
+        $h = $this->historyFor($pk, 100);
+        $sessions = DB::table('game_sessions')->where('player_key', $pk)->get()->map(fn ($s) => ['since' => (int) $s->created_at, 'currency' => $s->currency, 'balance' => $s->balance === null ? null : (int) $s->balance,
+            'limits' => json_decode($s->limits, true), 'staked' => (int) $s->s_staked, 'paid' => (int) $s->s_paid])->all();
+        $totals = ['bets' => 0, 'staked' => 0, 'paid' => 0];
+        foreach ($h['rounds'] as $r) {
+            foreach ($r['bets'] as $b) {
+                if ($b['status'] !== 'refunded') {
+                    $totals['bets']++;
+                    $totals['staked'] += $b['stake'];
+                    $totals['paid'] += $b['payout'];
+                }
+            }
+        }
+
+        return ['ok' => true, 'playerId' => $playerId, 'clientId' => $clientId, 'blocked' => DB::table('blocked_players')->where('player_key', $pk)->exists(), 'sessions' => $sessions,
+            'dailyNetLoss' => max(0, $this->dayNet($pk)), 'totals' => $totals, 'rounds' => $h['rounds']];
+    }
+
+    /** what the operator's overview and the controller show under "Health and alerts" */
+    public function ops(): array
+    {
+        $h = $this->health();
+        $tick = Cache::get('horse:tick');
+        $started = Cache::get('horse:started');
+        $dir = storage_path();
+
+        return ['role' => $h['ok'] ? 'active' : 'down', 'health' => $h, 'alerts' => [], 'recentAlerts' => [], 'snapshot' => $this->opsSnapshot(), 'wallet' => $this->walletWindow(300000),
+            'clients' => ['count' => $this->clients ? $this->clients->count() : 0, 'error' => null], 'tickAge' => $tick === null ? null : max(0, ($this->now() - $tick) / 1000), 'lease' => null,
+            'uptime' => $started ? max(0, (int) round(($this->now() - $started) / 1000)) : null, 'diskFreeMb' => (int) round((@disk_free_space($dir) ?: 0) / 1048576)];
+    }
+
+    /** the queues and the ledger, for the operator's overview and /metrics */
+    public function opsSnapshot(): array
+    {
+        $t = $this->now();
+        $q = function (string $kind) use ($t) {
+            $c = DB::table('pending_ops')->where('kind', $kind);
+            $min = (clone $c)->min('since');
+
+            return ['count' => (int) $c->count(), 'oldestSeconds' => $min ? max(0, ($t - (int) $min) / 1000) : 0];
+        };
+        $l = $this->ledger->verify();
+        $cur = $this->current();
+        $st = $this->report();
+
+        return ['round' => $cur ? (int) $cur->race_no : 0, 'rounds' => $st['rounds'], 'bets' => $st['bets'], 'byCurrency' => $st['byCurrency'], 'rtpSetting' => $this->rtp(), 'rtpActual' => $st['actualRtp'] ?? 0, 'rtpZ' => $this->rtpZ(),
+            'sessions' => $st['activeSessions'], 'pending' => ['credits' => $q('credit'), 'rollbacks' => $q('rollback'), 'webhooks' => $q('webhook')],
+            'ledger' => ['ok' => $l['ok'], 'lines' => $l['lines'], 'head' => $l['head'], 'broken' => $l['broken']]];
     }
 
     /** numbers for one client (its own client API / back office) */

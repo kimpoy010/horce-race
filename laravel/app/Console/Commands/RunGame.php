@@ -43,6 +43,7 @@ class RunGame extends Command
         if ($this->stop) {
             return self::SUCCESS;
         }
+        Cache::put('horse:started', $engine->now(), 86400 * 30);
         $this->info('game:run: running (tick every '.config('horse.tick_ms').' ms)');
         $every = max(50, (int) config('horse.tick_ms')) * 1000;
         $renewAt = 0;

@@ -107,7 +107,7 @@ return new class extends Migration
         });
 
         if (DB::getDriverName() === 'pgsql') {          // the ledger cannot be changed afterwards, not even by the application
-            DB::unprepared("CREATE FUNCTION ledger_immutable() RETURNS trigger AS \$\$ BEGIN RAISE EXCEPTION 'the ledger is append-only'; END \$\$ LANGUAGE plpgsql");
+            DB::unprepared("CREATE OR REPLACE FUNCTION ledger_immutable() RETURNS trigger AS \$\$ BEGIN RAISE EXCEPTION 'the ledger is append-only'; END \$\$ LANGUAGE plpgsql");
             DB::unprepared('CREATE TRIGGER ledger_no_change BEFORE UPDATE OR DELETE ON ledger FOR EACH ROW EXECUTE FUNCTION ledger_immutable()');
         }
     }

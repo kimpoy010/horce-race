@@ -27,6 +27,11 @@ return [
     'allow_http_wallet' => (bool) env('HORSE_ALLOW_HTTP_WALLET', false),     // plain http wallet URLs (https is required otherwise)
     'trust_proxy' => (bool) env('HORSE_TRUST_PROXY', false),                  // use X-Forwarded-For for the client API's IP allow list
 
+    // staff passwords (argon2id): memory in KiB, passes, threads
+    'argon' => ['memory_cost' => 65536, 'time_cost' => 4, 'threads' => 1],
+    // the back office / admin cookie: null = Secure only in production (set true behind https, false for plain http testing)
+    'cookie_secure' => env('HORSE_COOKIE_SECURE'),
+
     'game_id' => 'horse-race',
     'currency' => env('HORSE_CURRENCY', 'PHP'),
     'rtp' => (float) env('HORSE_RTP', 0.9),                      // 0.88 .. 0.99 (the controller can change it while running)
