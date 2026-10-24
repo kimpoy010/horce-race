@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var COLS = 92, PADX = 6, PADY = 6, SW = COLS + PADX * 2 + 8, SH = 66 + PADY * 2;
+  var COLS = 92, PADX = 20, PADY = 6, SW = COLS + PADX * 2 + 8, SH = 66 + PADY * 2;
   var GROUND = PADY + 60, OX = PADX + 46, OY = GROUND + 1, STEPS = HorseGait.FRAMES;
 
   // roles: C coat, A accent (far legs, blaze), S silks, F skin / highlight, K black, T number tag
