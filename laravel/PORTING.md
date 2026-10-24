@@ -25,7 +25,8 @@ URLs, so the game does not change for the player. `bin/sync-frontend.sh` copies 
 | Operator admin console `/admin` (`/admin/api`): overview (health, game numbers, RTP, clients), RTP setting, clients and their keys / secrets, client users, own staff, audit log | done |
 | Staff accounts: `php artisan staff ...` and the operator calls `/api/clients/{id}/users...` | done |
 | Wallet call timings per client, payouts-vs-odds z-score, ledger check, queue ages (what the overview shows) | done |
-| `/metrics` (Prometheus), alert rules and notifications | **not yet** (the overview shows no alerts until they are ported) |
+| `/metrics` (Prometheus text format, controller key as `X-Controller-Key` or Bearer): game, queues, ledger, RTP z-score, per-client money, wallet call counters and latency histograms | done |
+| Alerts: ledger chain broken, round loop stopped, credits / rollbacks / webhooks stuck, wallet failing or slow (per client), RTP drift, low disk; firing, repeated and resolved, to the log and `HORSE_ALERT_WEBHOOK_URL` (Slack / Teams / Discord style) | done |
 | Demo mode (controller-driven races without betting) | not planned: the Laravel app is the live game |
 
 Like the Node server it has the implicit "default" client (`HORSE_WALLET=mock|http`) next to the registry clients; `HORSE_WALLET=none` runs with
@@ -76,6 +77,16 @@ wallet) is refused when `APP_ENV=production`; use `HORSE_WALLET=http` with `HORS
 * `tests/Feature/GameFlowTest.php`: a whole race (bets, draw, settlement, payout, proof, history), limits, a lost debit answer
   (rollback), a credit that has to be retried, blocking, the controller, health, and ledger lines byte-identical to Node's.
 
+## Operations: metrics and alerts
+
+* `GET /metrics` for Prometheus (same metric names as the Node server; the process metrics describe the round loop: `process_uptime_seconds`, `horse_tick_age_seconds`).
+  The wallet counters are kept apart from the detailed calls (which are pruned after an hour), so they only ever go up.
+* The alert rules run in the round loop every 5 seconds **and** from the scheduler every minute (`alerts:check`), which is what reports a loop that
+  is not running at all. Put the scheduler in cron: `* * * * * cd /path/to/laravel && php artisan schedule:run >> /dev/null 2>&1`.
+* Thresholds are in `config/horse.php` (`HORSE_ALERT_*`); `HORSE_ALERT_WEBHOOK_URL` receives `{text, status, name, severity, message, since, at, id}`.
+  A webhook that does not answer within 3 seconds is skipped, so keep it fast (a chat tool's incoming webhook is fine).
+* Health for a load balancer: `GET /healthz` is 200 only while the round loop runs and the ledger chain is intact.
+
 ## Staff accounts
 
     php artisan staff add-operator olga --role=admin          # the first login of the operator's console (/admin); prints a temporary password
@@ -87,7 +98,8 @@ A temporary password must be changed at the first sign-in. Set `HORSE_COOKIE_SEC
 
 * Staff passwords are argon2id (Node: scrypt). The two formats cannot be converted, so the staff of a Node installation get new temporary passwords
   (`php artisan staff reset-password ...`); clients, API keys and secrets do carry over (`php artisan clients import`).
-* The overview has no alerts yet (the alert rules are the next piece), and the wallet timings are kept in the database for an hour.
+* Wallet timings for the overview are kept in the database for an hour; `/metrics` uses running counters.
+* There is one round loop per database, held with a cache lock (`CACHE_STORE=database` or `redis`); there is no separate standby command, start a second `game:run` and it waits for the lock.
 * The daily loss limit adds up the bets placed today (UTC) and their payouts; Node counts a payout on the day it is settled.
   They differ only for a race that straddles midnight.
 * Sessions and the current round are in the database, so any number of web workers can serve players.

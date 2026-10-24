@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Game\AlertManager;
 use App\Game\Engine;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -21,7 +22,7 @@ class RunGame extends Command
 
     private bool $stop = false;
 
-    public function handle(Engine $engine): int
+    public function handle(Engine $engine, AlertManager $alerts): int
     {
         $ttl = (int) config('horse.lock_ttl_seconds');
         $lock = Cache::lock('horse:game-loop', $ttl);
@@ -47,6 +48,7 @@ class RunGame extends Command
         $this->info('game:run: running (tick every '.config('horse.tick_ms').' ms)');
         $every = max(50, (int) config('horse.tick_ms')) * 1000;
         $renewAt = 0;
+        $alertAt = 0;
         while (! $this->stop) {
             $t0 = microtime(true);
             try {
@@ -59,6 +61,10 @@ class RunGame extends Command
                     $renewAt = $t0 + $ttl / 3;
                 }
                 $engine->tick();
+                if ($t0 >= $alertAt) {                       // the alert rules, every 5 seconds
+                    $alertAt = $t0 + 5;
+                    $alerts->evaluate();
+                }
             } catch (\Throwable $e) {
                 $this->error('tick failed: '.$e->getMessage());
                 report($e);

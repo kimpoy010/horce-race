@@ -56,6 +56,22 @@ return [
     // the operator's controller key (X-Controller-Key header) for /api/command and /api/report
     'controller_key' => env('HORSE_CONTROLLER_KEY'),
 
+    // alerts: rules over the numbers of the game (App\Game\AlertManager); firing, repeated and resolved alerts go to the log and, when set, to a webhook
+    // ({text, status, name, severity, message, since, at, id}; `text` works with Slack / Teams / Discord style incoming webhooks)
+    'alert_webhook_url' => env('HORSE_ALERT_WEBHOOK_URL'),
+    'alerts' => [
+        'creditMinutes' => (int) env('HORSE_ALERT_CREDIT_MIN', 5),          // a win or refund still undelivered after this long
+        'rollbackMinutes' => (int) env('HORSE_ALERT_ROLLBACK_MIN', 2),      // a rollback still undelivered after this long
+        'webhookMinutes' => (int) env('HORSE_ALERT_WEBHOOK_MIN', 10),       // a webhook event still undelivered after this long
+        'walletFailRate' => (float) env('HORSE_ALERT_WALLET_FAIL_RATE', 0.2),   // share of wallet calls failing in the last 5 minutes (with at least 5 calls)
+        'walletP95Ms' => (int) env('HORSE_ALERT_WALLET_P95_MS', 3000),      // slow wallet
+        'tickStallSeconds' => 5,                                            // the round loop has not run
+        'rtpZ' => (float) env('HORSE_ALERT_RTP_Z', 4),                      // payouts this many standard deviations from what the odds predict ...
+        'rtpMinRounds' => 300,                                              // ... after this many races
+        'diskFreeMb' => (int) env('HORSE_ALERT_DISK_FREE_MB', 500),         // free space where the database / logs are kept
+        'repeatMinutes' => (int) env('HORSE_ALERT_REPEAT_MIN', 30),         // reminder while an alert stays active
+    ],
+
     // the daemon (php artisan game:run)
     'tick_ms' => 250,
     'lock_ttl_seconds' => 10,

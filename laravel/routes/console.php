@@ -6,3 +6,6 @@ use Illuminate\Support\Facades\Artisan;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+// the round loop checks the alerts itself; this also catches a loop that is not running (add the scheduler to cron: * * * * * php artisan schedule:run)
+Illuminate\Support\Facades\Schedule::command('alerts:check')->everyMinute()->withoutOverlapping();

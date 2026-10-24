@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Game\Engine;
+use App\Game\AlertManager;
 use App\Game\GameError;
+use App\Game\Metrics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -99,6 +101,18 @@ class GameController extends Controller
     {
         $this->operator($r);
 
-        return response()->json(['serverNow' => $this->engine->now()] + $this->engine->report());
+        return response()->json(['serverNow' => $this->engine->now()] + $this->engine->report() + ['ops' => $this->engine->ops()]);
+    }
+
+    /** Prometheus text format, operator key as X-Controller-Key or Bearer token */
+    public function metrics(Request $r)
+    {
+        $key = (string) config('horse.controller_key');
+        $given = (string) ($r->header('X-Controller-Key') ?: $r->bearerToken());
+        if ($key === '' || ! hash_equals($key, $given)) {
+            return response('bad controller key', 401);
+        }
+
+        return response(Metrics::render($this->engine, app(AlertManager::class)->current()), 200, ['Content-Type' => 'text/plain; version=0.0.4; charset=utf-8', 'Cache-Control' => 'no-store']);
     }
 }

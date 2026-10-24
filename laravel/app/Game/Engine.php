@@ -416,11 +416,26 @@ final class Engine
             throw $e;
         } finally {
             try {
-                DB::table('wallet_calls')->insert(['at' => $this->now(), 'client' => $clientId, 'op' => $op, 'ms' => (int) round((hrtime(true) - $t0) / 1e6), 'ok' => $ok]);
+                $ms = (int) round((hrtime(true) - $t0) / 1e6);
+                DB::table('wallet_calls')->insert(['at' => $this->now(), 'client' => $clientId, 'op' => $op, 'ms' => $ms, 'ok' => $ok]);
+                $this->countWalletCall($clientId, $op, $ms, $ok);
             } catch (\Throwable $e) {
                 // metrics must never break a bet
             }
         }
+    }
+
+    /** running totals for /metrics (counters only go up, so they are kept apart from the hour of detailed calls) */
+    private function countWalletCall(string $clientId, string $op, int $ms, bool $ok): void
+    {
+        DB::table('wallet_stats')->insertOrIgnore(['client' => $clientId, 'op' => $op]);
+        $set = [$ok ? 'ok' : 'fail' => DB::raw(($ok ? 'ok' : 'fail').' + 1'), 'sum_ms' => DB::raw('sum_ms + '.$ms)];
+        foreach ([50, 100, 250, 500, 1000, 2500, 5000, 10000] as $le) {
+            if ($ms <= $le) {
+                $set['le'.$le] = DB::raw('le'.$le.' + 1');
+            }
+        }
+        DB::table('wallet_stats')->where('client', $clientId)->where('op', $op)->update($set);
     }
 
     /** calls in the last $windowMs: calls, failures, failRate, p95 (ms) */
@@ -751,7 +766,7 @@ final class Engine
                 $id = $batch.':'.$combo;
                 $at = $this->now();
                 DB::table('bets')->insert(['id' => $id, 'race_no' => $raceNo, 'player_key' => $s->player_key, 'combo' => $combo, 'stake' => $stake, 'status' => 'open', 'payout' => 0,
-                    'currency' => $s->currency, 'brand_id' => $s->brand_id, 'placed_at' => $at]);
+                    'currency' => $s->currency, 'brand_id' => $s->brand_id, 'placed_at' => $at, 'client_id' => $s->client_id]);
                 $this->log(['e' => 'bet', 'raceNo' => $raceNo, 'id' => $id, 'playerId' => $s->player_key, 'combo' => $combo, 'stake' => $stake, 'txId' => $txId, 'currency' => $s->currency, 'brandId' => $s->brand_id]);
                 $placed[] = ['id' => $id, 'raceNo' => $raceNo, 'combo' => $combo, 'stake' => $stake, 'status' => 'open', 'payout' => 0, 'odds' => $odds[$combo]];
             }
@@ -945,7 +960,7 @@ final class Engine
     public function rounds(string $clientId, mixed $limit = 50): array
     {
         $limit = max(1, min(300, (int) $limit ?: 50));
-        $agg = $this->ofClient(DB::table('bets')->whereIn('status', ['won', 'lost']), $clientId)->groupBy('race_no')
+        $agg = DB::table('bets')->where('client_id', $clientId)->whereIn('status', ['won', 'lost'])->groupBy('race_no')
             ->select(['race_no', DB::raw('count(distinct player_key) as players'), DB::raw('count(*) as bets'), DB::raw('sum(stake) as staked'), DB::raw('sum(payout) as paid')]);
         $rows = DB::query()->fromSub($agg, 'a')->join('rounds', 'rounds.race_no', '=', 'a.race_no')->where('rounds.status', 'settled')->orderByDesc('a.race_no')->limit($limit)
             ->get(['a.race_no', 'a.players', 'a.bets', 'a.staked', 'a.paid', 'rounds.combo', 'rounds.order as ord', 'rounds.odds', 'rounds.settled_at']);
@@ -963,7 +978,7 @@ final class Engine
             return $by[$pk] ??= ['playerId' => self::splitPk($pk)[1], 'bets' => 0, 'staked' => 0, 'paid' => 0, 'lastBetAt' => null, 'online' => false, 'blocked' => false];
         };
         $match = fn (string $pk) => $q === '' || str_contains(strtolower(self::splitPk($pk)[1]), $q);
-        foreach ($this->ofClient(DB::table('bets')->where('status', '!=', 'refunded'), $clientId)->groupBy('player_key')->selectRaw('player_key, count(*) as n, sum(stake) as s, sum(payout) as p, max(placed_at) as last')->get() as $r) {
+        foreach (DB::table('bets')->where('client_id', $clientId)->where('status', '!=', 'refunded')->groupBy('player_key')->selectRaw('player_key, count(*) as n, sum(stake) as s, sum(payout) as p, max(placed_at) as last')->get() as $r) {
             if ($match($r->player_key)) {
                 $x = &$by[$r->player_key];
                 $x = $get($r->player_key);
@@ -1021,7 +1036,9 @@ final class Engine
         $started = Cache::get('horse:started');
         $dir = storage_path();
 
-        return ['role' => $h['ok'] ? 'active' : 'down', 'health' => $h, 'alerts' => [], 'recentAlerts' => [], 'snapshot' => $this->opsSnapshot(), 'wallet' => $this->walletWindow(300000),
+        $alerts = app(AlertManager::class);
+
+        return ['role' => $h['ok'] ? 'active' : 'down', 'health' => $h, 'alerts' => $alerts->current(), 'recentAlerts' => $alerts->recent(10), 'snapshot' => $this->opsSnapshot(), 'wallet' => $this->walletWindow(300000),
             'clients' => ['count' => $this->clients ? $this->clients->count() : 0, 'error' => null], 'tickAge' => $tick === null ? null : max(0, ($this->now() - $tick) / 1000), 'lease' => null,
             'uptime' => $started ? max(0, (int) round(($this->now() - $started) / 1000)) : null, 'diskFreeMb' => (int) round((@disk_free_space($dir) ?: 0) / 1048576)];
     }
@@ -1048,7 +1065,7 @@ final class Engine
     /** numbers for one client (its own client API / back office) */
     public function clientReport(string $clientId): array
     {
-        $q = fn () => $this->ofClient(DB::table('bets')->whereIn('status', ['won', 'lost']), $clientId);
+        $q = fn () => DB::table('bets')->where('client_id', $clientId)->whereIn('status', ['won', 'lost']);
         $staked = (int) $q()->sum('stake');
         $paid = (int) $q()->sum('payout');
         $byCurrency = [];

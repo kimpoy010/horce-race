@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', fn () => response()->file(public_path('index.html')));
 Route::get('/play', fn () => response()->file(public_path('index.html')));
 Route::get('/healthz', [GameController::class, 'healthz']);
+Route::get('/metrics', [GameController::class, 'metrics']);
 
 // the operator's panels must not be framed and may only load their own files
 $panel = fn (string $file) => fn () => response()->file(public_path($file), [
