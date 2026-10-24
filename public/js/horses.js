@@ -178,8 +178,8 @@
     if (dir < 0) {                                                       // the number stays upright when the sprite is mirrored
       g.fillStyle = '#000';
       for (r = 0; r < 9; r++) for (c = 0; c < 5; c++) if (gl[rowMap[r]][c] === '#') {
-        g.fillRect(SW - 1 - (nx + c), ny + r, 1, 1);
-        if (c < 4 && gl[rowMap[r]][c + 1] !== '#') g.fillRect(SW - 1 - (nx + c + 1), ny + r, 1, 1);
+        g.fillRect(SW - 6 - nx + c, ny + r, 1, 1);
+        if (c < 4 && gl[rowMap[r]][c + 1] !== '#') g.fillRect(SW - 6 - nx + c + 1, ny + r, 1, 1);
       }
     }
     return cv;
