@@ -93,6 +93,23 @@ class GameFlowTest extends TestCase
         $this->assertSame([], $p['history']);
     }
 
+    public function test_polling_the_public_state_does_not_touch_the_database_until_the_round_loop_moves_a_race_on(): void
+    {
+        $this->engine->tick();
+        $first = $this->getJson('/api/public')->assertOk()->json();
+        DB::enableQueryLog();
+        $this->t += 700;
+        $again = $this->getJson('/api/public')->assertOk()->json();
+        $this->assertSame([], DB::getQueryLog(), 'served from the cache');
+        $this->assertSame($first['serverNow'] + 700, $again['serverNow'], 'but the clock and the phase are always fresh');
+        $this->assertSame('no-store', explode(',', $this->get('/api/public')->headers->get('cache-control'))[0]);
+        $this->t += 25000;
+        $this->engine->tick();                                    // the draw: the next poll must show it
+        $this->assertSame('closed', $this->getJson('/api/public')->json('round.phase'));
+        $this->assertNotNull($this->getJson('/api/public')->json('race.seed'));
+        DB::disableQueryLog();
+    }
+
     public function test_bad_tokens_and_missing_sessions_are_refused_like_node(): void
     {
         $this->postJson('/api/auth', ['token' => 'nope'])->assertStatus(401)->assertExactJson(['ok' => false, 'error' => 'INVALID_TOKEN']);

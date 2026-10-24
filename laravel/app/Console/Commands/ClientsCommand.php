@@ -20,13 +20,14 @@ use Illuminate\Support\Facades\DB;
  *   php artisan clients disable <id> | enable <id>                a disabled client's launches and sessions stop working
  *   php artisan clients remove <id> --yes
  *   php artisan clients import <clients.json>                     takes over the clients of the Node server (same HORSE_CLIENTS_KEY as CLIENTS_KEY there)
+ *   php artisan clients export <clients.json>                     writes the clients in the Node server's format (to go back to it, see ../docs/CUTOVER.md)
  *
  * options: --name --currency=PHP --wallet-url --wallet-secret --wallet-key-id --wallet-auth=hmac|bearer --webhook-url --webhook-secret --webhook-events=a,b
  *          --min-bet --max-bet --max-round-stake --daily-loss-limit (minor units) --reality-check-min --big-win-min --ips=a,b --return-hosts=a,b --mock
  */
 class ClientsCommand extends Command
 {
-    protected $signature = 'clients {action=list : list|show|add|update|rotate-key|revoke-key|rotate-wallet-secret|rotate-webhook-secret|disable|enable|remove|import} {id?} {extra?}
+    protected $signature = 'clients {action=list : list|show|add|update|rotate-key|revoke-key|rotate-wallet-secret|rotate-webhook-secret|disable|enable|remove|import|export} {id?} {extra?}
         {--name=} {--currency=} {--wallet-url=} {--wallet-secret=} {--wallet-key-id=} {--wallet-auth=} {--webhook-url=} {--webhook-secret=} {--webhook-events=}
         {--min-bet=} {--max-bet=} {--max-round-stake=} {--daily-loss-limit=} {--reality-check-min=} {--big-win-min=} {--ips=} {--return-hosts=} {--mock} {--grace-hours=} {--yes}';
 
@@ -99,6 +100,8 @@ class ClientsCommand extends Command
                     break;
                 case 'import':
                     return $this->import((string) $id);
+                case 'export':
+                    return $this->export((string) $id, $reg);
                 default:
                     $this->error('unknown action. See the header of '.__FILE__);
 
@@ -211,6 +214,32 @@ class ClientsCommand extends Command
             $this->line("Wallet signing secret (the client's platform uses it to verify the game's signed wallet calls):");
             $this->line('  '.$r['walletSecret']);
         }
+    }
+
+    /** clients.json in the Node server's format: {version:1, clients:[...]}, secrets encrypted with the same key */
+    private function export(string $file, ClientRegistry $reg): int
+    {
+        if ($file === '') {
+            $this->error('give the file to write, for example data/clients.json');
+
+            return self::FAILURE;
+        }
+        $key = (string) config('horse.clients_key');
+        $clients = [];
+        foreach (DB::table('clients')->orderBy('id')->pluck('id') as $id) {
+            $c = $reg->get($id);
+            foreach (['wallet', 'webhook'] as $k) {
+                if (isset($c[$k]['secret'])) {
+                    $c[$k]['secret'] = \App\Game\Clients\SecretBox::encrypt($c[$k]['secret'], $key);
+                }
+            }
+            $clients[] = $c;
+        }
+        file_put_contents($file, json_encode(['version' => 1, 'clients' => $clients], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        @chmod($file, 0600);
+        $this->info(count($clients).' client(s) written to '.$file);
+
+        return self::SUCCESS;
     }
 
     /** the clients.json of the Node server (secrets encrypted with the same key) */

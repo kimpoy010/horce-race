@@ -254,6 +254,12 @@ final class ClientRegistry
         $this->forget($c['id']);
     }
 
+    /** drops everything kept in memory (after the table was changed behind the registry's back, e.g. by an import) */
+    public function forgetAll(): void
+    {
+        $this->cache = $this->wallets = $this->hooks = [];
+    }
+
     private function forget(string $id): void
     {
         unset($this->cache[$id], $this->wallets[$id], $this->hooks[$id]);

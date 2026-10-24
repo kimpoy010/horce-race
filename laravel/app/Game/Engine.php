@@ -262,6 +262,51 @@ final class Engine
         return $T && $T['varsum'] > 0 ? ($T['paid'] - $T['exp']) / sqrt($T['varsum']) : 0.0;
     }
 
+    /** cancels a race that was never drawn and gives every stake back (queued like any credit: the wallet confirms each refund) */
+    public function voidRound(int $raceNo, string $reason): int
+    {
+        $n = DB::transaction(function () use ($raceNo, $reason) {
+            $r = DB::table('rounds')->where('race_no', $raceNo)->lockForUpdate()->first();
+            if (! $r || $r->status !== 'betting') {
+                throw new GameError(409, 'NOT_VOID_ABLE');
+            }
+            $bets = DB::table('bets')->where('race_no', $raceNo)->where('status', 'open')->get();
+            $this->log(['e' => 'void', 'raceNo' => $raceNo, 'reason' => $reason]);
+            DB::table('bets')->where('race_no', $raceNo)->where('status', 'open')->update(['status' => 'refunded']);
+            DB::table('rounds')->where('race_no', $raceNo)->update(['status' => 'void']);
+            $per = [];
+            foreach ($bets as $b) {
+                $per[$b->player_key] = ($per[$b->player_key] ?? 0) + $b->stake;
+            }
+            foreach ($per as $pk => $amount) {
+                $this->queueCredit('refund:'.$raceNo.':'.$pk, $pk, $amount, $raceNo, 'refund');
+            }
+
+            return $bets->count();
+        });
+        $this->bust();
+
+        return $n;
+    }
+
+    /** recomputes the payouts-vs-odds figures from the settled races (after an import) */
+    public function rebuildRtpTrack(): void
+    {
+        $T = ['exp' => 0.0, 'varsum' => 0.0, 'paid' => 0, 'staked' => 0];
+        foreach (DB::table('rounds')->where('status', 'settled')->orderBy('race_no')->get() as $r) {
+            $odds = $this->odds($r);
+            $prob = $this->tableOf($r)['prob'];
+            foreach (DB::table('bets')->where('race_no', $r->race_no)->whereIn('status', ['won', 'lost'])->get() as $b) {
+                $w = $b->stake * $odds[$b->combo];
+                $T['exp'] += $w * $prob[$b->combo];
+                $T['varsum'] += $w * $w * $prob[$b->combo] * (1 - $prob[$b->combo]);
+                $T['staked'] += $b->stake;
+                $T['paid'] += $b->payout;
+            }
+        }
+        DB::table('settings')->updateOrInsert(['key' => 'rtp_track'], ['value' => json_encode($T)]);
+    }
+
     /** the daemon calls this every 250 ms */
     public function tick(): void
     {
@@ -269,17 +314,25 @@ final class Engine
         $r = $this->current();
         if (! $r) {
             $r = $this->open();
+            $this->bust();
         }
         if ($r->status === 'betting' && $t >= $r->bet_close_at) {
             $this->drawNow($r);
+            $this->bust();
             $r = $this->current();
         }
         if ($r->status === 'racing' && $t >= $r->start_at + $this->cfg['race_ms']) {
             $this->settle($r);
+            $this->bust();
             $r = $this->current();
         }
         if ($r->status === 'settled' && $t >= $r->start_at + $this->cfg['race_ms'] + $this->cfg['results_ms']) {
             $this->open();
+            $this->bust();
+        }
+        if ($r->status === 'void') {                      // a race that was cancelled (cutover from another server): start a fresh one
+            $this->open();
+            $this->bust();
         }
         $this->flushCredits();
         $this->flushRollbacks();
@@ -816,6 +869,9 @@ final class Engine
         if ($r->status === 'betting') {
             return 'betting';
         }
+        if ($r->status === 'void') {
+            return 'results';
+        }
         if ($t < $r->start_at) {
             return 'closed';
         }
@@ -832,29 +888,58 @@ final class Engine
             'maxBet' => $this->cfg['max_bet'], 'maxRoundStake' => $this->cfg['max_round_stake'], 'currency' => $this->cfg['currency']];
     }
 
+    /**
+     * The parts of /api/public that only change when the round loop moves a race on (open, draw, settle): kept in the cache and dropped by bust(), so
+     * thousands of browsers polling every 1.5 s cost one cache read each instead of six queries. Use a fast cache (Redis) in production.
+     */
+    private function publicParts(): array
+    {
+        return Cache::remember('horse:public-parts', 60, function () {
+            $r = $this->current();
+            $drawn = $r && $r->order ? $r : DB::table('rounds')->where('status', 'settled')->orderByDesc('race_no')->first();
+            $round = null;
+            if ($r) {
+                $tb = $this->tableOf($r);
+                $round = ['race_no' => (int) $r->race_no, 'status' => $r->status, 'open_at' => (int) $r->open_at, 'bet_close_at' => (int) $r->bet_close_at, 'start_at' => $r->start_at === null ? null : (int) $r->start_at,
+                    'commit' => $r->commit, 'odds' => $this->odds($r), 'rtp' => (float) $r->rtp, 'cheapRtp' => $tb['cheapRtp'], 'cheapPairs' => $tb['cheap']];
+            }
+
+            return [
+                'round' => $round,
+                'drawn' => $drawn ? ['race_no' => (int) $drawn->race_no, 'start_at' => (int) $drawn->start_at, 'anim_seed' => (int) $drawn->anim_seed, 'order' => json_decode($drawn->order, true)] : null,
+                'history' => DB::table('rounds')->where('status', 'settled')->orderByDesc('race_no')->limit(8)->get()->reverse()->values()->map(fn ($x) => ['raceNo' => (int) $x->race_no, 'order' => json_decode($x->order, true)])->all(),
+                'reveals' => DB::table('rounds')->where('status', 'settled')->orderByDesc('race_no')->limit(5)->get()->reverse()->values()->map(fn ($x) => [
+                    'raceNo' => (int) $x->race_no, 'seed' => $x->seed, 'commit' => $x->commit, 'combo' => $x->combo, 'order' => json_decode($x->order, true), 'odds' => $this->odds($x), 'rtp' => (float) $x->rtp])->all(),
+            ];
+        });
+    }
+
+    /** the round loop changed a race: the browsers must see it on their next poll */
+    private function bust(): void
+    {
+        Cache::forget('horse:public-parts');
+    }
+
     /** what every browser polls (GET /api/public) */
     public function publicState(): array
     {
         $t = $this->now();
-        $r = $this->current();
-        $drawn = $r && $r->order ? $r : DB::table('rounds')->where('status', 'settled')->orderByDesc('race_no')->first();
-        $settled = DB::table('rounds')->where('status', 'settled')->orderByDesc('race_no')->limit(8)->get()->reverse()->values();
+        $p = $this->publicParts();
+        $c = $p['round'];
         $round = null;
-        if ($r) {
-            $tb = $this->tableOf($r);
-            $round = ['raceNo' => (int) $r->race_no, 'phase' => $this->phase($r, $t), 'openAt' => (int) $r->open_at, 'betCloseAt' => (int) $r->bet_close_at, 'startAt' => $r->start_at === null ? null : (int) $r->start_at,
-                'commit' => $r->commit, 'odds' => $this->odds($r), 'rtp' => (float) $r->rtp, 'cheapRtp' => $tb['cheapRtp'], 'cheapPairs' => $tb['cheap']];
+        if ($c) {
+            $r = (object) ['status' => $c['status'], 'start_at' => $c['start_at']];
+            $round = ['raceNo' => $c['race_no'], 'phase' => $this->phase($r, $t), 'openAt' => $c['open_at'], 'betCloseAt' => $c['bet_close_at'], 'startAt' => $c['start_at'], 'commit' => $c['commit'], 'odds' => $c['odds'],
+                'rtp' => $c['rtp'], 'cheapRtp' => $c['cheapRtp'], 'cheapPairs' => $c['cheapPairs']];
         }
         $st = [
-            'mode' => 'live', 'serverNow' => $t, 'nextRaceNo' => $r ? (int) $r->race_no + ($r->status === 'betting' ? 0 : 1) : 1,
+            'mode' => 'live', 'serverNow' => $t, 'nextRaceNo' => $c ? $c['race_no'] + ($c['status'] === 'betting' ? 0 : 1) : 1,
             'timings' => ['countdown' => $this->cfg['countdown_ms'], 'race' => $this->cfg['race_ms'], 'results' => $this->cfg['results_ms'], 'bet' => $this->cfg['bet_ms']],
-            'rules' => $this->rules(), 'round' => $round, 'race' => null,
-            'history' => $settled->map(fn ($x) => ['raceNo' => (int) $x->race_no, 'order' => json_decode($x->order, true)])->all(),
-            'reveals' => DB::table('rounds')->where('status', 'settled')->orderByDesc('race_no')->limit(5)->get()->reverse()->values()->map(fn ($x) => [
-                'raceNo' => (int) $x->race_no, 'seed' => $x->seed, 'commit' => $x->commit, 'combo' => $x->combo, 'order' => json_decode($x->order, true), 'odds' => $this->odds($x), 'rtp' => (float) $x->rtp])->all(),
+            'rules' => $this->rules(), 'round' => $round, 'race' => null, 'history' => $p['history'], 'reveals' => $p['reveals'],
         ];
-        if ($drawn) {
-            $st['race'] = ['raceNo' => (int) $drawn->race_no, 'startAt' => (int) $drawn->start_at, 'seed' => (int) $drawn->anim_seed, 'order' => $t >= $drawn->start_at - 2000 ? json_decode($drawn->order, true) : null];
+        if ($p['drawn']) {
+            $d = $p['drawn'];
+            $st['race'] = ['raceNo' => $d['race_no'], 'startAt' => $d['start_at'], 'seed' => $d['anim_seed'], 'order' => $t >= $d['start_at'] - 2000 ? $d['order'] : null];
         }
 
         return $st;

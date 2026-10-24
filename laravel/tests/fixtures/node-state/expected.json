@@ -1,0 +1,47 @@
+{
+  "rounds": [
+    {
+      "raceNo": 1,
+      "status": "settled",
+      "combo": "2-4",
+      "staked": 15500,
+      "paid": 4000,
+      "bets": 16,
+      "seed": "f6465fdfb0b2d0bdb15e7182fbb878c54d42f97059ed3a548a4d8695c06237b9",
+      "commit": "a27ced437e07e806f030745c5a1037a48a4adb9bfa5aa4ba0c1c763487f771f7",
+      "rtp": 0.9
+    },
+    {
+      "raceNo": 2,
+      "status": "settled",
+      "combo": "3-5",
+      "staked": 30000,
+      "paid": 10000,
+      "bets": 15,
+      "seed": "30695a620b2134f435d0ef259c302569500a66f3ceca2be32104976af4546b65",
+      "commit": "2c36b1ffb7248232f9ccf193dfc785c8bd58efd97b1c72f4aca7fc9bc05b44e6",
+      "rtp": 0.9
+    },
+    {
+      "raceNo": 3,
+      "status": "betting",
+      "combo": null,
+      "staked": 0,
+      "paid": 0,
+      "bets": 2,
+      "seed": "65a31fe547ff60bbd54c62d2cf0cd74c06b855fbe292367da3d62c066779412e",
+      "commit": "079811cd0a0a0442934c89d5b98aabccdf362797f3de1bd7a3d7431983c1097a",
+      "rtp": 0.93
+    }
+  ],
+  "pendingCredits": [
+    "win:2:acme:ann"
+  ],
+  "ledgerLines": 46,
+  "ledgerHead": "51968f40b3a103378c83577e10b856572aa03b48db4aedee0608493e8f21faf8",
+  "balances": {
+    "acme:ann": 958300,
+    "zeta:zed": 999200
+  },
+  "clientsKey": "clients-key-for-tests-1234"
+}

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "clients": [
+    {
+      "id": "acme",
+      "name": "Acme",
+      "status": "active",
+      "wallet": {
+        "type": "mock"
+      },
+      "currency": "PHP",
+      "limits": {},
+      "currencyLimits": {},
+      "allowedIps": [],
+      "returnUrlHosts": [],
+      "apiKeys": [
+        {
+          "id": "k1",
+          "hash": "bfac3fea3e171a497ebe8d7036bff16e0a67940f2a30fd049ab8ade249fe8f2c",
+          "createdAt": 1800000000000,
+          "expiresAt": null,
+          "lastUsedAt": null
+        }
+      ],
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000000000
+    },
+    {
+      "id": "zeta",
+      "name": "Zeta",
+      "status": "active",
+      "wallet": {
+        "type": "mock"
+      },
+      "currency": "PHP",
+      "limits": {},
+      "currencyLimits": {},
+      "allowedIps": [],
+      "returnUrlHosts": [],
+      "apiKeys": [
+        {
+          "id": "k1",
+          "hash": "d62fe31ecf1d5cee8560052aab40153fe0af74420370e43f7a13f5537b309295",
+          "createdAt": 1800000000000,
+          "expiresAt": null,
+          "lastUsedAt": null
+        }
+      ],
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000000000
+    }
+  ]
+}

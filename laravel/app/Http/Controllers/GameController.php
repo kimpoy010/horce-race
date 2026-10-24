@@ -21,7 +21,7 @@ class GameController extends Controller
 
     public function publicState(): JsonResponse
     {
-        return response()->json($this->engine->publicState());
+        return response()->json($this->engine->publicState())->header('Cache-Control', 'no-store');
     }
 
     public function auth(Request $r): JsonResponse

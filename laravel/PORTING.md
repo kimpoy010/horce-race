@@ -104,3 +104,9 @@ A temporary password must be changed at the first sign-in. Set `HORSE_COOKIE_SEC
   They differ only for a race that straddles midnight.
 * Sessions and the current round are in the database, so any number of web workers can serve players.
 * Draw and odds are unchanged; the ledger chain is the same, but only events of the ported features are written so far.
+
+## Cutover and deployment
+
+* Moving a live Node installation over: [`docs/CUTOVER.md`](../docs/CUTOVER.md) (`import:node`, `ledger verify|export`, `clients export`, `scripts/compare-servers.js`).
+* Running it in production: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+* `/api/public` is served from a cached copy (`horse:public-parts`), refreshed when a race opens, is drawn, settles or is voided; use Redis for the cache in production.
