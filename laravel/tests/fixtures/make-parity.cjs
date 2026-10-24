@@ -8,6 +8,7 @@ const rng = require('../../../server/rng.js');
 const odds = require('../../../server/odds.js');
 const { Ledger } = require('../../../server/ledger.js');
 const sign = require('../../../server/sign.js');
+const { ClientRegistry, encrypt } = require('../../../server/clients.js');
 
 const seeds = [];
 for (let i = 0; i < 40; i++) seeds.push(require('crypto').createHash('sha256').update('seed' + i).digest('hex'));
@@ -26,5 +27,12 @@ for (let i = 0; i < 12; i++) lines.push(led.append(i % 3 === 0 ? { e: 'open', ra
   : { e: 'bet', raceNo: i, id: 'b' + i, playerId: 'alice', combo: '1-2', stake: 100 * i, txId: 'bet:' + i, currency: 'PHP', brandId: null, t: 1700000000000 + i }));
 out.ledger = { lines, head: led.head };
 out.signature = sign.signature('secret-secret-secret', '1700000000000', 'abc', 'POST', '/horse-api/wallet/debit', '{"a":1}');
+// a client registry written by the Node server (secrets encrypted with CLIENTS_KEY): the Laravel import must read it and its API key must work
+const KEY = 'clients-key-for-tests-1234', tmp = path.join(require('os').tmpdir(), 'parity-clients-' + process.pid + '.json');
+const reg = new ClientRegistry({ file: tmp, secret: KEY });
+const made = reg.create({ id: 'acme', name: 'Acme Casino', currency: 'PHP', wallet: { url: 'https://platform.acme.example/horse-api', secret: 'wallet-secret-acme-1234567890', keyId: 'w1' },
+  webhook: { url: 'https://platform.acme.example/horse-events', events: 'round.settled' }, limits: { minBet: 200, maxBet: 50000 }, allowedIps: ['203.0.113.0/24'], returnUrlHosts: ['lobby.acme.example'] });
+out.clients = { key: KEY, apiKey: made.apiKey, file: fs.readFileSync(tmp, 'utf8'), enc: encrypt('wallet-secret-value-123', KEY), plain: 'wallet-secret-value-123' };
+fs.unlinkSync(tmp);
 fs.writeFileSync(path.join(__dirname, 'parity.json'), JSON.stringify(out));
 console.log('wrote parity.json:', out.draws.length, 'draws,', lines.length, 'ledger lines');

@@ -2,6 +2,7 @@
 
 namespace App\Game;
 
+use App\Game\Clients\ClientRegistry;
 use App\Game\Wallet\Wallet;
 use App\Game\Wallet\WalletException;
 use Closure;
@@ -31,7 +32,11 @@ final class Engine
 
     private array $values;         // the 15 odds values, sorted
 
-    public function __construct(private Wallet $wallet, private Ledger $ledger, private array $cfg, private ?Closure $clock = null)
+    /**
+     * @param  Wallet|null  $wallet  wallet of the implicit "default" client (HORSE_WALLET); null = registry clients only (HORSE_WALLET=none)
+     * @param  Webhook|null  $webhook  webhook of the default client
+     */
+    public function __construct(private ?Wallet $wallet, private Ledger $ledger, private array $cfg, private ?Closure $clock = null, private ?ClientRegistry $clients = null, private ?Webhook $webhook = null)
     {
         $this->table = Odds::build($cfg['odds'] ?? null);
         $this->values = array_map(fn ($c) => $this->table['odds'][$c], Odds::combos());
@@ -175,14 +180,21 @@ final class Engine
             $payouts = [];
             $staked = 0;
             $paid = 0;
+            $per = [];                                               // per client: its own bets, staked and paid (for its webhook)
             foreach ($bets as $b) {
                 $staked += $b->stake;
+                $cid = self::splitPk($b->player_key)[0];
+                $per[$cid] ??= ['bets' => 0, 'staked' => 0, 'paid' => 0];
+                $per[$cid]['bets']++;
+                $per[$cid]['staked'] += $b->stake;
                 if ($b->combo === $r->combo) {
                     $pay = self::payoutFor($b->stake, $odds[$b->combo]);
                     $paid += $pay;
+                    $per[$cid]['paid'] += $pay;
                     DB::table('bets')->where('id', $b->id)->update(['status' => 'won', 'payout' => $pay]);
-                    $w = $payouts[$b->player_key] ?? ['amount' => 0, 'betIds' => [], 'currency' => $b->currency, 'brandId' => $b->brand_id];
+                    $w = $payouts[$b->player_key] ?? ['amount' => 0, 'stake' => 0, 'betIds' => [], 'currency' => $b->currency, 'brandId' => $b->brand_id, 'odds' => $odds[$b->combo]];
                     $w['amount'] += $pay;
+                    $w['stake'] += $b->stake;
                     $w['betIds'][] = $b->id;
                     $payouts[$b->player_key] = $w;
                 } else {
@@ -198,6 +210,22 @@ final class Engine
             foreach ($payouts as $pk => $w) {
                 $this->queueCredit('win:'.$r->race_no.':'.$pk, $pk, $w['amount'], $r->race_no, 'win', ['betIds' => $w['betIds'], 'currency' => $w['currency'], 'brandId' => $w['brandId']]);
                 DB::table('game_sessions')->where('player_key', $pk)->increment('s_paid', $w['amount']);
+            }
+            // every client with a webhook gets the result; the money figures are its own players'
+            $cids = array_unique(array_merge(['default'], $this->clients ? DB::table('clients')->pluck('id')->all() : []));
+            foreach ($cids as $cid) {
+                $x = $per[$cid] ?? ['bets' => 0, 'staked' => 0, 'paid' => 0];
+                $this->emit('round.settled', 'round:'.$r->race_no, ['roundId' => (string) $r->race_no, 'raceNo' => (int) $r->race_no, 'combo' => $r->combo, 'order' => json_decode($r->order, true), 'odds' => $odds,
+                    'oddsOfWinner' => $odds[$r->combo], 'rtp' => (float) $r->rtp, 'commit' => $r->commit, 'seed' => $r->seed, 'bets' => $x['bets'], 'staked' => $x['staked'], 'paid' => $x['paid'],
+                    'ledgerHash' => $this->ledger->head(), 'ledgerLines' => $this->ledger->lines()], $cid);
+            }
+            foreach ($payouts as $pk => $w) {
+                [$cid, $raw] = self::splitPk($pk);
+                $min = $this->clientCfg($cid)['bigWinMin'] ?? $this->cfg['big_win_min'];
+                if ($w['amount'] >= $min) {
+                    $this->emit('big.win', 'win:'.$r->race_no.':'.$raw, ['roundId' => (string) $r->race_no, 'raceNo' => (int) $r->race_no, 'playerId' => $raw, 'brandId' => $w['brandId'], 'currency' => $w['currency'],
+                        'stake' => $w['stake'], 'payout' => $w['amount'], 'odds' => $w['odds'], 'betIds' => $w['betIds']], $cid);
+                }
             }
         });
         $this->flushCredits();
@@ -224,6 +252,7 @@ final class Engine
         }
         $this->flushCredits();
         $this->flushRollbacks();
+        $this->flushWebhooks();
         DB::table('game_sessions')->where('expires_at', '<', $t)->delete();
         Cache::put('horse:tick', $t, 3600);
     }
@@ -258,13 +287,51 @@ final class Engine
         DB::table('pending_ops')->where('tx_id', $p->tx_id)->update(['tries' => $tries, 'next_at' => $t + min(60000, 1000 * (2 ** min($tries, 6)))]);
     }
 
+    /** webhooks to the platform: at least once; the platform de-duplicates on `id` */
+    private function emit(string $type, string $key, array $data, string $clientId): void
+    {
+        $wh = $this->clientActive($clientId) ? $this->webhookFor($clientId) : null;
+        if (! $wh || ! $wh->wants($type)) {
+            return;
+        }
+        $ev = ['id' => $this->cfg['game_id'].':'.($clientId === 'default' ? '' : $clientId.':').$key, 'type' => $type, 'createdAt' => $this->now(), 'gameId' => $this->cfg['game_id'], 'clientId' => $clientId, 'data' => $data];
+        $this->log(['e' => 'webhook_due', 'ev' => $ev]);
+        DB::table('pending_ops')->insertOrIgnore(['tx_id' => $ev['id'], 'kind' => 'webhook', 'player_key' => '', 'amount' => 0, 'race_no' => $data['raceNo'] ?? null,
+            'extra' => json_encode($ev, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 'since' => $this->now(), 'tries' => 0, 'next_at' => 0]);
+    }
+
+    public function flushWebhooks(): void
+    {
+        $t = $this->now();
+        foreach (DB::table('pending_ops')->where('kind', 'webhook')->where('next_at', '<=', $t)->orderBy('since')->limit(100)->get() as $p) {
+            $ev = json_decode($p->extra, true);
+            $cid = $ev['clientId'] ?? 'default';
+            $wh = $this->clientActive($cid) ? $this->webhookFor($cid) : null;
+            if (! $wh) {
+                DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
+                $this->log(['e' => 'webhook_dropped', 'id' => $p->tx_id, 'reason' => 'client has no webhook any more']);
+
+                continue;
+            }
+            try {
+                $wh->send($ev);
+                DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
+                $this->log(['e' => 'webhook_ok', 'id' => $p->tx_id]);
+            } catch (\Throwable $e) {
+                $this->backoff($p, $t);
+            }
+        }
+    }
+
     public function flushCredits(): void
     {
         $t = $this->now();
         foreach (DB::table('pending_ops')->where('kind', 'credit')->where('next_at', '<=', $t)->orderBy('since')->limit(200)->get() as $p) {
             try {
                 $extra = json_decode($p->extra ?? '{}', true) ?: [];
-                $res = $this->walletCall(fn () => $this->wallet->credit($p->player_key, $p->amount, $p->tx_id, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => $p->tx_kind] + $extra));
+                [$cid, $raw] = self::splitPk($p->player_key);
+                $w = $this->walletFor($cid) ?? throw new \RuntimeException('no wallet for client '.$cid);
+                $res = $this->walletCall(fn () => $w->credit($raw, $p->amount, $p->tx_id, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => $p->tx_kind] + $extra));
                 DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
                 $this->log(['e' => 'credit_ok', 'txId' => $p->tx_id, 'raceNo' => $p->race_no]);
                 if (isset($res['balance'])) {
@@ -283,7 +350,9 @@ final class Engine
             $orig = substr($p->tx_id, 3);
             try {
                 $extra = json_decode($p->extra ?? '{}', true) ?: [];
-                $res = $this->walletCall(fn () => $this->wallet->rollback($p->player_key, $p->amount, $orig, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => 'rollback', 'refTxId' => $orig] + $extra));
+                [$cid, $raw] = self::splitPk($p->player_key);
+                $w = $this->walletFor($cid) ?? throw new \RuntimeException('no wallet for client '.$cid);
+                $res = $this->walletCall(fn () => $w->rollback($raw, $p->amount, $orig, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => 'rollback', 'refTxId' => $orig] + $extra));
                 DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
                 $this->log(['e' => 'rollback_ok', 'txId' => $orig, 'status' => $res['status'] ?? null]);
                 if (isset($res['balance'])) {
@@ -308,6 +377,96 @@ final class Engine
         return $fn();
     }
 
+    /* ---------- clients: every player belongs to one client (platform). Internally a player is "clientId:playerId" ("default" client: just playerId) ---------- */
+
+    public static function pk(?string $clientId, string $playerId): string
+    {
+        return ! $clientId || $clientId === 'default' ? $playerId : $clientId.':'.$playerId;
+    }
+
+    /** @return array{0:string,1:string} [clientId, playerId] */
+    public static function splitPk(string $pk): array
+    {
+        $i = strpos($pk, ':');
+
+        return $i === false ? ['default', $pk] : [substr($pk, 0, $i), substr($pk, $i + 1)];
+    }
+
+    private function clientCfg(string $id): array
+    {
+        return ($this->clients ? $this->clients->get($id) : null) ?? ['id' => $id, 'status' => 'active', 'limits' => [], 'currencyLimits' => []];
+    }
+
+    private function walletFor(string $clientId): ?Wallet
+    {
+        if ($this->clients && $this->clients->get($clientId)) {
+            return $this->clients->walletFor($clientId);
+        }
+
+        return $clientId === 'default' ? $this->wallet : null;
+    }
+
+    private function webhookFor(string $clientId): ?Webhook
+    {
+        if ($this->clients && $this->clients->get($clientId)) {
+            return $this->clients->webhookFor($clientId);
+        }
+
+        return $clientId === 'default' ? $this->webhook : null;
+    }
+
+    public function clientActive(string $id): bool
+    {
+        $c = $this->clients ? $this->clients->get($id) : null;
+
+        return $c ? $c['status'] === 'active' : ($id === 'default' && $this->wallet !== null);
+    }
+
+    /** which client a launch belongs to (the launch link may omit it when there is only one) */
+    public function resolveClient(?string $clientId): string
+    {
+        if (! $clientId) {
+            if ($this->wallet) {
+                return 'default';
+            }
+            $active = $this->clients ? $this->clients->activeIds() : [];
+            if (count($active) === 1) {
+                return $active[0];
+            }
+            throw new GameError(400, 'CLIENT_REQUIRED');
+        }
+        if (! preg_match(ClientRegistry::ID_RE, $clientId)) {
+            throw new GameError(400, 'INVALID_CLIENT');
+        }
+        $c = $this->clients ? $this->clients->get($clientId) : null;
+        if ($c) {
+            if ($c['status'] !== 'active') {
+                throw new GameError(403, 'CLIENT_DISABLED');
+            }
+
+            return $clientId;
+        }
+        if ($clientId === 'default' && $this->wallet) {
+            return 'default';
+        }
+        throw new GameError(400, 'INVALID_CLIENT');
+    }
+
+    public function playerKey(?string $clientId, mixed $playerId): string
+    {
+        if (! preg_match(self::PLAYER_ID_RE, (string) $playerId)) {
+            throw new GameError(400, 'BAD_REQUEST');
+        }
+
+        return self::pk($clientId ?: 'default', (string) $playerId);
+    }
+
+    /** restricts a query to the players of one client (their player keys start with "<client>:", the default client's have no ":") */
+    private function ofClient($q, string $clientId, string $col = 'player_key')
+    {
+        return $clientId === 'default' ? $q->where($col, 'not like', '%:%') : $q->where($col, 'like', $clientId.':%');
+    }
+
     /* ---------- sessions ---------- */
 
     private static function skey(string $id): string
@@ -315,11 +474,11 @@ final class Engine
         return hash('sha256', $id);
     }
 
-    private function limitsFor(string $currency, ?array $info): array
+    private function limitsFor(string $currency, ?array $info, array $client = []): array
     {
         $base = ['minBet' => $this->cfg['min_bet'], 'maxBet' => $this->cfg['max_bet'], 'maxRoundStake' => $this->cfg['max_round_stake'], 'dailyLossLimit' => $this->cfg['daily_loss_limit'] ?: 0];
         $pos = fn ($v) => is_int($v) && $v > 0;
-        foreach ([($this->cfg['currency_limits'][$currency] ?? null), $info['limits'] ?? null] as $src) {
+        foreach ([($this->cfg['currency_limits'][$currency] ?? null), $client['limits'] ?? null, ($client['currencyLimits'][$currency] ?? null), $info['limits'] ?? null] as $src) {      // server table, the client's settings, then what the platform sends for this player
             if (! is_array($src)) {
                 continue;
             }
@@ -338,34 +497,47 @@ final class Engine
         return $base;
     }
 
-    public function auth(string $token): array
+    public function auth(string $token, ?string $clientHint = null): array
     {
+        $clientId = $this->resolveClient($clientHint);
+        $client = $this->clientCfg($clientId);
+        $wallet = $this->walletFor($clientId);
+        if (! $wallet) {
+            throw new GameError(400, 'INVALID_CLIENT');
+        }
         try {
-            $info = $this->walletCall(fn () => $this->wallet->validateToken($token));
+            $info = $this->walletCall(fn () => $wallet->validateToken($token));
         } catch (\Throwable $e) {
             throw new GameError(401, 'INVALID_TOKEN');
         }
         if (! preg_match(self::PLAYER_ID_RE, (string) ($info['playerId'] ?? ''))) {
             throw new GameError(401, 'INVALID_PLAYER_ID');
         }
-        $pk = (string) $info['playerId'];
+        $pk = self::pk($clientId, (string) $info['playerId']);
         if (! empty($info['blocked']) || DB::table('blocked_players')->where('player_key', $pk)->exists()) {
             throw new GameError(403, 'PLAYER_BLOCKED');
         }
         $id = bin2hex(random_bytes(24));
-        $currency = $info['currency'] ?? $this->cfg['currency'];
-        $rm = isset($info['realityCheckMinutes']) && is_int($info['realityCheckMinutes']) ? $info['realityCheckMinutes'] : $this->cfg['reality_check_minutes'];
-        $d = $info['decimals'] ?? null;
+        $currency = $info['currency'] ?? $client['currency'] ?? $this->cfg['currency'];
+        $rm = isset($info['realityCheckMinutes']) && is_int($info['realityCheckMinutes']) ? $info['realityCheckMinutes'] : ($client['realityCheckMinutes'] ?? $this->cfg['reality_check_minutes']);
+        $returnUrl = $info['returnUrl'] ?? null;
+        if ($returnUrl && ! empty($client['returnUrlHosts'])) {
+            $host = strtolower((string) parse_url($returnUrl, PHP_URL_HOST));
+            if (! in_array($host, $client['returnUrlHosts'], true)) {
+                $returnUrl = null;
+            }
+        }
+        $d = $info['decimals'] ?? ($client['currencyLimits'][$currency]['decimals'] ?? ($this->cfg['currency_limits'][$currency]['decimals'] ?? null));
         $t = $this->now();
         DB::table('game_sessions')->insert([
-            'key' => self::skey($id), 'player_key' => $pk, 'raw_id' => $pk, 'client_id' => 'default', 'brand_id' => ! empty($info['brandId']) ? (string) $info['brandId'] : null,
-            'currency' => $currency, 'decimals' => is_int($d) && $d >= 0 && $d <= 4 ? $d : 2, 'balance' => $info['balance'] ?? null, 'return_url' => $info['returnUrl'] ?? null,
-            'limits' => json_encode($this->limitsFor($currency, $info)), 'reality_minutes' => $rm > 0 ? $rm : 0, 's_staked' => 0, 's_paid' => 0,
+            'key' => self::skey($id), 'player_key' => $pk, 'raw_id' => (string) $info['playerId'], 'client_id' => $clientId, 'brand_id' => ! empty($info['brandId']) ? (string) $info['brandId'] : null,
+            'currency' => $currency, 'decimals' => is_int($d) && $d >= 0 && $d <= 4 ? $d : 2, 'balance' => $info['balance'] ?? null, 'return_url' => $returnUrl,
+            'limits' => json_encode($this->limitsFor($currency, $info, $client)), 'reality_minutes' => $rm > 0 ? (int) $rm : 0, 's_staked' => 0, 's_paid' => 0,
             'created_at' => $t, 'expires_at' => $t + $this->cfg['session_ttl_ms'], 'refreshed_at' => $t,
         ]);
         $s = DB::table('game_sessions')->where('key', self::skey($id))->first();
 
-        return ['session' => $id, 'playerId' => $pk, 'returnUrl' => $info['returnUrl'] ?? null] + $this->sessionView($s);
+        return ['session' => $id, 'playerId' => (string) $info['playerId'], 'returnUrl' => $returnUrl] + $this->sessionView($s);
     }
 
     private function sessionView(object $s): array
@@ -384,7 +556,7 @@ final class Engine
         if (! $s) {
             return null;
         }
-        if ($s->expires_at < $this->now()) {
+        if ($s->expires_at < $this->now() || ! $this->clientActive($s->client_id)) {          // a disabled client ends its sessions
             DB::table('game_sessions')->where('key', $s->key)->delete();
 
             return null;
@@ -420,6 +592,17 @@ final class Engine
         $this->log(['e' => 'player_blocked', 'playerId' => $playerKey, 'who' => $who]);
 
         return ['ok' => true, 'blocked' => true, 'closed' => $n];
+    }
+
+    /** operator / platform: end a player's sessions (all of them) at once */
+    public function closeSessions(string $playerKey): int
+    {
+        $n = DB::table('game_sessions')->where('player_key', $playerKey)->delete();
+        if ($n) {
+            $this->log(['e' => 'sessions_closed', 'playerId' => $playerKey, 'count' => $n]);
+        }
+
+        return $n;
     }
 
     public function unblockPlayer(string $playerKey, string $who = 'operator'): array
@@ -525,9 +708,14 @@ final class Engine
 
     private function debit(string $playerKey, int $amount, string $txId, array $meta): array
     {
+        [$cid, $raw] = self::splitPk($playerKey);
+        $wallet = $this->walletFor($cid);
+        if (! $wallet) {
+            throw new GameError(502, 'WALLET_UNAVAILABLE');
+        }
         for ($attempt = 0; $attempt < 2; $attempt++) {
             try {
-                return $this->walletCall(fn () => $this->wallet->debit($playerKey, $amount, $txId, $meta));
+                return $this->walletCall(fn () => $wallet->debit($raw, $amount, $txId, $meta));
             } catch (WalletException $e) {
                 if ($e->getMessage() === 'INSUFFICIENT_FUNDS') {
                     throw new GameError(402, 'INSUFFICIENT_FUNDS');
@@ -614,7 +802,8 @@ final class Engine
         if ($this->now() - $s->refreshed_at > 15000) {
             DB::table('game_sessions')->where('key', $s->key)->update(['refreshed_at' => $this->now()]);
             try {
-                $bal = $this->walletCall(fn () => $this->wallet->balance($s->raw_id));
+                $w = $this->walletFor($s->client_id) ?? throw new \RuntimeException('no wallet');
+                $bal = $this->walletCall(fn () => $w->balance($s->raw_id));
                 DB::table('game_sessions')->where('key', $s->key)->update(['balance' => $bal]);
             } catch (\Throwable $e) {
                 // keep the cached balance
@@ -657,7 +846,9 @@ final class Engine
             $rounds[$b->race_no] = $x;
         }
 
-        return ['ok' => true, 'playerId' => $playerKey, 'clientId' => 'default', 'rounds' => array_slice(array_values($rounds), 0, $limit)];
+        [$cid, $raw] = self::splitPk($playerKey);
+
+        return ['ok' => true, 'playerId' => $raw, 'clientId' => $cid, 'rounds' => array_slice(array_values($rounds), 0, $limit)];
     }
 
     /** a revealed round, so anyone can check: sha256(seed) === commit, the odds layout and the draw */
@@ -670,6 +861,25 @@ final class Engine
 
         return ['ok' => true, 'hash' => 'sha256', 'raceNo' => (int) $r->race_no, 'roundId' => (string) $r->race_no, 'commit' => $r->commit, 'seed' => $r->seed, 'odds' => $this->odds($r),
             'rtp' => (float) $r->rtp, 'combo' => $r->combo, 'order' => json_decode($r->order, true)];
+    }
+
+    /** numbers for one client (its own client API / back office) */
+    public function clientReport(string $clientId): array
+    {
+        $q = fn () => $this->ofClient(DB::table('bets')->whereIn('status', ['won', 'lost']), $clientId);
+        $staked = (int) $q()->sum('stake');
+        $paid = (int) $q()->sum('payout');
+        $byCurrency = [];
+        foreach ($q()->selectRaw('currency, sum(stake) as s, sum(payout) as p')->groupBy('currency')->get() as $c) {
+            $byCurrency[$c->currency] = ['staked' => (int) $c->s, 'paid' => (int) $c->p];
+        }
+        $cur = $this->current();
+
+        return ['ok' => true, 'clientId' => $clientId, 'bets' => (int) $q()->count(), 'staked' => $staked, 'paid' => $paid, 'ggr' => $staked - $paid, 'byCurrency' => (object) $byCurrency,
+            'rtp' => $staked ? $paid / $staked : null, 'activeSessions' => (int) DB::table('game_sessions')->where('client_id', $clientId)->where('expires_at', '>', $this->now())->count(),
+            'pendingCredits' => (int) $this->ofClient(DB::table('pending_ops')->where('kind', 'credit'), $clientId)->count(),
+            'pendingRollbacks' => (int) $this->ofClient(DB::table('pending_ops')->where('kind', 'rollback'), $clientId)->count(),
+            'blockedPlayers' => (int) $this->ofClient(DB::table('blocked_players'), $clientId)->count(), 'currentRound' => $cur ? (int) $cur->race_no : null, 'rtpSetting' => $this->rtp()];
     }
 
     /** numbers for the operator's controller (GET /api/report, /api/admin) */
@@ -707,7 +917,7 @@ final class Engine
             'limits' => ['minBet' => $this->cfg['min_bet'], 'maxBet' => $this->cfg['max_bet'], 'maxRoundStake' => $this->cfg['max_round_stake']],
             'rounds' => $rounds, 'bets' => $bets, 'staked' => $staked, 'paid' => $paid, 'actualRtp' => $staked ? $paid / $staked : null, 'houseWin' => $staked - $paid, 'wins' => $wins,
             'pendingCredits' => (int) DB::table('pending_ops')->where('kind', 'credit')->count(), 'pendingRollbacks' => (int) DB::table('pending_ops')->where('kind', 'rollback')->count(),
-            'pendingWebhooks' => 0, 'blockedPlayers' => (int) DB::table('blocked_players')->count(), 'byCurrency' => (object) $byCurrency, 'byClient' => (object) [],
+            'pendingWebhooks' => (int) DB::table('pending_ops')->where('kind', 'webhook')->count(), 'blockedPlayers' => (int) DB::table('blocked_players')->count(), 'byCurrency' => (object) $byCurrency, 'byClient' => (object) [],
             'activeSessions' => (int) DB::table('game_sessions')->where('expires_at', '>', $this->now())->count(), 'recent' => $recent, 'commit' => $cur ? $cur->commit : null, 'currentRound' => $cur ? (int) $cur->race_no : null,
         ];
     }

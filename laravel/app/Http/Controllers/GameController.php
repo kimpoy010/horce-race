@@ -24,7 +24,7 @@ class GameController extends Controller
 
     public function auth(Request $r): JsonResponse
     {
-        $out = $this->engine->auth((string) $r->input('token', ''));
+        $out = $this->engine->auth((string) $r->input('token', ''), $r->filled('client') ? (string) $r->input('client') : null);
 
         return $this->ok(['rules' => $this->engine->rules()] + $out);
     }
@@ -82,13 +82,17 @@ class GameController extends Controller
         if ($cmd === 'previewRtp') {
             return response()->json($this->engine->previewRtp($r->input('rtp')));
         }
+        $pk = fn () => $this->engine->playerKey($r->input('clientId'), $r->input('playerId'));      // clientId is optional (default client)
+        if ($cmd === 'closeSessions') {
+            return response()->json(['ok' => true, 'closed' => $this->engine->closeSessions($pk())]);          // kick a player
+        }
         if ($cmd === 'blockPlayer') {
-            return response()->json($this->engine->blockPlayer((string) $r->input('playerId'), 'controller'));
+            return response()->json($this->engine->blockPlayer($pk(), 'controller'));
         }
         if ($cmd === 'unblockPlayer') {
-            return response()->json($this->engine->unblockPlayer((string) $r->input('playerId'), 'controller'));
+            return response()->json($this->engine->unblockPlayer($pk(), 'controller'));
         }
-        throw new GameError(400, 'UNKNOWN_COMMAND');
+        throw new GameError(403, 'the controller cannot change results in live mode');
     }
 
     public function report(Request $r): JsonResponse

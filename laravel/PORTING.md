@@ -15,13 +15,19 @@ URLs, so the game does not change for the player. `bin/sync-frontend.sh` copies 
 | API used by the browser: `/api/public`, `/api/auth`, `/api/me`, `/api/bet`, `/api/history`, `/api/round/{n}`, `/healthz` | done |
 | Operator controller: `/api/command` (setRtp, previewRtp, blockPlayer, unblockPlayer), `/api/report`, `/api/admin` | done (controller key) |
 | Round loop daemon `php artisan game:run` | done |
-| Clients registry (many platforms, per-client wallet / webhook / limits / API keys) and the client API `/api/client/*` | **not yet** |
-| Webhooks to the platform (`round.settled`, `big.win`) | **not yet** |
+| Clients registry: many platforms, each with its own wallet, webhook, currency, limits, reality check, IP allow list, return-link hosts, API keys (hashed, rotation with a grace time) | done |
+| Client API `/api/client/{info,report,history,players/block,players/unblock,players/close-sessions}`; wrong keys block the address after 10 tries | done |
+| Operator registry API `/api/clients*` (X-Controller-Key) and `php artisan clients ...`; every change goes to the ledger | done |
+| Per-client players (`client:player` keys), wallets, limits, `?client=` launch, a disabled client ends its sessions | done |
+| Webhooks to the platform (`round.settled`, `big.win`), signed, at least once with retries | done |
+| Taking over the Node server's clients (`php artisan clients import data/clients.json`, same key) | done: secrets and API keys carry over |
 | Back office (`/bo/api`, client staff logins, roles, TOTP) and operator admin console (`/admin/api`) | **not yet** (the HTML/JS pages are copied, the APIs are missing) |
 | `/metrics`, alerts, ops snapshot | **not yet** |
 | Demo mode (controller-driven races without betting) | not planned: the Laravel app is the live game |
 
-Today the app serves the implicit "default" client of the Node server: one wallet, chosen with `HORSE_WALLET=mock|http`.
+Like the Node server it has the implicit "default" client (`HORSE_WALLET=mock|http`) next to the registry clients; `HORSE_WALLET=none` runs with
+registry clients only. Onboarding a client: see `../docs/CLIENT_API.md` (the Laravel commands are `php artisan clients add acme ...`, the calls and the
+launch link `/?client=acme&token=...` are the same).
 
 ## How it works
 
@@ -58,6 +64,8 @@ wallet) is refused when `APP_ENV=production`; use `HORSE_WALLET=http` with `HORS
 
 * `tests/Unit/ParityTest.php`: Node and PHP agree on odds, RTP weights, draws, commits, ledger hashes and request signatures.
   The vectors come from the Node code: `node tests/fixtures/make-parity.cjs` regenerates `tests/fixtures/parity.json`.
+* `tests/Feature/ClientsTest.php`: the registry (validation, keys and rotation, IP allow list, brute-force block, encryption in the Node format, import of a Node `clients.json`),
+  two clients side by side with their own wallets, limits, webhooks and return links, the client API and the operator calls.
 * `tests/Feature/GameFlowTest.php`: a whole race (bets, draw, settlement, payout, proof, history), limits, a lost debit answer
   (rollback), a credit that has to be retried, blocking, the controller, health, and ledger lines byte-identical to Node's.
 

@@ -21,7 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
         // errors in the shape the browser game and the platforms already know: {"ok": false, "error": "CODE"}
-        $exceptions->render(fn (GameError $e) => response()->json(['ok' => false, 'error' => $e->errorCode], $e->status));
+        $exceptions->render(fn (GameError $e) => response()->json(['ok' => false, 'error' => $e->errorCode] + ($e->errorCode === 'BAD_CLIENT' || $e->errorCode === 'CONFIRM_REQUIRED' ? ['message' => $e->getMessage()] : []), $e->status));
         $exceptions->render(function (\Throwable $e, Request $request) {
             if ($request->is('api/*') && $e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException) {
                 return response()->json(['ok' => false, 'error' => 'not found'], 404);
