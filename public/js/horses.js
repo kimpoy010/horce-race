@@ -143,16 +143,13 @@
         stamp(out, PADX + u * u * x0 + 2 * u * t * bx + t * t * x1, PADY + bob + u * u * y0 + 2 * u * t * by + t * t * y1, Math.round(w0 + (w1 - w0) * t), Math.round(w0 + (w1 - w0) * t), ch);
       }
     }
-    limb(24, 20, -6, 27, 10, 14, 9, 3, 'K');                                 // long flowing tail: outline, then the fill
-    limb(24, 20, -6, 27, 10, 14, 6, 1, 'C');
-    limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');
-    limb(26, 21, 20, 28, 23, 25, 9, 9, 'C');                                 // croup: closes the gap between the tail root, back and thigh
-    limb(18, 23, 12, 25, 15, 23, 6, 4, 'C');                                 // fills the notch under the tail root
-    for (var pass = 0; pass < 2; pass++) for (r = PADY + 16 + bob; r < PADY + 36 + bob; r++) for (c = PADX + 6; c < PADX + 32; c++) {   // no black specks inside the coat
-      if (out[r][c] !== 'K') continue;
-      var nb = [out[r - 1][c], out[r + 1][c], out[r][c - 1], out[r][c + 1]];
-      if (nb.indexOf(' ') < 0 && nb.filter(function (v) { return v === 'C'; }).length >= 2) out[r][c] = 'C';
-    }
+    limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');                                 // solid croup / thigh
+    limb(26, 21, 21, 27, 24, 24, 6, 6, 'C');
+    // full, flowing tail like a plume: wide at the root, hanging back and down, ragged tufts at the tip (drawn over the hindquarters so it reads as a separate shape)
+    var tail = [[22, 19, 3, 28, 7, 15, 6, 7], [3, 28, 0, 37, 0, 32, 7, 3], [5, 29, 9, 37, 7, 34, 4, 2], [2, 30, -8, 35, -3, 30, 4, 1]];
+    tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6] + 2, t[7] + 2, 'K'); });
+    tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], 'C'); });
+    limb(24, 20, 21, 23, 23, 21, 7, 7, 'C');                                  // root: joins the tail to the back without a line
     for (c = 22; c < 70; c++) for (r = cut(c) + 1; r <= cut(c) + 3; r++) {     // deeper belly under the cut
       var by = r + PADY + bob; if (out[by][c + PADX] === ' ' || out[by][c + PADX] === 'A') out[by][c + PADX] = 'C';
     }
