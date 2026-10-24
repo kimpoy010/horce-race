@@ -1,66 +1,68 @@
 /*
- * Pixel-art racehorses copied from the reference design: bold black outlines, flat colours, slim body,
- * long neck, socks on the legs, red-capped jockey and a numbered saddle cloth.
- * The body (head, neck, back, tail, jockey) is the traced reference; the four legs are generated so they can gallop.
+ * Racehorses in the style of the client's reference picture: chunky flat colours, a white (or recoloured) coat,
+ * a coloured far-side set of legs, a jockey in silks and a gold number tag.
+ * The body (head, neck, back, tail, jockey, tag) is traced from the reference; the four legs are generated so they can gallop.
  * Sprites are cached per (horse, facing, gait step).
  */
 (function () {
   'use strict';
 
-  if (window.HORSE_VARIANT == null) window.HORSE_VARIANT = 5; // 0 = old straight-leg body, 5 = slim tucked-up belly (default)
+  var COLS = 92, PADX = 6, PADY = 6, SW = COLS + PADX * 2 + 8, SH = 66 + PADY * 2;
+  var GROUND = PADY + 60, OX = PADX + 46, OY = GROUND + 1, STEPS = HorseGait.FRAMES;
 
-  var COLS = 89, PADX = 6, PADY = 11, SW = COLS + PADX * 2 + 2, SH = 60 + PADY * 2;
-  var OX = PADX + 44, OY = PADY + 56, STEPS = HorseGait.FRAMES;
-
+  // roles: C coat, A accent (far legs, blaze), S silks, F skin / highlight, K black, T number tag
   var BODY = [
-    '........................................................KKKKKK...........................',
-    '.......................................................KKRRRRKK..........................',
-    '......................................................KKRRRRRRKK.........................',
-    '......................................................KRRRRRRRRK.........................',
-    '......................................................KRRRRRRRRKK........................',
-    '.................................................KKKKKKRRRRRRRRRRK.......................',
-    '...............................................KKKRRRRKKKKKKKKKKKK......KKK..............',
-    '............................................KKKKRRRRRRRKKSKSSKSK........KWKK.............',
-    '..........................................KKKRRRRRRRRRRRKKSSSSSK........KWWKK............',
-    '.........................................KKRRRRRRRRRRRRRRKSSSSKK...KKKKKKWWWKKK..........',
-    '........................................KKRRRRRRRRRRRRRRRKKSSKK..KKKKWWWKKWWWWKK.........',
-    '.......................................KKRKRRRRRRRRKRRRRKKKKKK..KKKWWWWKKKKWWKKKK........',
-    '......................................KKRRRKRRRRRRRKRRRRKK....KKKWWWWKKWWKKWKKWWKK.......',
-    '......................................KRRRRRKRRRRRRKRRRRK....KKKWWWWKWWWWWKKKWWWWKK......',
-    '......................................KRRRRRRKKRRKKKRRRRK...KKWWWWWKWWWWWWKKWWWWWWKK.....',
-    '......................................KRRRRRRRRKKKKKRRRRKKKKKKKWWKKWWWWWWWKKWWWKKWWK.....',
-    '......................................KKRRRRRRRRRKKKKRRRRRRKSSSKKWWWWWWWWWKWKWWWWWWKK....',
-    '.......................................KKRRRRRRRRRRKKRRRRRRKSSSKWWWWWWWWWWKWWKWWWWWWKK...',
-    '........................................KKKKRRRRRRRRKKRRRRRKKKKKWWWWWWWWWBKWWWKWWWWWKKK..',
-    '...........................KKKKKKK....KKK..KKKRRRRRRRKKKKKKBBWWWKKWWWWWWWBKWWWWKWWWKBBKK.',
-    '........................KKKKWWWWWKKKKKKKKKK..KKKKRRRRKKKKBBWWWWWWWKKKWWWWBKBWWWWKWKBBBBKK',
-    '......................KKKWWWWWWWWWWWKYYKKKKKKKKKKRRRRKKKBWWWWWWWWWWWWKKKKKKKBBWWBKKBBBBBK',
-    '.....................KKWWWWWWWWWWWWWKYYYKKKKKKKKRKKRKKKWWWWWWWWWWWWWWWWWBKKKKKKKKKKBBBKBK',
-    '.................KKKKKWWWWWWWWWWWWWWKYYYYYYYKKKKRRRKKKKWWWWWWWWWWWWWWWWBKK..KKKKKBBKBBBBK',
-    '.............KKKKKWWWWWWWWWWWWWWWWWWKYYYYYYYKKKKRRRKKYKWWWWWWWWWWWWWWWWKK.......KKBBKBBKK',
-    '...........KKKWWWWWWWKWWWWWWWWWWWWWWKYYYKKYYYKKRRRKKKYKWWWWWWWWWWWWWWWBK.........KKBBKKK.',
-    '........KKKKWWWWWWWWKWWWWWWWWWWWWWWWKYYKKKYYYKKRRRKKYYKWWWWWWWWWWWWWWWKK..........KKKKK..',
-    'KKKKKKKKKWWWWWWWWKKKKWWWWWWWWWWWWWWWKYYYKKYYYKRRRKKYYYKWWWWWWWWWWWWWWBK..................',
-    'KKWWWWWWWWWWWWWWKK.KWWWWWWWWWWWWWWWWKYYYKKYYYKKKKKKYYYKWWWWWWWWWWWWWWKK..................',
-    '.KKWWWWWWWWWWWWKK..KWWWWWWWWWWWWWWWWKYYYKKYYYKKKKKKKYYKWWWWWWWWWWWWWBK...................',
-    '..KWWWWWWWWWWWKK...KWWWWWWWWWWWWWWWWKYYKKKKYYYKKKKKKYYKWWWWWWWWWWWWWKK...................',
-    '..KKWWWWWWWWWKK....KWWWWWWWWWWWWWBWWKYYYYYYYYYYKKKYYYYKWWWWWWWWWWWWBK....................',
-    '...KKKWWWWWKKK.....KBWWWWWWWWWWWWBBWKKKYYYYYYYYKKKYYYYKWWWWWWWWWWWWKK....................',
-    '.....KKKKKKK.......KKWWWWWWWWWWWWWBWWWWKKKKKKKKKKKKKKKKWWWWWWWWWWWWK.....................',
-    '....................KBWWWWWWWWWWWWKWWWWWWWWWWWWKKKWWWWWWWWWWWWWWWWWK.....................',
-    '....................KKBWWWWWWWWWWWKBWWWWWWWWWWWKKKWWWWWWWWWWWWWWWWKK.....................',
-    '.....................KKBWWWWWWWWWWKBBWWWWWWWWWWKKKKWWWWWWWWWWWWBWBK......................',
-    '......................KKBWWWWWWWWWKKBBBWWWWWWWWKKKKWWBWWWWWWWWWBWKK......................',
-    '.......................KKKWWWWWWWKKBKKBBBWWWWWWWKKKWBWWWWWWWWWBBKKK......................'
+    '............................................................................K...............',
+    '.............................................................K....KKKKKK....K...............',
+    '.............................................................K..............K...............',
+    '.............................................................K..............K...............',
+    '............................................................................................',
+    '.....................................KKKKK....KKKKKKKK.....KKKKK..............KK............',
+    '...................................KTSSSSS.KKSSSSSSSSS....TSSSSST.............CC............',
+    '...................................TSSSSSSSTTTTSSSSSSST..TSSSSTTT.............CC............',
+    '..................................KSSSSSSSSSS.KSSSSSSSSSKSSSST............CCCC...K..........',
+    '..................................KSSSSSS.FSS.KSSSKSSSSSKSSKK..........KCCCCCCAAAAAK........',
+    '...................................TSSSSSFFFSSTTTTTSSSSSKT.K.FFF.K......CCC...AAAAAK........',
+    '...................................KTSSSSSFFSSSKK.SSSSSSK..KFFFF.KC.KCCCCCCAAAAAAAAKK.......',
+    '.....................................KSSSSSS.SSKSSKSSSSTKKKKFFFK.CCCCCCCCCCAAAAAAAAAK.......',
+    '......................................T.T.SSFFFST.K.T.SSSSTK..C..CCCCCCCCCCAAAA....AA.......',
+    '.........................................KSSSFFS.KKKKKSSSSSKK.CCCCCCCCCCCCCAAAA.CC.AAA......',
+    '...........................................KKSS.SSKSSSK.SSSSK.CCCCCCCCCCCCCC.AAAACCCAAAK....',
+    '............................................K.TFFFS.....SSSSST.CCCCCCCCCCCCC.AAAA...AAAA....',
+    '.CCCCCCCCCCCCCCCCCCCC........K..............K..SFFS.....SSSSSSKCCCCCCCCCCCCC.AAAAAAAAAA.....',
+    '.CCCCCCCCCCCCCCCCC.K.CCCCCCCCK.TTTTTTTTTTTTTK..KSS.SFCCCCSSSSSSSTKK.CCCCCCCCCCAAAAAAAAAC....',
+    '......CCCCCC........CCCCCCCCCK.TTTTT..TTTTTTK..KFFFSFCCCC..STTST....CCCCCCCCCCAAAA.....C....',
+    '......................CCCCCCCK.TTTTT..TTTTTTK..KFFSSFCCCCCCS..SK..FCCCCCCCCCC...AA.CCCCCCCK.',
+    '....................K.CCCCCCCK.TTTTKK.TTTTTTK..KK.SSFCCCCCCCCCSK.FF.CCCCCCCC.K...K.CCCCCCCK.',
+    '.....................CCCCCCCCK.TT.TT..TTTTTTK.....C.CCCCCCCCCCC..CCCCCCCCCC.........CCCC..K.',
+    '....................CCCCCCCCCK.TT..TT.TTTTTTK....CCCCCCCCCCCCCCCCCCCCCCCCC..........CCCC....',
+    '...................KCCCCCCCCCK.TTTTTT.TTTT.KK....CCCCCCCCC.AAAACCCCCCCCCC.K..........KKKK...',
+    '....................CCCCCCCCCK.TTTTTT.TTTTT.K....CCCCCCCCCC.C.A..CCCCCCC....................',
+    '...................CCCCCCCCCCK.TTTTTT.TTTTTTK.....CCCCCCCCCCC....CCCCCCC....................',
+    '...................CCCCCCCCCCK.TTTTTT.TTTTTTK.....CCCCCCCCCCCCCC.ACCCKKK....................',
+    '...................CCCCCCCCCCK.TT...KK..TTTTK..K..CCCCCCCCCCCCCCCC...K......................',
+    '...................CCCCCCCCCCK.TT.......TTTTKCC...CCCCCCCCCCCCCCCC..A.......................',
+    '...................CCCCCCCCCCK.TTTTTTTTTTTTTKCCCCCCCCCCCCCCCCCCCCCC.K.......................',
+    '...................CCCCCCCCCCKK.............KCCCCCCCCCCCCCCCCCCCCCC.........................',
+    '...................CCCCCCCCCC........KKK.K...CCCCCCCCCCCCCCCCCCCCCC.........................',
+    '.................K.CCCCCCCCCCCCCCCCC.KA..KCCCCCCCCCCCCCCCCCCCCCCCCCCCK......................',
+    '................K.CCCCCCCCCCCCCCCCC...KK.K...CCCCCCC....CCCCCCCCCCCCCK......................',
+    '.................CCCCCCCCCCCCCCCC...........K...........CCCCCCCCCCCCC.......................',
+    '.............KK.CCCCCCCCCCCCCCCCC.......................CCCCCCCCCCCCCC.K....................',
+    '.............KCCCCCCCCCCCCCCCCCC.........................CCCCCCCCCCCCCCCK...................',
+    '..............CCCCCCCCCCCCCCCCC.........................K.CCCCCCCCCCCCCC....................',
+    '..........KK.CCCCCCCCCCCCCCCCC.K.........................K.CCCCCCCCCCCCCCCC.................',
+    '..........KCCCCCCCCCCCCCCCCCC.....................................CCCCCCCCC.................'
   ];
 
+  // per-horse colours measured from the reference picture
   var HORSE = {
-    1: { coat: '#ffffff', shade: '#0a3c96', muzzle: '#0a3c96', sock: '#0a3c96', silk: '#ff0000', cap: '#ff0000', cloth: '#ffe600' },
-    2: { coat: '#e82ad0', shade: '#8a0c86', muzzle: '#8a0c86', sock: '#ffffff', silk: '#2058f0', cap: '#2058f0', cloth: '#ffe600' },
-    3: { coat: '#ee1c1c', shade: '#8a0a0a', muzzle: '#8a0a0a', sock: '#ffffff', silk: '#9a9aff', cap: '#9a9aff', cloth: '#ffe600' },
-    4: { coat: '#2850e8', shade: '#14289a', muzzle: '#14289a', sock: '#ffffff', silk: '#ff80b0', cap: '#ff80b0', cloth: '#ffe600' },
-    5: { coat: '#ffe620', shade: '#b08a00', muzzle: '#b08a00', sock: '#ffffff', silk: '#a040e0', cap: '#a040e0', cloth: '#ffffff' },
-    6: { coat: '#18a050', shade: '#0a5a2c', muzzle: '#0a5a2c', sock: '#ffffff', silk: '#ff90c0', cap: '#ff90c0', cloth: '#ffe600' }
+    1: { coat: '#ffffff', accent: '#2333ed', silk: '#dd4536', skin: '#e09472', tag: '#f0bc4c' },
+    2: { coat: '#e361f2', accent: '#964422', silk: '#e09472', skin: '#e09472', tag: '#f0bc4c' },
+    3: { coat: '#dd4536', accent: '#2333ed', silk: '#757ca2', skin: '#e09472', tag: '#f0bc4c' },
+    4: { coat: '#2333ed', accent: '#964422', silk: '#e892ab', skin: '#e09472', tag: '#f0bc4c' },
+    5: { coat: '#f5ec66', accent: '#2333ed', silk: '#85509d', skin: '#e09472', tag: '#f0bc4c' },
+    6: { coat: '#44805c', accent: '#964422', silk: '#cec0f0', skin: '#e09472', tag: '#f0bc4c' }
   };
   var DIGITS = {
     1: ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
@@ -70,27 +72,16 @@
     5: ['#####', '#....', '####.', '....#', '....#', '#...#', '.###.'],
     6: ['.###.', '#....', '#....', '####.', '#...#', '#...#', '.###.']
   };
+  var TAG = { x: 29, y: 17, w: 16, h: 15 };            // the gold number tag inside BODY (columns / rows)
 
   // lowest kept body row for each column; everything below is replaced by the generated legs
   function cut(c) {
-    var V = window.HORSE_VARIANT | 0;
-    if (V === 0) {
-      if (c <= 18) return 33;
-      if (c <= 35) return 37;
-      if (c <= 54) return 34;
-      if (c <= 67) return 38;
-      return 33;
-    }
-    // visible, tucked-up belly between the thigh and the elbow
-    if (c <= 18) return 33;
-    if (c <= 35) return 37;
-    if (c <= 38) return 36;
-    if (c <= 41) return 35;
-    if (c <= 50) return 33;
-    if (c <= 53) return 35;
-    if (c <= 56) return 37;
-    if (c <= 67) return 38;
-    return 33;
+    if (c < 22) return 30;
+    if (c < 32) return 31;
+    if (c < 42) return 33;
+    if (c < 54) return 34;
+    if (c < 67) return 35;
+    return 31;
   }
 
   function grid() { var g = []; for (var y = 0; y < SH; y++) { g.push(new Array(SW).fill(' ')); } return g; }
@@ -103,137 +94,77 @@
     }
   }
 
-  // paints one leg with a black contour over whatever is already in out
-  function paintLeg(out, hx, hy, ang, wTop, L1, L2) {
-    var T = grid(), a1 = ang[0], a2 = ang[1], t, n;
-    var k = ang[2] || 1; L1 *= k; L2 *= k;                       // a planted leg is a little longer so the hoof meets the ground
+  // paints one flat-coloured leg: thick upper leg, slim cannon bone, small black hoof
+  function paintLeg(out, hx, hy, ang, wTop, L1, L2, ch) {
+    var a1 = ang[0], a2 = ang[1], t, n;
+    var k = ang[2] || 1; L1 *= k; L2 *= k;
     var K = [hx + L1 * Math.sin(a1), hy + L1 * Math.cos(a1)], F = [K[0] + L2 * Math.sin(a2), K[1] + L2 * Math.cos(a2)];
     n = Math.ceil(L1 * 2);
-    for (t = 0; t <= n; t++) { var f = t / n, w = Math.round(wTop + (3 - wTop) * f); stamp(T, hx + (K[0] - hx) * f, hy + (K[1] - hy) * f, w, w, 'W'); }
-    stamp(T, K[0], K[1], 4, 4, 'W');
+    for (t = 0; t <= n; t++) { var f = t / n, w = Math.round(wTop + (4 - wTop) * f); stamp(out, hx + (K[0] - hx) * f, hy + (K[1] - hy) * f, w, w, ch); }
+    stamp(out, K[0], K[1], 5, 5, ch);
     n = Math.ceil(L2 * 2);
-    for (t = 0; t <= n; t++) {
-      var g = t / n, ch = g < 0.18 ? 'W' : g < 0.78 ? 'L' : 'W', ww = g < 0.78 ? 3 : 2;
-      stamp(T, K[0] + (F[0] - K[0]) * g, K[1] + (F[1] - K[1]) * g, ww, ww, ch);
-    }
-    stamp(T, F[0] + Math.sin(a2) * 1.5, F[1] + Math.cos(a2) * 1.5 + 1, 4, 3, 'H');
-    var x, y;
-    for (y = 0; y < SH; y++) for (x = 0; x < SW; x++) {
-      if (T[y][x] !== ' ') continue;
-      if ((x > 0 && T[y][x - 1] !== ' ') || (x < SW - 1 && T[y][x + 1] !== ' ') || (y > 0 && T[y - 1][x] !== ' ') || (y < SH - 1 && T[y + 1][x] !== ' ')) out[y][x] = 'K';
-    }
-    for (y = 0; y < SH; y++) for (x = 0; x < SW; x++) if (T[y][x] !== ' ') out[y][x] = T[y][x];
+    for (t = 0; t <= n; t++) { var g = t / n; stamp(out, K[0] + (F[0] - K[0]) * g, K[1] + (F[1] - K[1]) * g, 4, 4, ch); }
+    stamp(out, F[0] + Math.sin(a2) * 1.5, F[1] + Math.cos(a2) * 1.5 + 1, 3, 2, 'K');
   }
 
   function makeSprite(no, dir, step, standing) {
     var P = HORSE[no], out = grid(), r, c;
-    var gp = window.HorseGait.pose(step / STEPS);                       // the gallop of the reference sheet: see gait.js
+    var gp = window.HorseGait.pose(step / STEPS);
     var legs = { hf: gp.hf, ff: gp.ff, hn: gp.hn, fn: gp.fn };
     if (standing) legs = { hf: [-0.05, -0.05], ff: [-0.08, -0.08], hn: [0.05, 0.05], fn: [0, 0] };
-    var bob = standing ? 0 : -Math.round(3.4 * gp.lift);                  // the body rises in the flight phase and sinks over the planted forelegs
-    var tilt = standing ? 0 : Math.tan(gp.pitch * 0.5);                  // nose-up pitch: the finished picture is sheared around the saddle
+    var bob = standing ? 0 : -Math.round(3.4 * gp.lift);
+    var tilt = standing ? 0 : Math.tan(gp.pitch * 0.5);
     var dyAt = function (x) { return Math.round(-(x - (PADX + 46)) * tilt); };
-    var GROUND = PADY + 55;                                              // where a hoof meets the ground (legs are 21 long)
-    // planted legs are lengthened a little so the hoof really reaches the ground (the body is lifted and pitched)
+    var HIP = { hf: [PADX + 21, 31], hn: [PADX + 15, 31], ff: [PADX + 61, 34], fn: [PADX + 56, 34] };
     ['hf', 'ff', 'hn', 'fn'].forEach(function (k) {
-      var hx = { hf: 31, ff: 60, hn: 26, fn: 65 }[k] + PADX, hy = PADY + (k[0] === 'h' ? 34 : 35) + bob;
-      if (!standing) legs[k] = [legs[k][0], legs[k][1], window.HorseGait.stretch(legs[k], GROUND - hy - dyAt(hx), 10, 11)];
+      if (!standing) legs[k] = [legs[k][0], legs[k][1], window.HorseGait.stretch(legs[k], GROUND - (PADY + HIP[k][1] + bob) - dyAt(HIP[k][0]), 14, 14)];
     });
 
-    // legs first (the body is painted over their tops)
-    var V = window.HORSE_VARIANT | 0;
-    if (V === 0) {
-      paintLeg(out, PADX + 41, PADY + 33 + bob, legs.hf, 5, 10, 11);
-      paintLeg(out, PADX + 53, PADY + 33 + bob, legs.ff, 5, 10, 11);
-      paintLeg(out, PADX + 29, PADY + 34 + bob, legs.hn, 7, 10, 11);
-      paintLeg(out, PADX + 61, PADY + 35 + bob, legs.fn, 7, 10, 11);
-    } else if (V >= 4) { // legs only at the far ends of the body: the belly between them stays in view
-      paintLeg(out, PADX + 31, PADY + 34 + bob, legs.hf, 5, 10, 11);
-      paintLeg(out, PADX + 60, PADY + 35 + bob, legs.ff, 5, 10, 11);
-      paintLeg(out, PADX + 26, PADY + 34 + bob, legs.hn, 7, 10, 11);
-      paintLeg(out, PADX + 65, PADY + 35 + bob, legs.fn, 7, 10, 11);
-    } else { // legs grow out of the thigh and the elbow, leaving the belly open between them
-      paintLeg(out, PADX + 33, PADY + 34 + bob, legs.hf, 5, 10, 11);
-      paintLeg(out, PADX + 57, PADY + 35 + bob, legs.ff, 5, 10, 11);
-      paintLeg(out, PADX + 28, PADY + 34 + bob, legs.hn, 7, 10, 11);
-      paintLeg(out, PADX + 62, PADY + 35 + bob, legs.fn, 7, 10, 11);
-    }
+    // far legs (accent) first, then the near legs in the coat colour, then the body over their tops
+    paintLeg(out, HIP.hf[0], PADY + HIP.hf[1] + bob, legs.hf, 8, 14, 14, 'A');
+    paintLeg(out, HIP.ff[0], PADY + HIP.ff[1] + bob, legs.ff, 6, 14, 14, 'A');
+    paintLeg(out, HIP.hn[0], PADY + HIP.hn[1] + bob, legs.hn, 10, 14, 14, 'C');
+    paintLeg(out, HIP.fn[0], PADY + HIP.fn[1] + bob, legs.fn, 7, 14, 14, 'C');
 
-    // body from the reference (shifted by the bob), recoloured
-    var kept = grid();
+    var gl = DIGITS[no];
     for (r = 0; r < BODY.length; r++) for (c = 0; c < COLS; c++) {
       var ch = BODY[r][c];
       if (ch === '.' || r > cut(c)) continue;
-      if (ch === 'B') ch = (c >= 75 && r >= 17 && r <= 27) ? 'M' : 'D';
-      else if (ch === 'R') ch = r <= 5 ? 'C' : 'R';
-      else if (ch === 'K' && c >= 37 && c <= 44 && r >= 23 && r <= 31) ch = 'Y'; // clear the reference number
-      else if (ch === 'Y' && false) ch = 'Y';
-      kept[r][c] = ch;
+      var yy = r + PADY + bob, xx = c + PADX;
+      if (yy >= 0 && yy < SH) out[yy][xx] = ch;
     }
-    if (V === 5) { // athletic belly: deepest at the girth behind the elbow, tucking up towards the flank
-      for (c = 34; c <= 60; c++) {
-        var t5 = Math.max(0, Math.min(1, (c - 36) / 18)), bot5 = Math.round(34 + 5 * t5 * t5 * (3 - 2 * t5));
-        if (c > 54) bot5 = 39;
-        for (r = cut(c) + 1; r <= bot5; r++) kept[r][c] = r >= bot5 ? 'D' : 'W';
-      }
+    for (c = 22; c < 70; c++) for (r = cut(c) + 1; r <= cut(c) + 3; r++) {     // deeper belly under the cut
+      var by = r + PADY + bob; if (out[by][c + PADX] === ' ' || out[by][c + PADX] === 'A') out[by][c + PADX] = 'C';
     }
-    if (V === 4) { // clearly visible deep belly: rounded underside, shaded, outlined
-      for (c = 33; c <= 60; c++) {
-        var bot4 = 43 - Math.floor(((c - 46.5) * (c - 46.5)) / 8);
-        for (r = cut(c) + 1; r <= bot4; r++) kept[r][c] = r >= bot4 - 2 ? 'D' : 'W';
-      }
+    // number tag: clear the reference numeral, draw a bold one (bold = each pixel doubled across, rows 2 and 5 doubled down)
+    var rowMap = [0, 1, 1, 2, 3, 4, 5, 5, 6];
+    for (r = TAG.y; r < TAG.y + TAG.h; r++) for (c = TAG.x; c < TAG.x + TAG.w; c++) {
+      var edge = r === TAG.y || r === TAG.y + TAG.h - 1 || c === TAG.x || c === TAG.x + TAG.w - 1;
+      out[r + PADY + bob][c + PADX] = edge ? 'K' : 'T';
     }
-    if (V === 2) { // deeper barrel: round belly under the saddle
-      for (c = 34; c <= 58; c++) {
-        var bot = 41 - Math.floor(((c - 46) * (c - 46)) / 11);
-        for (r = cut(c) + 1; r <= bot; r++) if (r > 0 && r < BODY.length + 8) { if (!kept[r]) kept[r] = []; kept[r][c] = r >= bot - 1 ? 'D' : 'W'; }
-      }
-    }
-    if (V === 3) { // muscle definition: thigh and shoulder contour lines
-      [[24, 29], [25, 31], [26, 33], [27, 35], [28, 36], [29, 36]].forEach(function (q) { if (kept[q[1]][q[0]] === 'W') kept[q[1]][q[0]] = 'K'; });
-      [[58, 30], [59, 32], [60, 34], [61, 36], [62, 37]].forEach(function (q) { if (kept[q[1]][q[0]] === 'W') kept[q[1]][q[0]] = 'K'; });
-    }
-    // number on the saddle cloth
-    var gl = DIGITS[no];
-    for (r = 23; r <= 31; r++) for (c = 37; c <= 44; c++) kept[r][c] = 'Y';
-    for (r = 0; r < 7; r++) for (c = 0; c < 5; c++) if (gl[r][c] === '#') kept[24 + r][38 + c] = 'N';
-    var yy, xx;
-    for (r = 0; r < kept.length; r++) for (c = 0; c < COLS; c++) {
-      if (kept[r][c] !== ' ' && kept[r][c] !== undefined) { yy = r + PADY + bob; xx = c + PADX; if (yy >= 0 && yy < SH) out[yy][xx] = kept[r][c]; }
-    }
-    // contour along the cut-away / added belly (never over a leg)
-    if (V === 0) {
-      for (r = 0; r < BODY.length + 1; r++) for (c = 0; c < COLS; c++) {
-        if (r > cut(c) && r <= cut(c) + 1 && kept[r - 1] && kept[r - 1][c] !== ' ' && kept[r - 1][c] !== 'K' && out[r + PADY + bob][c + PADX] === ' ') out[r + PADY + bob][c + PADX] = 'K';
-      }
-    } else {
-      var lim = SH - PADY - 2;
-      function solid(rr, cc) { return rr >= 0 && rr < lim && cc >= 0 && cc < COLS && kept[rr][cc] !== ' ' && kept[rr][cc] !== 'K'; }
-      for (r = 0; r < lim; r++) for (c = 0; c < COLS; c++) {
-        if (kept[r][c] !== ' ') continue;
-        if ((solid(r - 1, c) || solid(r + 1, c) || solid(r, c - 1) || solid(r, c + 1)) && out[r + PADY + bob] && out[r + PADY + bob][c + PADX] === ' ') out[r + PADY + bob][c + PADX] = 'K';
-      }
-    }
+    var nx = PADX + TAG.x + 5, ny = PADY + TAG.y + 3 + bob;
+    for (r = 0; r < 9; r++) for (c = 0; c < 5; c++) if (gl[rowMap[r]][c] === '#') { out[ny + r][nx + c] = 'N'; if (c < 4 && gl[rowMap[r]][c + 1] !== '#') out[ny + r][nx + c + 1] = 'N'; }
 
-    if (tilt) {                                                            // body pitch (columns move up or down)
+    if (tilt) {
       var sh = grid(), xs, ys;
       for (xs = 0; xs < SW; xs++) { var d = dyAt(xs); for (ys = 0; ys < SH; ys++) { var y2 = ys + d; if (y2 >= 0 && y2 < SH && out[ys][xs] !== ' ') sh[y2][xs] = out[ys][xs]; } }
       out = sh;
     }
-    var cols = { K: '#000000', W: P.coat, D: P.shade, M: P.muzzle, L: P.sock, H: '#10184a', C: P.cap, R: P.silk, Y: P.cloth, S: '#f8aa8c', N: '#000000' };
+    var cols = { K: '#000000', C: P.coat, A: P.accent, S: P.silk, F: P.skin, T: P.tag, N: '#000000' };
     var cv = document.createElement('canvas'); cv.width = SW; cv.height = SH;
     var g = cv.getContext('2d');
     for (r = 0; r < SH; r++) for (c = 0; c < SW; c++) {
       var k = out[r][c]; if (k === ' ') continue;
-      if (dir < 0 && k === 'N') k = 'Y';
+      if (dir < 0 && k === 'N') k = 'T';
       g.fillStyle = cols[k] || '#ff00ff';
-      var x = dir > 0 ? c : SW - 1 - c;
-      g.fillRect(x, r, 1, 1);
+      g.fillRect(dir > 0 ? c : SW - 1 - c, r, 1, 1);
     }
-    // the number stays upright when the sprite is mirrored
-    if (dir < 0) {
+    if (dir < 0) {                                                       // the number stays upright when the sprite is mirrored
       g.fillStyle = '#000';
-      for (r = 0; r < 7; r++) for (c = 0; c < 5; c++) if (gl[r][c] === '#') g.fillRect(SW - 1 - PADX - 42 + c, PADY + bob + 24 + r, 1, 1);
+      for (r = 0; r < 9; r++) for (c = 0; c < 5; c++) if (gl[rowMap[r]][c] === '#') {
+        g.fillRect(SW - 1 - (nx + c), ny + r, 1, 1);
+        if (c < 4 && gl[rowMap[r]][c + 1] !== '#') g.fillRect(SW - 1 - (nx + c + 1), ny + r, 1, 1);
+      }
     }
     return cv;
   }
@@ -242,7 +173,7 @@
   function get(no, dir, phase, standing) {
     var step = standing ? 0 : Math.floor(phase / (Math.PI * 2) * STEPS) % STEPS;
     if (step < 0) step += STEPS;
-    var key = (window.HORSE_VARIANT | 0) + '' + no + (dir > 0 ? 'r' : 'l') + (standing ? 's' : step);
+    var key = no + (dir > 0 ? 'r' : 'l') + (standing ? 's' : step);
     return cache[key] || (cache[key] = makeSprite(no, dir, step, standing));
   }
 

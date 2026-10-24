@@ -1,7 +1,7 @@
 /*
  * Angled horse sprites for the curve (45 degrees, straight on, 45 degrees the other way).
  * A small solid model of the horse is turned to the wanted angle and rendered to a pixel sprite with flat
- * colours, two-tone shading and black contours, to match the traced side-view sprites in horses.js.
+ * flat colours and black contours, to match the traced side-view sprites in horses.js.
  * Sprites are cached and can be pre-built in the background with HorseSprites.warm().
  */
 (function () {
@@ -171,17 +171,15 @@
       var I = nx * LIGHT[0] + vy * LIGHT[1] + vz * LIGHT[2];
       tone[k] = (I < 0.05 || vy < -0.55) ? 0 : I > 0.74 ? 2 : 1;
     }
-    var cols = [P.coat, P.sock, '#10184a', P.silk, P.cap, '#f8aa8c', P.cloth, '#000000', P.muzzle, P.shade, '#ffffff', '#2a1c14', '#000000',
+    var cols = [P.coat, P.coat, '#000000', P.silk, P.silk, P.skin, P.tag, '#000000', P.accent, P.coat, '#ffffff', '#2a1c14', '#000000',
       '#ffffff', '#ffffff', '#bfe4ff', '#3a2414', '#5a3a22', '#c8ccd8', '#e8a0a0'].map(hex);
-    var shd = hex(P.shade), cv = document.createElement('canvas'); cv.width = TW; cv.height = TH;
+    var shd = hex(P.coat), cv = document.createElement('canvas'); cv.width = TW; cv.height = TH;
     var g = cv.getContext('2d'), img = g.createImageData(TW, TH), d8 = img.data, x2, y2, k2;
     function put(k, c) { d8[k * 4] = c[0]; d8[k * 4 + 1] = c[1]; d8[k * 4 + 2] = c[2]; d8[k * 4 + 3] = 255; }
     for (k2 = 0; k2 < TW * TH; k2++) {
       if (id[k2] < 0) continue;
       var c = cols[id[k2]], t = tone[k2], fixed = id[k2] === C_DIGIT || id[k2] === C_EYE || id[k2] === C_LENS;
-      if (!fixed && t === 0) c = id[k2] === C_COAT ? mix(c, shd, 0.38) : [c[0] * 0.72, c[1] * 0.72, c[2] * 0.76];
-      else if (!fixed && t === 2) c = mix(c, [255, 255, 255], 0.3);
-      put(k2, c);
+            put(k2, c);
     }
     // contours: black outside the silhouette and where one part passes in front of another; a soft darker
     // line where a limb overlaps the body (so the legs still flow out of it)
@@ -200,7 +198,7 @@
         if (id[kq] !== id[k2] && dz > 1.6 && id[k2] !== C_DIGIT) { soft.push(k2); break; }
       }
     }
-    soft.forEach(function (k) { d8[k * 4] *= 0.55; d8[k * 4 + 1] *= 0.55; d8[k * 4 + 2] *= 0.6; });
+    
     mark.forEach(function (k) { put(k, black); });
     g.putImageData(img, 0, 0);
     return cv;
