@@ -145,8 +145,8 @@
     }
     limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');                                 // solid croup / thigh
     limb(26, 21, 21, 27, 24, 24, 6, 6, 'C');
-    // full, flowing tail like a plume: wide at the root, hanging back and down, ragged tufts at the tip (drawn over the hindquarters so it reads as a separate shape)
-    var tail = [[22, 19, 3, 28, 7, 15, 6, 7], [3, 28, 0, 37, 0, 32, 7, 3], [5, 29, 9, 37, 7, 34, 4, 2], [2, 30, -8, 35, -3, 30, 4, 1]];
+    // long tapering tail: leaves the rump, sweeps back and down in one curve
+    var tail = [[23, 19, -7, 36, 4, 18, 5, 2]];
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6] + 2, t[7] + 2, 'K'); });
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], 'C'); });
     limb(24, 20, 21, 23, 23, 21, 7, 7, 'C');                                  // root: joins the tail to the back without a line
