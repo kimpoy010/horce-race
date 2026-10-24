@@ -68,12 +68,12 @@
       var st = ang[2] || 1, L1 = 8.6 * st, L2 = 9.6 * st, k = [hx + L1 * Math.sin(ang[0]), hy - L1 * Math.cos(ang[0]), hz], f = [k[0] + L2 * Math.sin(ang[1]), k[1] - L2 * Math.cos(ang[1]), hz];
       var mid = [k[0] + (f[0] - k[0]) * 0.34, k[1] + (f[1] - k[1]) * 0.34, hz], sk = [k[0] + (f[0] - k[0]) * 0.9, k[1] + (f[1] - k[1]) * 0.9, hz];
       var col = grp === 3 ? C_MUZZLE : C_COAT;                                                // the far legs take the accent colour, like the reference
-      m.capsule([hx, hy, hz], k, thick + 0.8, 1.7, col, grp);                                  // wide thigh / forearm narrowing to the knee
-      if (hind) m.ellipsoid([hx - 0.5, hy + 1.2, hz * 1.08], [4.4, 5.4, 3.2], col, grp);      // thigh muscle
-      else m.ellipsoid([hx + 0.4, hy + 0.6, hz * 1.04], [3.8, 4.6, 2.9], col, grp);           // forearm muscle
-      m.ellipsoid(k, [1.9, 1.9, 1.9], col, grp);                                              // knee / hock
-      m.capsule(k, f, 1.35, 1.45, col, grp);                                                  // slim lower leg
-      m.capsule(f, [f[0] + Math.sin(ang[1]) * 1.4, f[1] - 1.8, hz], 1.9, 2.1, C_HOOF, grp);   // dark hoof, a little wider than the leg
+      m.capsule([hx, hy, hz], k, thick * 0.85, 1.4, col, grp);                                  // wide thigh / forearm narrowing to the knee
+      if (hind) m.ellipsoid([hx - 0.5, hy + 1.2, hz * 1.08], [3.1, 4.2, 2.2], col, grp);      // thigh muscle
+      else m.ellipsoid([hx + 0.4, hy + 0.6, hz * 1.04], [2.7, 3.6, 2.0], col, grp);           // forearm muscle
+      m.ellipsoid(k, [1.5, 1.5, 1.5], col, grp);                                              // knee / hock
+      m.capsule(k, f, 1.1, 1.2, col, grp);                                                  // slim lower leg
+      m.capsule(f, [f[0] + Math.sin(ang[1]) * 1.4, f[1] - 1.8, hz], 1.35, 1.5, C_HOOF, grp);   // dark hoof, a little wider than the leg
     }
     var hy = 18.4 + b;
     if (!standing) {                                              // planted legs are lengthened so the hoof reaches the ground
