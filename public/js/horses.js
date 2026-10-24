@@ -100,11 +100,11 @@
     var k = ang[2] || 1; L1 *= k; L2 *= k;
     var K = [hx + L1 * Math.sin(a1), hy + L1 * Math.cos(a1)], F = [K[0] + L2 * Math.sin(a2), K[1] + L2 * Math.cos(a2)];
     n = Math.ceil(L1 * 2);
-    for (t = 0; t <= n; t++) { var f = t / n, w = Math.round(wTop + (4 - wTop) * f); stamp(out, hx + (K[0] - hx) * f, hy + (K[1] - hy) * f, w, w, ch); }
-    stamp(out, K[0], K[1], 5, 5, ch);
+    for (t = 0; t <= n; t++) { var f = t / n, w = Math.round(wTop + (4 - wTop) * Math.pow(f, 0.7)); stamp(out, hx + (K[0] - hx) * f, hy + (K[1] - hy) * f, w, w, ch); }
+    stamp(out, K[0], K[1], 4, 4, ch);
     n = Math.ceil(L2 * 2);
-    for (t = 0; t <= n; t++) { var g = t / n; stamp(out, K[0] + (F[0] - K[0]) * g, K[1] + (F[1] - K[1]) * g, 4, 4, ch); }
-    stamp(out, F[0] + Math.sin(a2) * 1.5, F[1] + Math.cos(a2) * 1.5 + 1, 3, 2, 'K');
+    for (t = 0; t <= n; t++) { var g = t / n, ww = g < 0.8 ? 3 : 2; stamp(out, K[0] + (F[0] - K[0]) * g, K[1] + (F[1] - K[1]) * g, ww, ww, ch); }
+    stamp(out, F[0] + Math.sin(a2) * 1.5, F[1] + Math.cos(a2) * 1.5 + 1, 5, 3, 'K');     // a clear dark hoof, wider than the leg
   }
 
   function makeSprite(no, dir, step, standing) {
@@ -121,10 +121,10 @@
     });
 
     // far legs (accent) first, then the near legs in the coat colour, then the body over their tops
-    paintLeg(out, HIP.hf[0], PADY + HIP.hf[1] + bob, legs.hf, 8, 14, 14, 'A');
-    paintLeg(out, HIP.ff[0], PADY + HIP.ff[1] + bob, legs.ff, 6, 14, 14, 'A');
-    paintLeg(out, HIP.hn[0], PADY + HIP.hn[1] + bob, legs.hn, 10, 14, 14, 'C');
-    paintLeg(out, HIP.fn[0], PADY + HIP.fn[1] + bob, legs.fn, 7, 14, 14, 'C');
+    paintLeg(out, HIP.hf[0], PADY + HIP.hf[1] + bob, legs.hf, 10, 14, 14, 'A');
+    paintLeg(out, HIP.ff[0], PADY + HIP.ff[1] + bob, legs.ff, 8, 14, 14, 'A');
+    paintLeg(out, HIP.hn[0], PADY + HIP.hn[1] + bob, legs.hn, 12, 14, 14, 'C');
+    paintLeg(out, HIP.fn[0], PADY + HIP.fn[1] + bob, legs.fn, 9, 14, 14, 'C');
 
     var gl = DIGITS[no];
     for (r = 0; r < BODY.length; r++) for (c = 0; c < COLS; c++) {
