@@ -1,6 +1,6 @@
 /*
  * Horse gait: one gallop stride as 12 key poses read from an animation reference sheet (frames 1 to 12), shared by the side-view
- * sprites (horses.js) and the angled 3D sprites (horses3d.js).
+ * sprites (horses.js) and the angled curve sprites.
  *
  * Every leg has two segments: a1 = angle of the upper part (hip to knee / hock), a2 = angle of the lower part (cannon), both
  * measured from straight down, positive = forward. Per frame: [a1, a2, plant] where plant 1 = the hoof is on the ground.

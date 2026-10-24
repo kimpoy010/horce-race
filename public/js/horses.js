@@ -193,5 +193,128 @@
     return cache[key] || (cache[key] = makeSprite(no, dir, step, standing));
   }
 
-  window.HorseSprites = { get: get, SW: SW, SH: SH, OX: OX, OY: OY, STEPS: STEPS, COLORS: HORSE };
+
+  /* ---------- the curve: angled sprites ---------- */
+  // head-on view (traced from the reference): roles C coat, A accent (face, legs), S silks, K black
+  var FRONT = [
+    '.............KKKKKKKKKK................',
+    '.............KKKSSSSSKKK...............',
+    '..........KKKKKSSSSSSSKK...............',
+    '..........KKKKSSSSKKSSSSK..............',
+    '........KKKKKKSSSKKKKSSSK..............',
+    '........KKCCKKSSSKKCKKSSK..............',
+    '........KKCCCKKKKCCCKKCCK..............',
+    '........KKCCCCKKKCCCKKCCKKK........KK..',
+    '.........KKKCCCCCCCKKCCCKKKK.......KKK.',
+    '........KKKKAAAAAAAKKKKKKKKKK......KKK.',
+    '........KKAAAAAAAAAAKKKSSSSKK......KKK.',
+    '........KKCCCAAAAACCKKSSSSSSKKK.KKKKKKK',
+    '........KKCCKKAAAKCCKKSSSKKSSSKKKKKCCK.',
+    '........KKCCCAAAAKCCKKSSSKKSSSKKKKKCKK.',
+    '........KKCCCAAAACCCKKSSSKKSSSKKCCCKK..',
+    '........KKAAAAAAAAAAKKSSSKKSSSKKKKKKK..',
+    '........KKAAAAAAAAAAKSSSSKSSSSKKKKKK...',
+    '..........KKAAAAAAAKKSSSKKSSKKCCCKKK...',
+    '..........KKAAAAAAAKSSSSKSSSKKCCCCKKK..',
+    '..........KKAAAAAAAKSKKKSSSKKCCCCCCKKK.',
+    '........KKKKAAAAAAKKKKKKKKKKKCCCCCCKKK.',
+    '........KKCCKKCCKKKCCKKKCKKKKKCCCCCKKK.',
+    '.......KKKCCKKCCCKCCCCKKCKKKKKCCCCCKKK.',
+    '.......KKCCCKKCCCKCCCCCCKCCKKKCCCCCKKK.',
+    '......KKKCCCKKCCKKCCCCCCKCCKKKCCCCCKKK.',
+    '......KKKCCCKKAAKKCCCCCCKCCKKKCCCCCKKK.',
+    '....KKKKCCCCCKKKKKCCCCCCCKKKKCCCCCCKKK.',
+    '....KKKCCCCCCCKKKCCCCCCCCKKKKCCCCCCKK..',
+    '...KKKCCCCCCCCCCCCCCCCCCCCCCCCCCCCCKKK.',
+    '...KKCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCKKK.',
+    '...KKCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCKK..',
+    '...KKCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCKK..',
+    '...KKCCCCCCCCCCCCCAACCCCCCCCCCCCCCCKKK.',
+    '...KKCCCCCCCCCCCCCAACCCCCCCCCCCCCCCKK..',
+    '...KKCCCCCAACCCCCAACCCCCCCCCCCCCCKKK...',
+    '..KKKCCCCCAACCCCCAACCCCCCCCCCCCCCKKK...',
+    '.KKCCCCCCCAACCCCAACCCCCCCCCCCCCCCKKK...',
+    '.KKCCCCCCCCCKKCCKCCCCCCCCCCKKACCCKKK...',
+    '.KKCCCCCCCCCKKCKKCCCCCCCCCCKKACCCKKK...',
+    '.KKKCCCCCCCCAAKCCCCCCCCCCCCKKACCCKKK...',
+    'KKKCCCCCCCAAAKKCCCCCCCCCCCCKKKAACKKK...',
+    'KKCCCCCCCCAAKKKKKCCCCCCCCCCKKKAACKKK...',
+    'KKCCCCCCCCAAKKCKKCCCCCCCCCCKKKAACKK....',
+    'KKCCCCCCAAKKCCCCKKCCCCCCCKKCKKAAKK.....',
+    'KKCCCCCCAAKKCCCCKKCCCCCCCKKCKKAAKK.....',
+    'KKCCCCCCKKKCCCCCKKCCCCCCCKKCKKAAKK.....',
+    'KKKCCCCCKKCCKKKKKKCCCCCCCKKCKKAAKK.....',
+    '.KKKCCCCKKKKKKKKKKCCCCCCCKKCKKAAKK.....',
+    '.KKCCCCCCCKKKCKKKKCCCCCCCKKCKKAAKK.....',
+    '.KKKCCCCCCKKKKKKKKKKCCCCCKKCKKAAKK.....',
+    '.KKKCCCCCCCCKKKK..KKCCCCCKKCKKKK.......',
+    '.KKKKCCCCCCCKKK...KKCCCCCKKKAAKK.......',
+    '...KKKKKKKKKKK....KKCCCCCKKKKAKK.......',
+    '.....KKKKKKK......KKCCCCCKKKKAKK.......',
+    '............C.....KKCCCCCKK.KKK........',
+    '..................KKCCCCCKK.KK.........',
+    '..................KKCCCCKK.............',
+    '..................KKCCCCK..............',
+    '..................KKCCCCKK.............',
+    '..................KKCCCCK..............',
+    '..................KKCCCCK..............',
+    '..................KKKCCCK..............',
+    '...................KKKCCK..............',
+    '...................KKKCCK..............',
+    '...................KKCCCK..............',
+    '....................KKCCK..............',
+    '...................KKKCCK..............',
+    '...................KKKKK...............',
+    '..................KK.CCCK..............',
+    '..................KK.CCCK..............'
+  ];
+  var FW = 39, FH = FRONT.length;
+  var TR = Math.ceil(Math.sqrt(SW * SW + SH * SH)) + 2, TOX = TR >> 1, TOY = (TR >> 1) + 26;
+
+  function frontSprite(no, step) {
+    var P = HORSE[no], cv = document.createElement('canvas'), gp = window.HorseGait.pose(step / STEPS);
+    cv.width = TR; cv.height = TR;
+    var g = cv.getContext('2d'), cols = { K: '#000000', C: P.coat, A: P.accent, S: P.silk }, r, c;
+    var bob = -Math.round(1.6 * gp.lift), x0 = TOX - (FW >> 1), y0 = TOY - FH + 2 + bob, nudge = (step % 12 < 6) ? 0 : 1;
+    for (r = 0; r < FH; r++) for (c = 0; c < FW; c++) {
+      var k = FRONT[r][c]; if (k === '.') continue;
+      g.fillStyle = cols[k]; g.fillRect(x0 + c + (r > 60 ? nudge : 0), y0 + r, 1, 1);
+    }
+    // gold number tag on the shoulder
+    g.fillStyle = '#000'; g.fillRect(x0 + 12, y0 + 30, 12, 11); g.fillStyle = P.tag; g.fillRect(x0 + 13, y0 + 31, 10, 9);
+    var gl = DIGITS[no]; g.fillStyle = '#000';
+    for (r = 0; r < 7; r++) for (c = 0; c < 5; c++) if (gl[r][c] === '#') g.fillRect(x0 + 15 + c, y0 + 32 + r, 1, 1);
+    return cv;
+  }
+
+  // the side sprite turned about the saddle (nearest pixel, so it stays crisp)
+  function turned(no, dir, step, deg) {
+    var src = makeSprite(no, dir, step, false), sg = src.getContext('2d').getImageData(0, 0, SW, SH).data;
+    var cv = document.createElement('canvas'); cv.width = TR; cv.height = TR;
+    var g = cv.getContext('2d'), img = g.createImageData(TR, TR), d = img.data, a = deg * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    var px = dir > 0 ? PADX + 46 : SW - 1 - (PADX + 46), py = PADY + 28, x, y;
+    for (y = 0; y < TR; y++) for (x = 0; x < TR; x++) {
+      var dx = x - TOX, dy = y - TOY + 24, sx = Math.round(px + dx * ca + dy * sa), sy = Math.round(py - dx * sa + dy * ca);
+      if (sx < 0 || sy < 0 || sx >= SW || sy >= SH) continue;
+      var o = (sy * SW + sx) * 4; if (!sg[o + 3]) continue;
+      var q = (y * TR + x) * 4; d[q] = sg[o]; d[q + 1] = sg[o + 1]; d[q + 2] = sg[o + 2]; d[q + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    return cv;
+  }
+
+  var tcache = {};
+  // idx 1 = 45 degrees facing right (towards the camera), 2 = straight on, 3 = 45 degrees facing left
+  function getTurn(no, idx, phase) {
+    var step = Math.floor(phase / (Math.PI * 2) * STEPS) % STEPS; if (step < 0) step += STEPS;
+    var key = no + ':' + idx + ':' + step;
+    return tcache[key] || (tcache[key] = idx === 2 ? frontSprite(no, step) : turned(no, idx === 1 ? 1 : -1, step, idx === 1 ? 38 : -38));
+  }
+  function warm() {
+    var jobs = [], no, idx, st;
+    for (st = 0; st < STEPS; st++) for (idx = 1; idx <= 3; idx++) for (no = 1; no <= 6; no++) jobs.push([no, idx, st]);
+    (function next() { var j = jobs.shift(); if (!j) return; getTurn(j[0], j[1], j[2] / STEPS * Math.PI * 2); setTimeout(next, 30); })();
+  }
+
+  window.HorseSprites = { get: get, getTurn: getTurn, warm: warm, TURN: { W: TR, H: TR, OX: TOX, OY: TOY }, SW: SW, SH: SH, OX: OX, OY: OY, STEPS: STEPS, COLORS: HORSE };
 })();
