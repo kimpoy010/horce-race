@@ -143,10 +143,16 @@
         stamp(out, PADX + u * u * x0 + 2 * u * t * bx + t * t * x1, PADY + bob + u * u * y0 + 2 * u * t * by + t * t * y1, Math.round(w0 + (w1 - w0) * t), Math.round(w0 + (w1 - w0) * t), ch);
       }
     }
-    limb(23, 20, 2, 27, 11, 17, 8, 3, 'K');                                  // tail outline, then the fill
-    limb(23, 20, 2, 27, 11, 17, 6, 1, 'C');
+    limb(24, 20, -6, 27, 10, 14, 9, 3, 'K');                                 // long flowing tail: outline, then the fill
+    limb(24, 20, -6, 27, 10, 14, 6, 1, 'C');
     limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');
     limb(26, 21, 20, 28, 23, 25, 9, 9, 'C');                                 // croup: closes the gap between the tail root, back and thigh
+    limb(18, 23, 12, 25, 15, 23, 6, 4, 'C');                                 // fills the notch under the tail root
+    for (var pass = 0; pass < 2; pass++) for (r = PADY + 16 + bob; r < PADY + 36 + bob; r++) for (c = PADX + 6; c < PADX + 32; c++) {   // no black specks inside the coat
+      if (out[r][c] !== 'K') continue;
+      var nb = [out[r - 1][c], out[r + 1][c], out[r][c - 1], out[r][c + 1]];
+      if (nb.indexOf(' ') < 0 && nb.filter(function (v) { return v === 'C'; }).length >= 2) out[r][c] = 'C';
+    }
     for (c = 22; c < 70; c++) for (r = cut(c) + 1; r <= cut(c) + 3; r++) {     // deeper belly under the cut
       var by = r + PADY + bob; if (out[by][c + PADX] === ' ' || out[by][c + PADX] === 'A') out[by][c + PADX] = 'C';
     }
