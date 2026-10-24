@@ -287,19 +287,97 @@
     return cv;
   }
 
-  // three-quarter view: the upright side sprite narrowed (the horse is turning towards the camera) with the nose a little lower
-  function turned(no, dir, step) {
-    var src = makeSprite(no, dir, step, false), sg = src.getContext('2d').getImageData(0, 0, SW, SH).data;
+  // three-quarter views copied from the reference: the yellow horse (legs gathered) and the pink horse (legs reaching)
+  var Q3 = [[
+    '..........................KKKK...............',
+    '...................KKKK..SSSSSA.....L..L.....',
+    '................AKASSKSKKSSKKKKKA..LLLLLK....',
+    '..............KKASSSKSSSKSK...AA...AAAAAK....',
+    '.............KSSSSSSKSSSKKK...AA..KAAAAAK....',
+    '.............KSSSSSSKSSSKKK...AAAAAAAAAAAK...',
+    '.............KSSSSSSKSSSSKSKKK...LAALLAAAK...',
+    '...............AASSSSKKSSSSK...LLCCAALAAAK...',
+    'LLL.............AASSSK.KSSSSK.LCCCCAAAAAAAK..',
+    'LLLLLLL..KKKKKKKKKASSSK.KSSSSKSCCCCLAAAAAAK..',
+    'LLLLLLLLLLLKTTTTT.ASSSK..KSSSKSLCCCCAACCCCLK.',
+    'KLLLLLLCCCLKTTKKATTKSSSK...LLLCCCCCCCLCCCCLK.',
+    'KLLL..LCCCLKTATTAATKSSSKLLLLCCCCCCCCCLLCCCLK.',
+    '.K....LCCCLKTTTTAATKKSSLCCCCCCCCCCCCLK.KAAK..',
+    '.K....LCCCLKTTAKATTKKKLLCCCCCCCCCCCLK...AK...',
+    '..K...LCCCLKTATTTTTKKKLCCCCCCCCCCCCLK........',
+    '...K..LCCCLKTAKKKATKKLCCCCCCCCCCCCCLK........',
+    '..K...LCCCLKTTTTTTTKLKCCCCCCACCCCCCLLK.......',
+    '.K.....LCCCKKKKKKKKKLCCCCCCCCACCCCCCLK.......',
+    '.K.....LCCCLLLLLLLLLCCCCCCCCCCALCCCALK.......',
+    '.......LCCCCCCLLALCCCCCCCCCCCCCLLLACCLK......',
+    '.......LCCCCCLKAAAACCCCCCCCCCCCCLLCCCLK......',
+    '........LCCCCL.AKAAACCCCCCCCCCCCLLLCCCLK.....',
+    '.......AALCCCK....KKAACCCCCCCCCCCLALCCLK.....',
+    '.......AAALCCA......KKAALCCCCCCLLAALCCCLK....',
+    '.......AAAKCCL........KKLLCCCCLLLKALLCCCLK...',
+    '.......AAA.LLLK..........LCCCCLLA..K.LCCLL...',
+    '.......AAA.LLLA...........LCCCLLA....LLLLLK..',
+    '.......AAA.LLLA...........LLCCLLA.....LLLLL..',
+    '........AA..ALLAA..........LCCLLA......KLLLK.',
+    '.......AAAA..LLAA..........LCCLLA.......LLLL.',
+    '.......AAAAA..LL.....LL...LCCCLLA........LLLK',
+    '........AAA..ALLLL..LLLLLLLCCLAA.........KLLA'
+  ], [
+    '.................................KKKK................',
+    '.........................KKKK...SSSSSK....L..FL......',
+    '.......................KKSS.S.KKSSKKKKK..LLLLLL......',
+    '.....................KKSSSKSSSSKSKLLLK...AAAAAA......',
+    '....................KSSSSSKSSSSKKKLLLK..KAAAAAA......',
+    '....................KSSLSSKSSSSKKKLLLK.KAAAAAAAAK....',
+    '....................KSSSFSKSSSSSKSKKK..LAALL.AAAK....',
+    'KLLLLLL...............KSLSS.KSSSSSK...LCCAAL.AAAK....',
+    '.LLLLLLLL..............KSFS...KSSSSK.LCCCAAAAAAAAK...',
+    '...LLLLLLLLLLL..KKKKKKKKKSFS...KSSSSKLCCCLAAAAAAAK...',
+    '....LLLLLLLLLLLLLLKTTTTTKSFS....KSSSKLCCCCAALCCCCLK..',
+    '.....LLLLLLLLLCCCLKTKKKKTKSF..K...LLLCCCCCCLCCCCCLK..',
+    '.......LLL...LCCCLKTKTTTTKLSS.KLLLLCCCCCCCCLLCCCCLK..',
+    '.............LCCCLKTKKKTTKKSSFLCCCCCCCCCCCL...KAAK...',
+    '.............LCCCLKTTTTKTKKK.LLCCCCCCCCCCLK....AK....',
+    '.............LCCCLKTKTTKTKKK.CCCCCCCCCCCCLK..........',
+    '.............LCCCLKTTKKTTKKLCCCCCCCCCCCCCLK..........',
+    '.............LCCCLKTTTTTTKL.TCCCCCCACCCCCLL..........',
+    '..............LCCCKKKKKKKKLCCCCCCCCCACCCCCL..........',
+    '..............LCCCLLLLLLLLCCCCCCCCCCCACCCAL..........',
+    '..............LCCCCCCLAACCCCCCCCCCCCCCACACCL.........',
+    '..............LCCCCCLKAAACCCCCCCCCCCCCCACCCL.........',
+    '...............LCCCCL.KKAACCCCCCCCCCCCCALCCCL........',
+    '..............AALCCCK...KKAALCCCCCCCCCCLALCCL........',
+    '..............AAALCCK.....KK.AALCCCCCCLAALCCCLL......',
+    '..............AAA.CCL........KKLLCCCCLLKKLLCCCC.K....',
+    '..............AAA.LLLK..........LCCCCLK..K.LCCCLL....',
+    '..............AAA.LLLK...........LCCCLK....LLLLLLK...',
+    '...............AA.LLLK...........LLCCLK.....LLLLLL...',
+    '...............KA...LLK...........LCCLK........LLLK..',
+    '...............KAA..LLK...........LCCLK........LLL...',
+    '...............KAAA..LL....LLF...LCCCLK.........LLLK.',
+    '................KA..KLLL..LLLLLLLLCCLK..........KLLK.',
+    '................K...KLLLK.LLLLLLLLLLK............LLLK'
+  ]];
+
+  // coat, shade (far legs and tail), accent, silks, skin, tag
+  function threeQuarter(no, dir, step) {
+    var P = HORSE[no], T = Q3[step < STEPS / 2 ? 0 : 1], h = T.length, w = T[0].length, r, c, i;
     var cv = document.createElement('canvas'); cv.width = TR; cv.height = TR;
-    var g = cv.getContext('2d'), img = g.createImageData(TR, TR), d = img.data, K = 0.72, SHEAR = 0.1;
-    var px = dir > 0 ? PADX + 46 : SW - 1 - (PADX + 46), x, y;
-    for (y = 0; y < TR; y++) for (x = 0; x < TR; x++) {
-      var dx = x - TOX, sx = Math.round(px + dx / K), sy = Math.round(y - TOY + OY - SHEAR * dx * (dir > 0 ? 1 : -1));
-      if (sx < 0 || sy < 0 || sx >= SW || sy >= SH) continue;
-      var o = (sy * SW + sx) * 4; if (!sg[o + 3]) continue;
-      var q = (y * TR + x) * 4; d[q] = sg[o]; d[q + 1] = sg[o + 1]; d[q + 2] = sg[o + 2]; d[q + 3] = 255;
+    var g = cv.getContext('2d'), gp = window.HorseGait.pose(step / STEPS), bob = -Math.round(1.2 * gp.lift);
+    var shade = (function () { var k = [parseInt(P.coat.substr(1, 2), 16), parseInt(P.coat.substr(3, 2), 16), parseInt(P.coat.substr(5, 2), 16)].map(function (v) { return Math.round(v * 0.8); }); return 'rgb(' + k.join(',') + ')'; })();
+    var cols = { K: '#000000', C: P.coat, L: shade, A: P.accent, S: P.silk, F: P.skin, T: P.tag };
+    var S = 2, x0 = TOX - w, y0 = TOY - h * S + (step < STEPS / 2 ? 2 : -4) + bob * 2, tx0 = 99, tx1 = -1, ty0 = 99, ty1 = -1;
+    for (r = 0; r < h; r++) for (c = 0; c < w; c++) if (T[r][c] === 'T') { tx0 = Math.min(tx0, c); tx1 = Math.max(tx1, c); ty0 = Math.min(ty0, r); ty1 = Math.max(ty1, r); }
+    function px(c, r, col) { g.fillStyle = col; g.fillRect(dir > 0 ? x0 + c * S : x0 + (w - 1 - c) * S, y0 + r * S, S, S); }
+    for (r = 0; r < h; r++) for (c = 0; c < w; c++) {
+      var k = T[r][c]; if (k === '.') continue;
+      if (r >= ty0 && r <= ty1 && c >= tx0 && c <= tx1) k = 'T';                       // clear the reference numeral
+      px(c, r, cols[k]);
     }
-    g.putImageData(img, 0, 0);
+    var gl = DIGITS[no], dx = tx0 + ((tx1 - tx0 + 1 - 5) >> 1), dy = ty0 + ((ty1 - ty0 + 1 - 7) >> 1);
+    var bx = dir > 0 ? x0 + dx * S : x0 + (w - dx - 5) * S;                  // the number stays upright when mirrored
+    g.fillStyle = '#000';
+    for (r = 0; r < 7; r++) for (c = 0; c < 5; c++) if (gl[r][c] === '#') g.fillRect(bx + c * S, y0 + (dy + r) * S, S, S);
     return cv;
   }
 
@@ -308,7 +386,7 @@
   function getTurn(no, idx, phase) {
     var step = Math.floor(phase / (Math.PI * 2) * STEPS) % STEPS; if (step < 0) step += STEPS;
     var key = no + ':' + idx + ':' + step;
-    return tcache[key] || (tcache[key] = idx === 2 ? frontSprite(no, step) : turned(no, idx === 1 ? 1 : -1, step));
+    return tcache[key] || (tcache[key] = idx === 2 ? frontSprite(no, step) : threeQuarter(no, idx === 1 ? 1 : -1, step));
   }
   function warm() {
     var jobs = [], no, idx, st;
