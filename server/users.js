@@ -10,6 +10,7 @@
  */
 const fs = require('fs');
 const crypto = require('crypto');
+const { asDoc } = require('./store.js');
 const { encrypt, decrypt } = require('./clients.js');
 
 const ROLES = { viewer: 1, support: 2, admin: 3 };
@@ -59,16 +60,17 @@ function totpCheck(secret, code, nowMs, lastStep) {
 class UserStore {
   constructor(opts) {
     opts = opts || {};
-    this.file = opts.file || null; this.secret = opts.secret || ''; this.now = opts.now || Date.now;
+    this.file = asDoc(opts.file); this.secret = opts.secret || ''; this.now = opts.now || Date.now;
     this.users = new Map(); this.mtime = ''; this.loadError = null; this.reload(true);
   }
   _k(client, username) { return client + '\u0000' + username; }
   reload(force) {
     if (!this.file) return false;
-    let st; try { st = fs.statSync(this.file); } catch (e) { return false; }
-    const sig = st.mtimeMs + ':' + st.size; if (!force && sig === this.mtime) return false;
+    const sig = this.file.sig(), text = sig ? this.file.read() : null;
+    if (text === null) return false;
+    if (!force && sig === this.mtime) return false;
     try {
-      const raw = JSON.parse(fs.readFileSync(this.file, 'utf8')), map = new Map();
+      const raw = JSON.parse(text), map = new Map();
       for (const u of raw.users || []) { const c = JSON.parse(JSON.stringify(u)); if (c.totp && c.totp.secret) c.totp.secret = decrypt(c.totp.secret, this.secret); map.set(this._k(c.client, c.username), c); }
       this.users = map; this.mtime = sig; this.loadError = null; return true;
     } catch (e) { this.loadError = e.message; return false; }
@@ -76,8 +78,7 @@ class UserStore {
   save() {
     if (!this.file) return;
     const users = [...this.users.values()].map((u) => { const c = JSON.parse(JSON.stringify(u)); if (c.totp && c.totp.secret) c.totp.secret = encrypt(c.totp.secret, this.secret); return c; });
-    const tmp = this.file + '.tmp'; fs.writeFileSync(tmp, JSON.stringify({ version: 1, users }, null, 2), { mode: 0o600 }); fs.renameSync(tmp, this.file);
-    const st = fs.statSync(this.file); this.mtime = st.mtimeMs + ':' + st.size;
+    this.file.write(JSON.stringify({ version: 1, users }, null, 2), { mode: 0o600 }); this.mtime = this.file.sig();
   }
   get(client, username) { return this.users.get(this._k(client, String(username || '').toLowerCase())) || null; }
   view(u) { return { username: u.username, role: u.role, status: u.status, mustChange: !!u.mustChange, totp: !!(u.totp && u.totp.enabled), createdAt: u.createdAt, lastLoginAt: u.lastLoginAt || null, createdBy: u.createdBy || null }; }

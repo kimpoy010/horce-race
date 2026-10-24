@@ -9,6 +9,7 @@
  */
 const fs = require('fs');
 const crypto = require('crypto');
+const { asDoc } = require('./store.js');
 
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -42,10 +43,10 @@ function verifyFile(file) {
 }
 
 class Ledger {
-  constructor(file) {
-    this.file = file || null; this.head = sha(''); this.lines = 0; this.check = { ok: true, broken: null };
-    if (this.file && fs.existsSync(this.file)) {
-      const r = verifyFile(this.file);
+  constructor(file) {                      // file: a path, a storage doc (server/store.js) or null (memory only)
+    this.doc = asDoc(file); this.file = this.doc ? true : null; this.head = sha(''); this.lines = 0; this.check = { ok: true, broken: null };
+    if (this.doc && this.doc.exists()) {
+      const r = verifyText(this.doc.read() || '');
       this.check = { ok: r.ok, broken: r.broken, chained: r.chained, legacy: r.legacy };
       this.lines = r.lines;
       if (r.ok) this.head = r.head;
@@ -56,7 +57,7 @@ class Ledger {
   append(ev) {
     const body = JSON.stringify(ev), h = sha(this.head + body);
     const line = JSON.stringify(Object.assign({}, ev, { h }));
-    if (this.file) fs.appendFileSync(this.file, line + '\n');
+    if (this.doc) this.doc.append(line);
     this.head = h; this.lines++;
     return line;
   }

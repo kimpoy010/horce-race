@@ -32,9 +32,10 @@ const path = require('path');
 const { ClientRegistry } = require('../server/clients.js');
 const { UserStore } = require('../server/users.js');
 
-const file = process.env.CLIENTS_FILE || path.join(__dirname, '..', 'data', 'clients.json');
-const reg = new ClientRegistry({ file, secret: process.env.CLIENTS_KEY, allowMock: process.env.ALLOW_MOCK_WALLET === '1' && process.env.NODE_ENV !== 'production', allowHttp: process.env.ALLOW_HTTP_WALLET === '1' });
-if (reg.loadError) { console.error('Cannot read ' + file + ': ' + reg.loadError); process.exit(1); }
+const { openStore } = require('../server/store.js');
+// STORE=postgres + PG_URL (the same settings as the server) works on the database instead of the files
+let store = null, reg = null, file = process.env.CLIENTS_FILE || path.join(__dirname, '..', 'data', 'clients.json');
+const docFor = (name, fileDefault) => (store ? store.doc(name) : fileDefault);
 
 function parse(argv) {
   const pos = [], f = {};
@@ -76,10 +77,10 @@ function secretNotice(r) {
 }
 
 const { pos, f } = parse(process.argv.slice(2)), cmd = pos[0], id = pos[1];
-const usersFile = process.env.USERS_FILE || path.join(path.dirname(file), 'users.json');
+const usersFile = process.env.USERS_FILE || path.join(path.dirname(file), 'users.json');   // (a PostgreSQL document when STORE=postgres)
 async function userCmd() {
   const op = /-operator$/.test(cmd) || cmd === 'list-operators';                 // staff of the game operator (the /admin console)
-  const us = new UserStore({ file: op ? path.join(path.dirname(file), 'admins.json') : usersFile, secret: process.env.CLIENTS_KEY }), name = op ? pos[1] : pos[2], id = op ? '_operator' : pos[1];
+  const us = new UserStore({ file: op ? docFor('admins.json', path.join(path.dirname(file), 'admins.json')) : docFor('users.json', usersFile), secret: process.env.CLIENTS_KEY }), name = op ? pos[1] : pos[2], id = op ? '_operator' : pos[1];
   if (us.loadError) throw new Error('Cannot read ' + usersFile + ': ' + us.loadError);
   if (!id) throw new Error('give the client id');
   if (!op && cmd !== 'list-users' && !reg.get(id) && id !== 'default') throw new Error('unknown client ' + id);
@@ -89,19 +90,25 @@ async function userCmd() {
   else if (/^(disable|enable)-(user|operator)$/.test(cmd)) { const off = cmd.startsWith('disable'); us.setStatus(id, name, off ? 'disabled' : 'active'); console.log(name + (off ? ' disabled' : ' enabled')); }
   else if (cmd === 'remove-user' || cmd === 'remove-operator') { if (!f.yes) throw new Error('add --yes to remove ' + name); us.remove(id, name); console.log(name + ' removed'); }
 }
-if (['add-user', 'list-users', 'reset-password', 'disable-user', 'enable-user', 'remove-user', 'add-operator', 'list-operators', 'reset-operator-password', 'disable-operator', 'enable-operator', 'remove-operator'].includes(cmd)) { userCmd().catch((e) => { console.error('Error: ' + e.message); process.exit(1); }); } else try {
-  if (cmd === 'list' || !cmd) {
-    const l = reg.list(); if (!l.length) console.log('no clients yet. Add one: node scripts/clients.js add <id> --name "..." --wallet-url https://...');
-    l.forEach((c) => console.log(c.id.padEnd(20) + c.status.padEnd(10) + (c.currency || '-').padEnd(6) + (c.wallet.type === 'mock' ? 'mock wallet' : c.wallet.url) + (c.webhook ? '   webhook ' + c.webhook.url : '')));
-  } else if (cmd === 'show') { const c = reg.get(id); if (!c) throw new Error('unknown client'); show(reg.publicView(c)); }
-  else if (cmd === 'add') {
-    const c = build(f); c.id = id; if (!c.wallet) { console.error('give --wallet-url (or --mock)'); process.exit(1); }
-    const r = reg.create(c); show(r.client); secretNotice(r);
-  } else if (cmd === 'update') { const c = reg.get(id); if (!c) throw new Error('unknown client'); show(reg.update(id, build(f, c))); }
-  else if (cmd === 'rotate-key') { const r = reg.rotateKey(id, f['grace-hours'] !== undefined ? num(f['grace-hours'], 'grace-hours') * 3600000 : undefined); secretNotice(r); console.log('\nOld keys: ' + (f['grace-hours'] === '0' ? 'revoked now' : 'valid for ' + (f['grace-hours'] || 24) + ' more hours') + '.'); }
-  else if (cmd === 'revoke-key') { show(reg.revokeKey(id, pos[2])); }
-  else if (cmd === 'disable') { reg.setStatus(id, 'disabled'); console.log(id + ' disabled'); }
-  else if (cmd === 'enable') { reg.setStatus(id, 'active'); console.log(id + ' enabled'); }
-  else if (cmd === 'remove') { if (!f.yes) { console.error('add --yes to remove ' + id + ' (use disable to keep the history)'); process.exit(1); } reg.remove(id); console.log(id + ' removed'); }
-  else { console.error('unknown command. See the header of scripts/clients.js'); process.exit(1); }
-} catch (e) { console.error('Error: ' + e.message); process.exit(1); }
+async function main() {
+  store = await openStore(process.env);
+  reg = new ClientRegistry({ file: docFor('clients.json', file), secret: process.env.CLIENTS_KEY, allowMock: process.env.ALLOW_MOCK_WALLET === '1' && process.env.NODE_ENV !== 'production', allowHttp: process.env.ALLOW_HTTP_WALLET === '1' });
+  if (reg.loadError) { console.error('Cannot read ' + (store ? 'the clients document' : file) + ': ' + reg.loadError); process.exit(1); }
+  if (['add-user', 'list-users', 'reset-password', 'disable-user', 'enable-user', 'remove-user', 'add-operator', 'list-operators', 'reset-operator-password', 'disable-operator', 'enable-operator', 'remove-operator'].includes(cmd)) { return userCmd(); } else try {
+    if (cmd === 'list' || !cmd) {
+      const l = reg.list(); if (!l.length) console.log('no clients yet. Add one: node scripts/clients.js add <id> --name "..." --wallet-url https://...');
+      l.forEach((c) => console.log(c.id.padEnd(20) + c.status.padEnd(10) + (c.currency || '-').padEnd(6) + (c.wallet.type === 'mock' ? 'mock wallet' : c.wallet.url) + (c.webhook ? '   webhook ' + c.webhook.url : '')));
+    } else if (cmd === 'show') { const c = reg.get(id); if (!c) throw new Error('unknown client'); show(reg.publicView(c)); }
+    else if (cmd === 'add') {
+      const c = build(f); c.id = id; if (!c.wallet) { console.error('give --wallet-url (or --mock)'); process.exit(1); }
+      const r = reg.create(c); show(r.client); secretNotice(r);
+    } else if (cmd === 'update') { const c = reg.get(id); if (!c) throw new Error('unknown client'); show(reg.update(id, build(f, c))); }
+    else if (cmd === 'rotate-key') { const r = reg.rotateKey(id, f['grace-hours'] !== undefined ? num(f['grace-hours'], 'grace-hours') * 3600000 : undefined); secretNotice(r); console.log('\nOld keys: ' + (f['grace-hours'] === '0' ? 'revoked now' : 'valid for ' + (f['grace-hours'] || 24) + ' more hours') + '.'); }
+    else if (cmd === 'revoke-key') { show(reg.revokeKey(id, pos[2])); }
+    else if (cmd === 'disable') { reg.setStatus(id, 'disabled'); console.log(id + ' disabled'); }
+    else if (cmd === 'enable') { reg.setStatus(id, 'active'); console.log(id + ' enabled'); }
+    else if (cmd === 'remove') { if (!f.yes) { console.error('add --yes to remove ' + id + ' (use disable to keep the history)'); process.exit(1); } reg.remove(id); console.log(id + ' removed'); }
+    else { console.error('unknown command. See the header of scripts/clients.js'); process.exit(1); }
+  } catch (e) { console.error('Error: ' + e.message); process.exit(1); }
+}
+main().then(() => (store ? store.close() : null)).catch((e) => { console.error('Error: ' + e.message); process.exit(1); });

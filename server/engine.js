@@ -15,6 +15,7 @@ const rng = require('./rng');
 const Core = require('../public/js/core.js');
 const oddsLib = require('./odds.js');
 const { Ledger } = require('./ledger.js');
+const { asDoc } = require('./store.js');
 const { Metrics } = require('./metrics.js');
 const { ID_RE } = require('./clients.js');
 const PLAYER_ID_RE = /^[A-Za-z0-9_.@-]{1,64}$/;      // a player id from a client wallet; no ':' so that "client:player" is unambiguous
@@ -34,10 +35,11 @@ class Engine {
     this.table = oddsLib.build(this.cfg.odds);                          // base table: the odds values
     this.values = rng.COMBOS.map((c) => this.table.odds[c]).sort((a, b) => a - b);
     this.rtp = this.cfg.rtp;                                            // applies to rounds opened from now on
-    try { if (this.cfg.settingsFile) { const st = JSON.parse(fs.readFileSync(this.cfg.settingsFile, 'utf8')); if (st.rtp >= oddsLib.MIN_RTP && st.rtp <= oddsLib.MAX_RTP) this.rtp = st.rtp; } } catch (e) { /* no saved setting */ }
+    this.cfg.settingsFile = asDoc(this.cfg.settingsFile); this.cfg.sessionsFile = asDoc(this.cfg.sessionsFile); this.cfg.blockedFile = asDoc(this.cfg.blockedFile);   // paths or storage docs
+    try { if (this.cfg.settingsFile) { const st = JSON.parse(this.cfg.settingsFile.read()); if (st.rtp >= oddsLib.MIN_RTP && st.rtp <= oddsLib.MAX_RTP) this.rtp = st.rtp; } } catch (e) { /* no saved setting */ }
     oddsLib.buildForRtp(this.table.odds, this.rtp);                     // throws if the configured RTP is out of range
     this.shuffle = this.cfg.shuffleOdds !== false;                      // new random layout every race
-    this.ledgerFile = opts.ledgerFile || null;
+    this.ledgerFile = asDoc(opts.ledgerFile);
     this.ledger = new Ledger(this.ledgerFile);                          // hash-chained audit log (server/ledger.js)
     if (!this.ledger.ok && this.cfg.ledgerStrict) throw new Error('LEDGER_TAMPERED: line ' + this.ledger.check.broken.line + ' - ' + this.ledger.check.broken.reason);
     this.sessions = new Map(); this.sessionsDirty = false; this._loadSessions(); this.cur = null; this.done = []; this.counter = 0;
@@ -64,7 +66,7 @@ class Engine {
     v = Math.round(v * 10000) / 10000;
     const was = this.rtp; this.rtp = v;
     this._log({ e: 'rtp_set', from: was, to: v, who: who || 'controller', appliesFromRace: this.cur ? this.cur.raceNo + 1 : 1 });
-    try { if (this.cfg.settingsFile) fs.writeFileSync(this.cfg.settingsFile, JSON.stringify({ rtp: v })); } catch (e) { console.error('could not save the RTP setting:', e.message); }
+    try { if (this.cfg.settingsFile) this.cfg.settingsFile.write(JSON.stringify({ rtp: v })); } catch (e) { console.error('could not save the RTP setting:', e.message); }
     return { ok: true, rtp: v, appliesFromRace: this.cur ? this.cur.raceNo + 1 : 1, currentRaceRtp: this.cur ? this.cur.rtp : null };
   }
   // what a setting would give (per odds value), without changing anything
@@ -88,9 +90,9 @@ class Engine {
 
   // rebuild state from the ledger after a restart, then settle / refund whatever was in flight
   async recover() {
-    if (!this.ledgerFile || !fs.existsSync(this.ledgerFile)) return;
+    if (!this.ledgerFile || !this.ledgerFile.exists()) return;
     const rounds = new Map(), due = new Map(), ok = new Set(), rbDue = new Map(), rbDone = new Set(), whDue = new Map(), whDone = new Set();
-    fs.readFileSync(this.ledgerFile, 'utf8').split('\n').filter(Boolean).forEach((line) => {
+    (this.ledgerFile.read() || '').split('\n').filter(Boolean).forEach((line) => {
       let ev; try { ev = JSON.parse(line); } catch (e) { return; }
       if (ev.e === 'open') rounds.set(ev.raceNo, { raceNo: ev.raceNo, seed: ev.seed, commit: ev.commit, odds: ev.odds, rtp: ev.rtp, openAt: ev.openAt, betCloseAt: ev.betCloseAt, status: 'betting', bets: [], betsByPlayer: new Map() });
       const r = rounds.get(ev.raceNo);
@@ -147,7 +149,7 @@ class Engine {
   _skey(id) { return crypto.createHash('sha256').update(String(id)).digest('hex'); }
   _loadSessions() {
     if (!this.cfg.sessionsFile) return;
-    let list = []; try { list = JSON.parse(fs.readFileSync(this.cfg.sessionsFile, 'utf8')); } catch (e) { return; }
+    let list = []; try { list = JSON.parse(this.cfg.sessionsFile.read()) || []; } catch (e) { return; }
     const t = this.now();
     for (const x of list) if (x && x.key && x.expires > t) { const sp = this.splitPk(x.playerId); this.sessions.set(x.key, Object.assign({ clientId: sp.clientId, rawId: sp.playerId }, x, { refreshed: 0, calls: [] })); }
   }
@@ -158,8 +160,7 @@ class Engine {
     const list = [...this.sessions.values()].map((x) => ({ key: x.key, playerId: x.playerId, rawId: x.rawId, clientId: x.clientId, brandId: x.brandId, currency: x.currency, decimals: x.decimals, balance: x.balance, returnUrl: x.returnUrl,
       limits: x.limits, realityMinutes: x.realityMinutes, sStaked: x.sStaked, sPaid: x.sPaid, created: x.created, expires: x.expires }));
     try {
-      const tmp = this.cfg.sessionsFile + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(list), { mode: 0o600 }); fs.renameSync(tmp, this.cfg.sessionsFile);
+      this.cfg.sessionsFile.write(JSON.stringify(list), { mode: 0o600 });
     } catch (e) { this.sessionsDirty = true; console.error('could not save sessions:', e.message); }
   }
   /* ---------- clients: every player belongs to one client (platform). Internally a player is "clientId:playerId" ("default" client: just playerId) ---------- */
@@ -245,8 +246,8 @@ class Engine {
     return n;
   }
   /* ---------- blocked players (self-exclusion, set by the platform / operator) ---------- */
-  _loadBlocked() { try { if (this.cfg.blockedFile) this.blocked = new Set(JSON.parse(fs.readFileSync(this.cfg.blockedFile, 'utf8'))); } catch (e) { /* none yet */ } }
-  _saveBlocked() { try { if (this.cfg.blockedFile) fs.writeFileSync(this.cfg.blockedFile, JSON.stringify([...this.blocked])); } catch (e) { console.error('could not save the block list:', e.message); } }
+  _loadBlocked() { try { if (this.cfg.blockedFile) this.blocked = new Set(JSON.parse(this.cfg.blockedFile.read())); } catch (e) { /* none yet */ } }
+  _saveBlocked() { try { if (this.cfg.blockedFile) this.cfg.blockedFile.write(JSON.stringify([...this.blocked])); } catch (e) { console.error('could not save the block list:', e.message); } }
   blockPlayer(playerId, who) {
     if (!playerId) throw httpError(400, 'BAD_REQUEST');
     this.blocked.add(playerId); this._saveBlocked(); this._log({ e: 'player_blocked', playerId, who: who || 'operator' });

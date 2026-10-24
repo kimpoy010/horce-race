@@ -9,6 +9,7 @@
  */
 const fs = require('fs');
 const crypto = require('crypto');
+const { asDoc } = require('./store.js');
 const { HttpWallet, MockWallet } = require('./wallet.js');
 const { Webhook } = require('./webhook.js');
 
@@ -103,7 +104,7 @@ class ClientRegistry {
   // file: path or null (memory only); secret: CLIENTS_KEY; defaults: { allowMock, allowHttp }
   constructor(opts) {
     opts = opts || {};
-    this.file = opts.file || null; this.secret = opts.secret || ''; this.now = opts.now || Date.now;
+    this.file = asDoc(opts.file); this.secret = opts.secret || ''; this.now = opts.now || Date.now;
     this.allowMock = !!opts.allowMock; this.allowHttp = !!opts.allowHttp;
     this.clients = new Map(); this.wallets = new Map(); this.hooks = new Map(); this.mtime = 0; this.loadError = null;
     this.failed = new Map();            // ip -> { n, until }: failed API key attempts
@@ -113,11 +114,11 @@ class ClientRegistry {
 
   reload(force) {
     if (!this.file) return false;
-    let st; try { st = fs.statSync(this.file); } catch (e) { if (force) this.clients = new Map(); return false; }
-    const sig = st.mtimeMs + ':' + st.size;
+    const sig = this.file.sig(), text = sig ? this.file.read() : null;
+    if (text === null) { if (force) this.clients = new Map(); return false; }
     if (!force && sig === this.mtime) return false;
     try {
-      const raw = JSON.parse(fs.readFileSync(this.file, 'utf8')), map = new Map();
+      const raw = JSON.parse(text), map = new Map();
       for (const c of raw.clients || []) {
         const copy = JSON.parse(JSON.stringify(c));
         if (copy.wallet && copy.wallet.secret) copy.wallet.secret = decrypt(copy.wallet.secret, this.secret);
@@ -136,8 +137,7 @@ class ClientRegistry {
       if (copy.webhook && copy.webhook.secret) copy.webhook.secret = encrypt(copy.webhook.secret, this.secret);
       return copy;
     }) };
-    const tmp = this.file + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(out, null, 2), { mode: 0o600 }); fs.renameSync(tmp, this.file);
-    const st = fs.statSync(this.file); this.mtime = st.mtimeMs + ':' + st.size;
+    this.file.write(JSON.stringify(out, null, 2), { mode: 0o600 }); this.mtime = this.file.sig();
   }
 
   get(id) { return this.clients.get(id) || null; }

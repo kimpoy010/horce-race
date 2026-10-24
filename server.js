@@ -18,6 +18,7 @@ const { Engine } = require('./server/engine.js');
 const walletFactory = require('./server/wallet.js');
 const webhookFactory = require('./server/webhook.js');
 const { Lease } = require('./server/lease.js');
+const { openStore, PgLease } = require('./server/store.js');
 const { ClientRegistry } = require('./server/clients.js');
 const { UserStore } = require('./server/users.js');
 const { BackOffice } = require('./server/backoffice.js');
@@ -37,6 +38,7 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 
 /* ---------- demo mode: controller driven ---------- */
 let director = null, engine = null, lastSaved = '';
+let store = null;                // PostgreSQL storage when STORE=postgres (server/store.js); otherwise the files in DATA_DIR
 let role = LIVE ? 'starting' : 'demo', lease = null, alerts = null, clients = null, users = null, backoffice = null, staff = null, adminConsole = null;       // live: starting | standby | active | stopping
 const timers = [];
 if (!LIVE) {
@@ -57,16 +59,17 @@ function loadOdds() {          // ODDS='{"1-2":60,...}' or ODDS_FILE=path.json; 
   return null;
 }
 
+const doc = (name) => (store ? store.doc(name) : path.join(DATA_DIR, name));      // where a stored document lives
 async function startLive() {
   const num = (v, d) => (v === undefined || v === '' ? d : Number(v));
   const production = env.NODE_ENV === 'production';
-  clients = new ClientRegistry({ file: path.join(DATA_DIR, 'clients.json'), secret: env.CLIENTS_KEY, allowMock: env.ALLOW_MOCK_WALLET === '1' && !production, allowHttp: env.ALLOW_HTTP_WALLET === '1' });
+  clients = new ClientRegistry({ file: doc('clients.json'), secret: env.CLIENTS_KEY, allowMock: env.ALLOW_MOCK_WALLET === '1' && !production, allowHttp: env.ALLOW_HTTP_WALLET === '1' });
   if (clients.loadError) throw new Error('data/clients.json: ' + clients.loadError);
-  users = new UserStore({ file: path.join(DATA_DIR, 'users.json'), secret: env.CLIENTS_KEY });
+  users = new UserStore({ file: doc('users.json'), secret: env.CLIENTS_KEY });
   if (users.loadError) throw new Error('data/users.json: ' + users.loadError);
   backoffice = new BackOffice({ users, clients, cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === '1' : production });
   // the operator's own admin console (/admin): its staff accounts are separate from every client's back-office users
-  staff = new UserStore({ file: path.join(DATA_DIR, 'admins.json'), secret: env.CLIENTS_KEY });
+  staff = new UserStore({ file: doc('admins.json'), secret: env.CLIENTS_KEY });
   if (staff.loadError) throw new Error('data/admins.json: ' + staff.loadError);
   adminConsole = new BackOffice({ users: staff, clients, prefix: '/admin/api/', fixedClient: '_operator', cookieSecure: env.COOKIE_SECURE ? env.COOKIE_SECURE === '1' : production,
     routes: adminRoutes({ clients, clientUsers: users, clientBackOffice: backoffice, ops: () => ops() }) });
@@ -77,9 +80,9 @@ async function startLive() {
   if (!defaultWallet && clients.count() === 0) console.warn('No clients yet: add one with  node scripts/clients.js add <id> ...  (or POST /api/clients) before players can launch the game.');
   engine = new Engine({
     wallet: defaultWallet, webhook: defaultWallet ? webhookFactory.create(env) : null, clients,
-    ledgerFile: path.join(DATA_DIR, 'ledger.jsonl'),
+    ledgerFile: doc('ledger.jsonl'),
     config: {
-      odds: loadOdds(), rtp: num(env.RTP, 0.9) > 1 ? num(env.RTP, 90) / 100 : num(env.RTP, 0.9), settingsFile: path.join(DATA_DIR, 'settings.json'), sessionsFile: path.join(DATA_DIR, 'sessions.json'), blockedFile: path.join(DATA_DIR, 'blocked.json'),
+      odds: loadOdds(), rtp: num(env.RTP, 0.9) > 1 ? num(env.RTP, 90) / 100 : num(env.RTP, 0.9), settingsFile: doc('settings.json'), sessionsFile: doc('sessions.json'), blockedFile: doc('blocked.json'),
       dailyLossLimit: num(env.DAILY_LOSS_LIMIT, 0), realityCheckMinutes: num(env.REALITY_CHECK_MIN, 0), bigWinMin: num(env.BIG_WIN_MIN, 1000000),
       currencyLimits: env.CURRENCY_LIMITS ? JSON.parse(env.CURRENCY_LIMITS) : {},
       betMs: num(env.BET_MS, 25000), minBet: num(env.MIN_BET, 100), maxBet: num(env.MAX_BET, 100000),
@@ -122,8 +125,13 @@ function fatal(msg) { console.error('FATAL: ' + msg); process.exit(2); }
 
 async function bootLive() {
   const ttl = Number(env.LEASE_TTL_MS) || 10000;
+  store = await openStore(env);
+  if (store) {
+    console.log('storage: PostgreSQL (' + store.ledgerLines.length + ' ledger lines loaded)');
+    timers.push(setInterval(() => { store.refresh().catch((e) => console.error('store refresh:', e.message)); }, 2000));      // picks up changes made by scripts/clients.js
+  }
   if (env.LEASE === 'off') { await startLive(); role = 'active'; return; }
-  lease = new Lease(path.join(DATA_DIR, 'instance.lease'), { ttlMs: ttl });
+  lease = store ? new PgLease(store, { ttlMs: ttl }) : new Lease(path.join(DATA_DIR, 'instance.lease'), { ttlMs: ttl });
   const activate = async () => {
     timers.push(setInterval(() => { if (!lease.renew()) fatal('the instance lease was lost'); }, 1000));
     await startLive(); role = 'active';
@@ -150,6 +158,7 @@ async function shutdown(sig) {            // deploys and restarts: stop taking b
   timers.forEach(clearInterval);
   try { if (engine && was === 'active') await engine.shutdown(5000); } catch (e) { console.error('shutdown:', e.message); }
   try { if (lease) lease.release(); } catch (e) { /* ignore */ }
+  try { if (store) await store.close(); } catch (e) { console.error('store close:', e.message); }
   server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 500).unref();
 }
 ['SIGTERM', 'SIGINT'].forEach((s) => process.on(s, () => shutdown(s)));
@@ -230,7 +239,7 @@ const server = http.createServer(async (req, res) => {
     const now = Date.now();
     try {
       if (LIVE && !engine) {          // standby or still starting: only the operator can ask what is going on
-        if (url.pathname === '/api/admin' && authorized(req)) return json(res, 200, { ok: true, role, lease: lease ? lease.info() : null, standby: true });
+        if (url.pathname === '/api/admin' && authorized(req)) return json(res, 200, { ok: true, role, lease: lease ? lease.info() : null, store: store ? store.status() : { type: 'file' }, standby: true });
         return json(res, 503, { ok: false, error: role === 'standby' ? 'STANDBY' : 'STARTING' });
       }
       if (url.pathname === '/api/public' && req.method === 'GET') return json(res, 200, LIVE ? engine.publicState() : director.publicState(now));
