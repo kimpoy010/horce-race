@@ -129,10 +129,23 @@
     var gl = DIGITS[no];
     for (r = 0; r < BODY.length; r++) for (c = 0; c < COLS; c++) {
       var ch = BODY[r][c];
-      if (ch === '.' || r > cut(c)) continue;
+      if (ch === '.' || r > cut(c) || (c < 22 && r < 26)) continue;     // the tail is redrawn below
+      if (ch === 'F' && c < 50 && r < 20) ch = 'S';                      // no speckled highlights in the silks
+      if (ch === 'K' && r < 6) continue;
       var yy = r + PADY + bob, xx = c + PADX;
       if (yy >= 0 && yy < SH) out[yy][xx] = ch;
     }
+    // full tail (a tapering sweep) and a solid croup / thigh so the hind legs grow out of the body
+    function limb(x0, y0, x1, y1, bx, by, w0, w1, ch) {
+      var n = 40, i, t, u;
+      for (i = 0; i <= n; i++) {
+        t = i / n; u = 1 - t;
+        stamp(out, PADX + u * u * x0 + 2 * u * t * bx + t * t * x1, PADY + bob + u * u * y0 + 2 * u * t * by + t * t * y1, Math.round(w0 + (w1 - w0) * t), Math.round(w0 + (w1 - w0) * t), ch);
+      }
+    }
+    limb(23, 19, 2, 27, 11, 16, 6, 2, 'K');                                  // tail outline, then the fill
+    limb(23, 19, 2, 27, 11, 16, 4, 1, 'C');
+    limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');
     for (c = 22; c < 70; c++) for (r = cut(c) + 1; r <= cut(c) + 3; r++) {     // deeper belly under the cut
       var by = r + PADY + bob; if (out[by][c + PADX] === ' ' || out[by][c + PADX] === 'A') out[by][c + PADX] = 'C';
     }
@@ -145,6 +158,9 @@
     var nx = PADX + TAG.x + 5, ny = PADY + TAG.y + 3 + bob;
     for (r = 0; r < 9; r++) for (c = 0; c < 5; c++) if (gl[rowMap[r]][c] === '#') { out[ny + r][nx + c] = 'N'; if (c < 4 && gl[rowMap[r]][c + 1] !== '#') out[ny + r][nx + c + 1] = 'N'; }
 
+    var ol = [];                                                          // thin black outline round the whole horse
+    for (r = 0; r < SH; r++) for (c = 0; c < SW; c++) if (out[r][c] === ' ' && ((r > 0 && out[r - 1][c] !== ' ') || (r < SH - 1 && out[r + 1][c] !== ' ') || (c > 0 && out[r][c - 1] !== ' ') || (c < SW - 1 && out[r][c + 1] !== ' '))) ol.push([r, c]);
+    ol.forEach(function (q) { out[q[0]][q[1]] = 'K'; });
     if (tilt) {
       var sh = grid(), xs, ys;
       for (xs = 0; xs < SW; xs++) { var d = dyAt(xs); for (ys = 0; ys < SH; ys++) { var y2 = ys + d; if (y2 >= 0 && y2 < SH && out[ys][xs] !== ' ') sh[y2][xs] = out[ys][xs]; } }
