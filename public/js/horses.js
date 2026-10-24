@@ -146,7 +146,7 @@
     limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');                                 // solid croup / thigh
     limb(26, 21, 21, 27, 24, 24, 6, 6, 'C');
     // long tail with a flourish: arches up from the rump, sweeps back and down, then flicks out at the tip
-    var tail = [[23, 19, 4, 29, 9, 14, 5, 3], [4, 29, -3, 40, 0, 35, 3, 2], [-3, 40, -11, 37, -8, 44, 2, 1]];
+    var tail = [[23, 19, 4, 29, 9, 14, 4, 7], [4, 29, -3, 40, 0, 35, 7, 4], [-3, 40, -11, 37, -8, 44, 4, 1]];
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6] + 2, t[7] + 2, 'K'); });
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], 'C'); });
     limb(22, 22, 11, 28, 16, 23, 7, 4, 'C');                                  // rounded rump: closes the wedge between the tail root and the hind leg
