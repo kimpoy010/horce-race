@@ -287,14 +287,14 @@
     return cv;
   }
 
-  // the side sprite turned about the saddle (nearest pixel, so it stays crisp)
-  function turned(no, dir, step, deg) {
+  // three-quarter view: the upright side sprite narrowed (the horse is turning towards the camera) with the nose a little lower
+  function turned(no, dir, step) {
     var src = makeSprite(no, dir, step, false), sg = src.getContext('2d').getImageData(0, 0, SW, SH).data;
     var cv = document.createElement('canvas'); cv.width = TR; cv.height = TR;
-    var g = cv.getContext('2d'), img = g.createImageData(TR, TR), d = img.data, a = deg * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
-    var px = dir > 0 ? PADX + 46 : SW - 1 - (PADX + 46), py = PADY + 28, x, y;
+    var g = cv.getContext('2d'), img = g.createImageData(TR, TR), d = img.data, K = 0.72, SHEAR = 0.1;
+    var px = dir > 0 ? PADX + 46 : SW - 1 - (PADX + 46), x, y;
     for (y = 0; y < TR; y++) for (x = 0; x < TR; x++) {
-      var dx = x - TOX, dy = y - TOY + 24, sx = Math.round(px + dx * ca + dy * sa), sy = Math.round(py - dx * sa + dy * ca);
+      var dx = x - TOX, sx = Math.round(px + dx / K), sy = Math.round(y - TOY + OY - SHEAR * dx * (dir > 0 ? 1 : -1));
       if (sx < 0 || sy < 0 || sx >= SW || sy >= SH) continue;
       var o = (sy * SW + sx) * 4; if (!sg[o + 3]) continue;
       var q = (y * TR + x) * 4; d[q] = sg[o]; d[q + 1] = sg[o + 1]; d[q + 2] = sg[o + 2]; d[q + 3] = 255;
@@ -308,7 +308,7 @@
   function getTurn(no, idx, phase) {
     var step = Math.floor(phase / (Math.PI * 2) * STEPS) % STEPS; if (step < 0) step += STEPS;
     var key = no + ':' + idx + ':' + step;
-    return tcache[key] || (tcache[key] = idx === 2 ? frontSprite(no, step) : turned(no, idx === 1 ? 1 : -1, step, idx === 1 ? 38 : -38));
+    return tcache[key] || (tcache[key] = idx === 2 ? frontSprite(no, step) : turned(no, idx === 1 ? 1 : -1, step));
   }
   function warm() {
     var jobs = [], no, idx, st;
