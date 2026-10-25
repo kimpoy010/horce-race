@@ -2,6 +2,14 @@
 
 nginx + PHP-FPM serve browsers and platforms; **one** daemon (`php artisan game:run`) moves the rounds; cron runs the scheduler (alert checks). All state is in the database.
 
+## Quick install on a fresh Ubuntu 24.04 VPS
+
+```
+sudo ./bin/install-vps.sh --domain race.example.com --email you@example.com --operator-ip YOUR.IP
+```
+
+Installs nginx, PHP 8.4, PostgreSQL, Redis and Composer, writes `.env` with generated keys, sets up the daemon, cron, firewall and HTTPS (`--help` lists the options, `--mode demo` uses the play-money wallet). Safe to re-run for updates. The sections below describe what it does.
+
 ## Requirements
 
 PHP 8.3 with `pdo_pgsql`, `openssl`, `mbstring`, `curl`, argon2id password hashing (default in PHP builds), optionally `pcntl` (clean daemon stop); PostgreSQL 14+; Composer; nginx; optionally Redis (recommended for the cache).
