@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\GameController;
+use App\Http\Controllers\PanelController;
 use Illuminate\Support\Facades\Route;
 
 // the pages are the very same static files as the Node server's (copied by bin/sync-frontend.sh)
@@ -9,16 +10,7 @@ Route::get('/play', fn () => response()->file(public_path('index.html')));
 Route::get('/healthz', [GameController::class, 'healthz']);
 Route::get('/metrics', [GameController::class, 'metrics']);
 
-// the operator's panels must not be framed and may only load their own files
-$panel = fn (string $file) => fn () => response()->file(public_path($file), [
-    'X-Frame-Options' => 'DENY', 'Referrer-Policy' => 'no-referrer', 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'no-cache',
-    'Content-Security-Policy' => "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'",
-]);
-Route::get('/controller', $panel('controller.html'));
-Route::get('/backoffice', $panel('backoffice.html'));
-Route::get('/admin', $panel('admin.html'));
-
-// the operator's own players: sign in / register / wallet / play (one page; same hardening as the panels)
-foreach (['/account', '/register', '/login'] as $path) {
-    Route::get($path, $panel('account.html'));
+// the operator's panels and the players' account page: must not be framed and may only load their own files
+foreach (['/controller' => 'controller.html', '/backoffice' => 'backoffice.html', '/admin' => 'admin.html', '/account' => 'account.html', '/register' => 'account.html', '/login' => 'account.html'] as $path => $file) {
+    Route::get($path, [PanelController::class, 'show'])->defaults('file', $file);
 }
