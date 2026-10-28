@@ -5,8 +5,8 @@ use App\Http\Controllers\PanelController;
 use Illuminate\Support\Facades\Route;
 
 // the pages are the very same static files as the Node server's (copied by bin/sync-frontend.sh)
-Route::get('/', fn () => response()->file(public_path('index.html')));
-Route::get('/play', fn () => response()->file(public_path('index.html')));
+Route::get('/', [PanelController::class, 'game']);
+Route::get('/play', [PanelController::class, 'game']);
 Route::get('/healthz', [GameController::class, 'healthz']);
 Route::get('/metrics', [GameController::class, 'metrics']);
 
