@@ -69,12 +69,21 @@ fi
 # ---------- packages ----------
 say "Installing packages (nginx, PHP $PHP_V, PostgreSQL, Redis)"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
+if ! apt-get update -qq; then   # a leftover ondrej PPA that does not support this Ubuntu release breaks apt: drop it and retry
+  rm -f /etc/apt/sources.list.d/*ondrej* /etc/apt/sources.list.d/*launchpadcontent*php* 2>/dev/null || true
+  apt-get update -qq || die "apt update fails: fix your apt sources first"
+fi
 apt-get install -y -qq software-properties-common curl unzip ca-certificates rsync openssl ufw cron >/dev/null
-if ! ls /etc/apt/sources.list.d 2>/dev/null | grep -qi ondrej; then add-apt-repository -y ppa:ondrej/php >/dev/null; apt-get update -qq; fi
-apt-get install -y -qq nginx postgresql redis-server \
-  "php$PHP_V-fpm" "php$PHP_V-cli" "php$PHP_V-pgsql" "php$PHP_V-mbstring" "php$PHP_V-curl" "php$PHP_V-xml" "php$PHP_V-zip" \
-  "php$PHP_V-bcmath" "php$PHP_V-intl" "php$PHP_V-redis" "php$PHP_V-opcache" >/dev/null
+# the Ubuntu archive may already carry this PHP version (26.04 ships 8.5); otherwise use the ondrej PPA
+if ! apt-cache show "php$PHP_V-fpm" >/dev/null 2>&1; then
+  if ! ls /etc/apt/sources.list.d 2>/dev/null | grep -qi ondrej; then add-apt-repository -y ppa:ondrej/php >/dev/null; fi
+  apt-get update -qq || die "apt update failed (the ondrej PPA may not support $VERSION_CODENAME yet: remove it with 'add-apt-repository -r ppa:ondrej/php' and choose a PHP_V your Ubuntu has)"
+  apt-cache show "php$PHP_V-fpm" >/dev/null 2>&1 || die "PHP $PHP_V is not available for $VERSION_CODENAME"
+fi
+PKGS=(nginx postgresql redis-server "php$PHP_V-fpm" "php$PHP_V-cli" "php$PHP_V-pgsql" "php$PHP_V-mbstring" "php$PHP_V-curl" "php$PHP_V-xml")
+HAVE_REDIS=0; apt-cache show "php$PHP_V-redis" >/dev/null 2>&1 && { PKGS+=("php$PHP_V-redis"); HAVE_REDIS=1; }
+for x in zip bcmath intl opcache; do apt-cache show "php$PHP_V-$x" >/dev/null 2>&1 && PKGS+=("php$PHP_V-$x"); done   # opcache is part of core from PHP 8.5
+apt-get install -y -qq "${PKGS[@]}" >/dev/null
 update-alternatives --set php "/usr/bin/php$PHP_V" >/dev/null 2>&1 || true
 php -r 'exit(PHP_VERSION_ID >= 80300 ? 0 : 1);' || die "the php command is older than 8.3"
 php -m | grep -qi pdo_pgsql || die "pdo_pgsql is not loaded"
@@ -114,7 +123,7 @@ envset APP_NAME '"Horse Race"'; envset APP_ENV production; envset APP_DEBUG fals
 envset LOG_LEVEL warning
 envset DB_CONNECTION pgsql; envset DB_HOST 127.0.0.1; envset DB_PORT 5432; envset DB_DATABASE "$DB_NAME"; envset DB_USERNAME "$DB_USER"; envset DB_PASSWORD "$DB_PASS"
 envset SESSION_DRIVER database; envset QUEUE_CONNECTION database
-envset CACHE_STORE redis; envset REDIS_CLIENT phpredis; envset REDIS_HOST 127.0.0.1; envset REDIS_PORT 6379
+envset CACHE_STORE "$([ "$HAVE_REDIS" -eq 1 ] && echo redis || echo database)"; envset REDIS_CLIENT phpredis; envset REDIS_HOST 127.0.0.1; envset REDIS_PORT 6379
 envset HORSE_CONTROLLER_KEY "$CONTROLLER_KEY"; envset HORSE_CLIENTS_KEY "$CLIENTS_KEY"
 envset HORSE_COOKIE_SECURE "$([ -n "$DOMAIN" ] && echo true || echo false)"; envset HORSE_TRUST_PROXY "$([ "$CLOUDFLARE" -eq 1 ] && echo false || echo true)"
 if [ "$MODE" = demo ]; then envset HORSE_WALLET mock; envset HORSE_ALLOW_MOCK_WALLET true; else envset HORSE_WALLET none; fi
