@@ -3,7 +3,7 @@
 # The Laravel app serves the very same files as the Node server; run this after changing anything in ../public.
 # Files that only the Laravel app changes (the operator's own site: sign-in link on the game page, the cashier tab in the console) are kept.
 cd "$(dirname "$0")/.." || exit 1
-KEEP="js/bet.js js/admin.js"
+KEEP="js/bet.js js/admin.js js/backoffice.js"
 for f in index.html controller.html backoffice.html admin.html manifest.webmanifest; do cp "../public/$f" "public/$f"; done
 for d in css js audio; do
   mkdir -p "public/$d"

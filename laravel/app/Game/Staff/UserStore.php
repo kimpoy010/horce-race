@@ -45,8 +45,8 @@ final class UserStore
 
     public static function passwordProblem(string $pw, ?string $username = null): ?string
     {
-        if (mb_strlen($pw) < 12) {
-            return 'The password must be at least 12 characters.';
+        if (mb_strlen($pw) < 8) {
+            return 'The password must be at least 8 characters.';
         }
         if (mb_strlen($pw) > 128) {
             return 'The password is too long (128 characters at most).';

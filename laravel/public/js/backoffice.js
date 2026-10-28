@@ -71,7 +71,7 @@
   function forceChange() {
     clear(app);
     var cur = h('input', { type: 'password', autocomplete: 'current-password' }), n1 = h('input', { type: 'password', autocomplete: 'new-password' }), n2 = h('input', { type: 'password', autocomplete: 'new-password' }), out = h('div'), form = h('form');
-    form.appendChild(h('h1', null, 'Choose a new password')); form.appendChild(h('p', null, 'You signed in with a temporary password. Choose your own (at least 12 characters).')); form.appendChild(out);
+    form.appendChild(h('h1', null, 'Choose a new password')); form.appendChild(h('p', null, 'You signed in with a temporary password. Choose your own (at least 8 characters).')); form.appendChild(out);
     form.appendChild(h('label', null, 'Temporary password')); form.appendChild(cur); form.appendChild(h('label', null, 'New password')); form.appendChild(n1); form.appendChild(h('label', null, 'New password again')); form.appendChild(n2);
     form.appendChild(h('button', { class: 'primary', type: 'submit' }, 'Save and continue'));
     form.addEventListener('submit', function (ev) {
@@ -217,7 +217,7 @@
   /* ---------- security ---------- */
   function security(view) {
     var out = h('div'), cur = h('input', { type: 'password', autocomplete: 'current-password' }), n1 = h('input', { type: 'password', autocomplete: 'new-password' }), n2 = h('input', { type: 'password', autocomplete: 'new-password' });
-    var pw = h('form', { class: 'panel' }, h('strong', null, 'Change password'), h('label', null, 'Current password'), cur, h('label', null, 'New password (12 characters or more)'), n1, h('label', null, 'New password again'), n2, h('div', { style: 'margin-top:12px' }, h('button', { class: 'primary', type: 'submit' }, 'Change password')));
+    var pw = h('form', { class: 'panel' }, h('strong', null, 'Change password'), h('label', null, 'Current password'), cur, h('label', null, 'New password (8 characters or more)'), n1, h('label', null, 'New password again'), n2, h('div', { style: 'margin-top:12px' }, h('button', { class: 'primary', type: 'submit' }, 'Change password')));
     pw.addEventListener('submit', function (ev) { ev.preventDefault(); if (n1.value !== n2.value) return out.replaceChildren(msg('err', 'The two new passwords are not the same.')); api('POST', 'password', { current: cur.value, next: n1.value }).then(function (r) { if (handleAuth(r)) return; out.replaceChildren(r.status === 200 ? msg('ok', 'Password changed. Your other sessions were signed out.') : msg('err', errText(r))); if (r.status === 200) { cur.value = n1.value = n2.value = ''; } }); });
     var two = h('div', { class: 'panel' });
     function drawTwo() {

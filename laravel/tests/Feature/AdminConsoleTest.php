@@ -186,4 +186,10 @@ class AdminConsoleTest extends StaffTestCase
         $this->assertTrue($snap['ledger']['ok']);
         $this->assertSame(1, $snap['rounds']);
     }
+
+    public function test_staff_passwords_need_at_least_eight_characters(): void
+    {
+        $this->assertNotNull(\App\Game\Staff\UserStore::passwordProblem('Ab3dEf7'));
+        $this->assertNull(\App\Game\Staff\UserStore::passwordProblem('Ab3dEf78'));
+    }
 }
