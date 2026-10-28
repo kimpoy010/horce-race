@@ -157,7 +157,15 @@ final class ClientRegistry
         }
         $out = ['id' => $c['id'], 'name' => mb_substr((string) ($c['name'] ?? $c['id']), 0, 80), 'status' => ($c['status'] ?? '') === 'disabled' ? 'disabled' : 'active'];
         $w = $c['wallet'] ?? [];
-        if (($w['type'] ?? null) === 'mock') {
+        if ($c['id'] === \App\Game\House\HouseWallet::CLIENT) {
+            $w = ['type' => 'internal'];                                  // the operator's own site: players and balances live in this database
+        }
+        if (($w['type'] ?? null) === 'internal') {
+            if ($c['id'] !== \App\Game\House\HouseWallet::CLIENT) {
+                throw self::fail('wallet.type "internal" is only for the client "house" (the operator\'s own site)');
+            }
+            $out['wallet'] = ['type' => 'internal'];
+        } elseif (($w['type'] ?? null) === 'mock') {
             if (! $this->allowMock) {
                 throw self::fail('wallet.type "mock" is only allowed with HORSE_ALLOW_MOCK_WALLET=true and never in production');
             }
@@ -353,7 +361,7 @@ final class ClientRegistry
             throw self::fail('a client with this id exists', 409, 'CLIENT_EXISTS');
         }
         $walletSecret = null;
-        if (isset($input['wallet']) && ($input['wallet']['type'] ?? null) !== 'mock' && empty($input['wallet']['secret'])) {
+        if (isset($input['wallet']) && ! in_array($input['wallet']['type'] ?? null, ['mock', 'internal'], true) && ($input['id'] ?? '') !== 'house' && empty($input['wallet']['secret'])) {
             $walletSecret = bin2hex(random_bytes(32));
             $input['wallet']['secret'] = $walletSecret;
         }
@@ -526,9 +534,11 @@ final class ClientRegistry
         $key = $id;
         if (! isset($this->wallets[$key])) {
             $w = $c['wallet'];
-            $this->wallets[$key] = $w['type'] === 'mock'
+            $this->wallets[$key] = $w['type'] === 'internal'
+                ? new \App\Game\House\HouseWallet($c['currency'] ?? config('horse.currency'))
+                : ($w['type'] === 'mock'
                 ? new MockWallet((int) config('horse.mock_start_balance'), $c['currency'] ?? config('horse.currency'), $id)
-                : new HttpWallet($w['url'], $w['secret'], $w['keyId'], $w['auth'], $w['timeoutMs'], $c['currency'] ?? config('horse.currency'), config('horse.game_id'));
+                : new HttpWallet($w['url'], $w['secret'], $w['keyId'], $w['auth'], $w['timeoutMs'], $c['currency'] ?? config('horse.currency'), config('horse.game_id')));
         }
 
         return $this->wallets[$key];

@@ -17,3 +17,8 @@ $panel = fn (string $file) => fn () => response()->file(public_path($file), [
 Route::get('/controller', $panel('controller.html'));
 Route::get('/backoffice', $panel('backoffice.html'));
 Route::get('/admin', $panel('admin.html'));
+
+// the operator's own players: sign in / register / wallet / play (one page; same hardening as the panels)
+foreach (['/account', '/register', '/login'] as $path) {
+    Route::get($path, $panel('account.html'));
+}

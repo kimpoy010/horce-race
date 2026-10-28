@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Game\GameError;
 use App\Http\Controllers\BackOfficeController;
+use App\Http\Controllers\PlayerController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
@@ -16,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function () {          // the staff APIs: cookie sessions with their own CSRF token, so no Laravel web middleware
             Route::prefix('bo/api')->group(fn () => Route::any('{sub}', [BackOfficeController::class, 'bo'])->where('sub', '.*'));
+            Route::prefix('player/api')->group(fn () => Route::any('{sub}', [PlayerController::class, 'handle'])->where('sub', '.*'));
             Route::prefix('admin/api')->group(fn () => Route::any('{sub}', [BackOfficeController::class, 'admin'])->where('sub', '.*'));
         },
     )

@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Game\AlertManager;
 use App\Game\Clients\ClientRegistry;
 use App\Game\Engine;
+use App\Game\House\House;
+use App\Game\House\PlayerApi;
 use App\Game\Staff\AdminRoutes;
 use App\Game\Staff\BackOffice;
 use App\Game\Staff\UserStore;
@@ -63,7 +65,9 @@ class AppServiceProvider extends ServiceProvider
         // the clients' back office (/bo) and the operator's admin console (/admin): the same engine, two cookies, two sets of routes
         $this->app->singleton('horse.backoffice', fn ($app) => new BackOffice($app->make(UserStore::class), $app->make(ClientRegistry::class), $app->make(Engine::class), 'bo', null, (bool) $secure()));
         $this->app->singleton('horse.admin', fn ($app) => new BackOffice($app->make(UserStore::class), $app->make(ClientRegistry::class), $app->make(Engine::class), 'admin', '_operator', (bool) $secure(),
-            AdminRoutes::make($app->make(ClientRegistry::class), $app->make(UserStore::class), fn () => $app->make('horse.backoffice'))));
+            AdminRoutes::make($app->make(ClientRegistry::class), $app->make(UserStore::class), fn () => $app->make('horse.backoffice'), $app->make(House::class))));
+        $this->app->singleton(House::class, fn ($app) => new House($app->make(Engine::class), (array) config('horse.argon')));
+        $this->app->singleton(PlayerApi::class, fn ($app) => new PlayerApi($app->make(House::class), $app->make(Engine::class), (bool) $secure()));
         $this->app->singleton(AlertManager::class, fn ($app) => new AlertManager($app->make(Engine::class), (array) config('horse.alerts'), config('horse.alert_webhook_url')));
         $this->app->singleton(Ledger::class);
         $this->app->singleton(Engine::class, fn ($app) => new Engine($app->make('horse.default_wallet'), $app->make(Ledger::class), config('horse'), null, $app->make(ClientRegistry::class), $app->make('horse.default_webhook')));

@@ -32,7 +32,7 @@ final class AdminRoutes
 
     private static function walletHost(array $c): string
     {
-        return $c['wallet']['type'] === 'mock' ? 'mock wallet' : (parse_url($c['wallet']['url'] ?? '', PHP_URL_HOST) ?: '-');
+        return $c['wallet']['type'] === 'internal' ? 'built-in wallet' : ($c['wallet']['type'] === 'mock' ? 'mock wallet' : (parse_url($c['wallet']['url'] ?? '', PHP_URL_HOST) ?: '-'));
     }
 
     private static function lastApi(array $c): ?int
@@ -46,9 +46,9 @@ final class AdminRoutes
     }
 
     /** @param Closure(): BackOffice $clientBackOffice the clients' back office (to end the sessions of a client user) */
-    public static function make(ClientRegistry $clients, UserStore $clientUsers, Closure $clientBackOffice): Closure
+    public static function make(ClientRegistry $clients, UserStore $clientUsers, Closure $clientBackOffice, ?\App\Game\House\House $house = null): Closure
     {
-        return function (array $x) use ($clients, $clientUsers, $clientBackOffice): ?Response {
+        return function (array $x) use ($clients, $clientUsers, $clientBackOffice, $house): ?Response {
             /** @var Engine $engine */
             $engine = $x['engine'];
             $sub = $x['sub'];
@@ -59,6 +59,11 @@ final class AdminRoutes
             $me = $x['me'];
             $body = $x['body'];
             $req = $x['request'];
+
+            /* ---- the operator's own site: players and the cashier ---- */
+            if ($house && ($r = \App\Game\House\HouseAdmin::route($x, $house))) {
+                return $r;
+            }
 
             /* ---- overview: health, game numbers, RTP, clients ---- */
             if ($sub === 'overview' && $method === 'GET') {
