@@ -53,7 +53,7 @@ final class House
         $s = $this->settings();
 
         return ['methods' => $s['methods'], 'minDeposit' => $s['minDeposit'], 'maxDeposit' => $s['maxDeposit'], 'minWithdraw' => $s['minWithdraw'], 'maxWithdraw' => $s['maxWithdraw'],
-            'registration' => (bool) $s['registration'], 'decimals' => self::DECIMALS, 'currency' => (string) config('horse.currency')];
+            'registration' => (bool) $s['registration'], 'enabled' => $this->engine->clientActive(HouseWallet::CLIENT), 'decimals' => self::DECIMALS, 'currency' => (string) config('horse.currency')];
     }
 
     public function saveSettings(array $in): array
@@ -160,8 +160,9 @@ final class House
         }
         $t = $this->now();
         try {
-            $id = DB::table('players')->insertGetId(['username' => $user, 'mobile' => $mobile, 'email' => $email ?: null, 'pass' => $this->hash((string) $in['password']),
-                'status' => 'active', 'balance' => 0, 'terms_at' => $t, 'over18_at' => $t, 'created_at' => $t, 'created_ip' => $ip]);
+            $row = ['username' => $user, 'mobile' => $mobile, 'email' => $email ?: null, 'pass' => $this->hash((string) $in['password']),
+                'status' => 'active', 'balance' => 0, 'terms_at' => $t, 'over18_at' => $t, 'created_at' => $t, 'created_ip' => $ip];
+            $id = DB::transaction(fn () => DB::table('players')->insertGetId($row));          // own savepoint: a duplicate must not poison an outer PostgreSQL transaction
         } catch (UniqueConstraintViolationException $e) {
             $dup = DB::table('players')->where('username', $user)->exists();
             throw self::bad($dup ? 'USERNAME_TAKEN' : 'MOBILE_TAKEN', $dup ? 'That username is taken.' : 'That mobile number is already registered.', 409);
@@ -228,8 +229,10 @@ final class House
             throw self::bad('TOO_MANY_PENDING', 'You already have 3 deposits waiting for approval.', 429);
         }
         try {
-            return (int) DB::table('deposits')->insertGetId(['player_id' => $p->id, 'amount' => $amount, 'method' => $m['id'], 'sender_name' => $name,
-                'sender_number' => mb_substr(trim((string) ($in['senderNumber'] ?? '')), 0, 40) ?: null, 'reference' => $ref, 'status' => 'pending', 'created_at' => $this->now()]);
+            $row = ['player_id' => $p->id, 'amount' => $amount, 'method' => $m['id'], 'sender_name' => $name,
+                'sender_number' => mb_substr(trim((string) ($in['senderNumber'] ?? '')), 0, 40) ?: null, 'reference' => $ref, 'status' => 'pending', 'created_at' => $this->now()];
+
+            return (int) DB::transaction(fn () => DB::table('deposits')->insertGetId($row));
         } catch (UniqueConstraintViolationException $e) {
             throw self::bad('REFERENCE_USED', 'That reference number was already submitted.', 409);
         }

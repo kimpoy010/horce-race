@@ -48,6 +48,15 @@
     el.grid.hidden = el.chips.hidden = el.clear.parentNode.hidden = true;
     el.placed.innerHTML = el.last.innerHTML = '';
     say(text || ERRORS.SESSION_EXPIRED);
+    signInLink();
+  }
+  // the operator's own site: offer to sign in or register (only when it is switched on)
+  function signInLink() {
+    fetch('/player/api/config', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (c) {
+      if (!c || !c.payment || !c.payment.enabled || el.msg.querySelector('a')) return;
+      var a = document.createElement('a'); a.href = '/account'; a.textContent = 'Sign in or register'; a.style.cssText = 'color:inherit;margin-left:8px;text-decoration:underline';
+      el.msg.hidden = false; el.msg.appendChild(a);
+    }).catch(function () { /* no own site */ });
   }
 
   /* ---------- build ---------- */

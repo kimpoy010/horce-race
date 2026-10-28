@@ -16,6 +16,7 @@
 #   --repo URL        clone this git repository instead of using the copy the script runs from
 #   --branch B        branch to clone with --repo
 #   --cloudflare      the domain is proxied by Cloudflare: nginx takes the visitor IP from CF-Connecting-IP (operator allow-list, rate limits)
+#   --no-house        do not enable the operator's own site (player registration / built-in wallet at /account)
 #   --no-firewall     do not touch ufw
 #   PHP_V=8.5 sudo -E ./bin/install-vps.sh ...   uses another PHP version (default 8.4)
 #
@@ -23,7 +24,7 @@
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-}"; EMAIL="${EMAIL:-}"; MODE="${MODE:-live}"; APP_DIR="${APP_DIR:-/var/www/horse}"
-REPO="${REPO:-}"; BRANCH="${BRANCH:-}"; FIREWALL=1; CLOUDFLARE=0; OPERATOR_IPS=()
+REPO="${REPO:-}"; BRANCH="${BRANCH:-}"; FIREWALL=1; CLOUDFLARE=0; HOUSE=1; OPERATOR_IPS=()
 PHP_V="${PHP_V:-8.4}"; DB_NAME=horserace; DB_USER=horse
 
 while [ $# -gt 0 ]; do
@@ -37,6 +38,7 @@ while [ $# -gt 0 ]; do
     --branch) BRANCH="$2"; shift 2;;
     --no-firewall) FIREWALL=0; shift;;
     --cloudflare) CLOUDFLARE=1; shift;;
+    --no-house) HOUSE=0; shift;;
     -h|--help) sed -n '2,22p' "$0"; exit 0;;
     *) echo "unknown option: $1" >&2; exit 2;;
   esac
@@ -143,6 +145,7 @@ chown -R www-data:www-data "$APP_DIR"; chmod 640 .env
 as_www() { runuser -u www-data -- env HOME=/var/www "$@"; }
 say "Migrating the database"
 as_www php artisan migrate --force
+if [ "$HOUSE" -eq 1 ]; then as_www php artisan house:setup; fi
 as_www php artisan config:cache; as_www php artisan route:cache; as_www php artisan view:cache >/dev/null 2>&1 || true
 
 # ---------- PHP-FPM / opcache ----------
@@ -192,6 +195,9 @@ server {
 ${ALLOW}    deny all;
     try_files \$uri /index.php?\$query_string;
   }
+  # the operator's own players: sign-in and registration are rate limited
+  location ~ ^/player/api/(login|register)\$ { limit_req zone=hr_login burst=5 nodelay; try_files \$uri /index.php?\$query_string; }
+  location /player/api/ { limit_req zone=hr_api burst=40 nodelay; try_files \$uri /index.php?\$query_string; }
   location /bo/api/login { limit_req zone=hr_login burst=5 nodelay; try_files \$uri /index.php?\$query_string; }
   location /api/ { limit_req zone=hr_api burst=40 nodelay; try_files \$uri /index.php?\$query_string; }
   location / { try_files \$uri /index.php?\$query_string; }

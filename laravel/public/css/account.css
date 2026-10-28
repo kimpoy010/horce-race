@@ -1,0 +1,26 @@
+/* the player's account page: built on the back office look, made for phones first */
+.acc { max-width: 560px; margin: 0 auto; padding: 14px; }
+.acc h1 { font-size: 22px; margin: 6px 0 2px; color: var(--acc); letter-spacing: .5px; }
+.acc .sub { color: var(--mute); margin: 0 0 14px; }
+.acc .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+.acc .seg { display: flex; gap: 4px; margin-bottom: 12px; }
+.acc .seg button { flex: 1; padding: 10px; }
+.acc .seg button.on { background: #1f2d4a; border-color: #3c4b6e; }
+.acc .bal { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.acc .bal .amt { font-size: 30px; font-weight: 800; }
+.acc .bal .who { color: var(--mute); }
+.acc button.play { width: 100%; margin-top: 12px; padding: 14px; font-size: 17px; font-weight: 700; }
+.acc .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.acc .check { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0; color: var(--text); font-size: 13px; }
+.acc .check input { width: auto; margin-top: 3px; }
+.acc .pay { border: 1px dashed var(--line); border-radius: 8px; padding: 10px; margin: 8px 0; }
+.acc .pay b { display: block; }
+.acc .pay .num { font-size: 18px; letter-spacing: 1px; margin: 2px 0; }
+.acc .pay button { padding: 3px 10px; font-size: 12px; margin-left: 8px; }
+.acc .help { color: var(--mute); font-size: 12px; margin: 6px 0 0; }
+.acc .out { margin-top: 10px; }
+.acc table { font-size: 13px; } .acc td, .acc th { padding: 6px 8px; }
+.acc .pill.pending { color: #ffd23c; } .acc .pill.approved, .acc .pill.paid { color: var(--ok); } .acc .pill.rejected { color: var(--bad); }
+.acc .foot { text-align: center; color: var(--mute); font-size: 12px; margin: 18px 0; }
+.acc .foot a { color: var(--mute); }
+.acc .warn { color: var(--mute); font-size: 12px; border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }

@@ -75,13 +75,13 @@
   function go(tab, clientId) { S.tab = tab; S.clientId = clientId || null; shell(); }
   function shell() {
     stopTimer(); clear(app);
-    var tabs = [['overview', 'Overview'], ['clients', 'Clients']]; if (can('admin')) tabs.push(['staff', 'Staff']); tabs.push(['security', 'Security']); if (can('admin')) tabs.push(['audit', 'Audit log']);
+    var tabs = [['overview', 'Overview'], ['clients', 'Clients']]; if (can('support')) tabs.push(['cashier', 'Players & cashier']); if (can('admin')) tabs.push(['staff', 'Staff']); tabs.push(['security', 'Security']); if (can('admin')) tabs.push(['audit', 'Audit log']);
     var nav = h('nav', { class: 'tabs' }), view = h('main');
     tabs.forEach(function (t) { nav.appendChild(h('button', { class: S.tab === t[0] ? 'on' : '', onclick: function () { go(t[0]); } }, t[1])); });
     app.appendChild(h('header', { class: 'top' }, h('span', { class: 'brand' }, 'HORSE RACE OPERATOR CONSOLE'), h('span', { class: 'who' }, S.me.username, h('span', { class: 'role' }, S.me.role), ' ', h('button', { onclick: logout }, 'Sign out'))));
     app.appendChild(nav); app.appendChild(view);
     if (S.tab === 'clients' && S.clientId) clientDetail(view, S.clientId);
-    else ({ overview: overview, clients: clients, staff: staff, security: security, audit: audit }[S.tab] || overview)(view);
+    else ({ overview: overview, clients: clients, cashier: cashier, staff: staff, security: security, audit: audit }[S.tab] || overview)(view);
   }
 
   /* ---------- overview ---------- */
@@ -314,4 +314,117 @@
   }
 
   api('GET', 'me').then(function (r) { if (r.status === 200) boot(r.data); else showLogin(r.data && r.data.error === 'STANDBY' ? 'The game server is starting. Try again in a moment.' : ''); }).catch(function () { showLogin('Cannot reach the server.'); });
+
+  /* ---------- players & cashier (the operator's own site) ---------- */
+  function cashier(view) {
+    var sub = S.cview || 'queue';
+    function tabsBar() {
+      var t = [['queue', 'Cashier queue'], ['players', 'Players']]; if (can('admin')) t.push(['settings', 'Payment accounts & limits']);
+      return h('div', { class: 'bar' }, t.map(function (x) { return h('button', { class: sub === x[0] ? 'primary' : '', onclick: function () { S.cview = x[0]; stopTimer(); shell(); } }, x[1]); }));
+    }
+    function summary(box) {
+      api('GET', 'house/summary').then(function (r) {
+        if (handleAuth(r) || r.status !== 200) return; var s = r.data.summary; clear(box);
+        box.appendChild(h('div', { class: 'cards' }, card('Players', s.players), card('Suspended', s.suspended, s.suspended ? 'bad' : ''), card('Balances held', money(s.balances)),
+          card('Deposits waiting', s.pendingDeposits + ' (' + money(s.pendingDepositAmount) + ')', s.pendingDeposits ? 'bad' : ''), card('Withdrawals waiting', s.pendingWithdrawals + ' (' + money(s.pendingWithdrawalAmount) + ')', s.pendingWithdrawals ? 'bad' : ''),
+          card('Deposited in total', money(s.deposited)), card('Paid out in total', money(s.withdrawn)), card('Registration', s.registrationOpen ? 'open' : 'closed', s.registrationOpen ? 'ok' : 'bad')));
+      });
+    }
+    view.appendChild(h('div', { class: 'head2' }, h('h1', null, 'Players & cashier'), h('span', { class: 'mute' }, 'people who registered on your own site')));
+    view.appendChild(tabsBar());
+    var top = h('div'); view.appendChild(top); summary(top);
+    var body = h('div'); view.appendChild(body);
+    if (sub === 'players') return playersView(body);
+    if (sub === 'settings' && can('admin')) return settingsView(body);
+    queueView(body, function () { summary(top); });
+  }
+  function actionButton(label, cls, fn) { var b = h('button', { class: cls || '', onclick: function () { b.disabled = true; fn(function () { b.disabled = false; }); } }, label); return b; }
+  function queueView(body, changed) {
+    function load() {
+      Promise.all([api('GET', 'house/queue/deposits?status=pending'), api('GET', 'house/queue/withdrawals?status=pending')]).then(function (rs) {
+        if (handleAuth(rs[0]) || handleAuth(rs[1])) return; clear(body);
+        function done(r, ok) { if (r.status === 200) { changed(); load(); } else { alert(errText(r)); load(); } }
+        body.appendChild(h('h2', null, 'Deposits waiting for you'));
+        var d = rs[0].data.items || [];
+        body.appendChild(d.length ? table([['Time'], ['Player'], ['Amount', 'right'], ['Method'], ['Paid from'], ['Reference'], ['']], d.map(function (x) {
+          return h('tr', null, td(when(x.at), 'nowrap'), td(x.username), td(money(x.amount), 'right'), td(x.method), td(x.senderName + (x.senderNumber ? ' (' + x.senderNumber + ')' : '')), td(x.reference, 'mono'),
+            td(h('div', { class: 'row' }, actionButton('Approve', 'primary', function (re) { if (!confirm('Check that ' + money(x.amount) + ' with reference ' + x.reference + ' really arrived. Credit ' + x.username + '?')) return re(); api('POST', 'house/deposits/' + x.id + '/approve', {}).then(function (r) { done(r); re(); }); }),
+              actionButton('Reject', 'danger', function (re) { var note = prompt('Why is it rejected? (shown to the player)', 'Payment not found'); if (note === null) return re(); api('POST', 'house/deposits/' + x.id + '/reject', { note: note }).then(function (r) { done(r); re(); }); }))));
+        })) : h('p', { class: 'mute' }, 'No deposits are waiting.'));
+        body.appendChild(h('h2', null, 'Withdrawals waiting for you'));
+        var w = rs[1].data.items || [];
+        body.appendChild(w.length ? table([['Time'], ['Player'], ['Amount', 'right'], ['Pay to'], ['']], w.map(function (x) {
+          return h('tr', null, td(when(x.at), 'nowrap'), td(x.username), td(money(x.amount), 'right'), td(x.method + ': ' + x.accountName + ' ' + x.accountNumber),
+            td(h('div', { class: 'row' }, actionButton('Mark paid', 'primary', function (re) { var ref = prompt('Send ' + money(x.amount) + ' to ' + x.method + ' ' + x.accountNumber + ' (' + x.accountName + ') first, then enter the payout reference:'); if (!ref) return re(); api('POST', 'house/withdrawals/' + x.id + '/pay', { payoutRef: ref }).then(function (r) { done(r); re(); }); }),
+              actionButton('Reject', 'danger', function (re) { var note = prompt('Why is it rejected? The money goes back to the player. (shown to the player)', ''); if (note === null) return re(); api('POST', 'house/withdrawals/' + x.id + '/reject', { note: note }).then(function (r) { done(r); re(); }); }))));
+        })) : h('p', { class: 'mute' }, 'No withdrawals are waiting.'));
+      });
+    }
+    body.appendChild(h('p', { class: 'mute' }, 'Loading...')); load(); S.timer = setInterval(load, 10000);
+  }
+  function playersView(body) {
+    var q = h('input', { placeholder: 'Search username or mobile', style: 'max-width:280px' }), list = h('div');
+    function load() {
+      api('GET', 'house/players?q=' + encodeURIComponent(q.value.trim())).then(function (r) {
+        if (handleAuth(r) || r.status !== 200) return; clear(list);
+        list.appendChild(r.data.players.length ? table([['Username'], ['Mobile'], ['Status'], ['Balance', 'right'], ['Joined'], ['Last sign-in']], r.data.players.map(function (p) {
+          return h('tr', { class: 'click', onclick: function () { playerModal(p.id, load); } }, td(p.username), td(p.mobile || '-'), td(h('span', { class: 'status ' + (p.status === 'active' ? 'ok' : 'bad') }, p.status)), td(money(p.balance), 'right'), td(when(p.createdAt), 'nowrap'), td(p.lastLoginAt ? ago(p.lastLoginAt) : 'never'));
+        })) : h('p', { class: 'mute' }, 'No players found.'));
+      });
+    }
+    var t = 0; q.addEventListener('input', function () { clearTimeout(t); t = setTimeout(load, 300); });
+    body.appendChild(h('div', { class: 'bar' }, q)); body.appendChild(list); load();
+  }
+  function playerModal(id, changed) {
+    var box = h('div'); box.appendChild(h('p', { class: 'mute' }, 'Loading...')); modal('Player', box);
+    function load() {
+      api('GET', 'house/players/' + id).then(function (r) {
+        if (handleAuth(r) || r.status !== 200) return; var d = r.data, p = d.player; clear(box);
+        function post(path, body, ok) { return api('POST', 'house/players/' + id + path, body).then(function (r2) { if (r2.status === 200) { if (ok) ok(r2.data); changed(); load(); } else alert(errText(r2)); }); }
+        box.appendChild(h('div', { class: 'cards' }, card('Username', p.username), card('Mobile', p.mobile || '-'), card('Balance', money(p.balance)), card('Status', p.status, p.status === 'active' ? 'ok' : 'bad'), card('Joined', when(p.createdAt)), card('Sign-up address', p.createdIp || '-')));
+        var out = h('div'), act = h('div', { class: 'row', style: 'margin:12px 0' });
+        act.appendChild(h('button', { class: p.status === 'active' ? 'danger' : 'primary', onclick: function () { var why = p.status === 'active' ? prompt('Reason for suspending ' + p.username + '?', '') : ''; if (why === null) return; post('/status', { status: p.status === 'active' ? 'suspended' : 'active', reason: why }); } }, p.status === 'active' ? 'Suspend' : 'Reactivate'));
+        act.appendChild(h('button', { onclick: function () { if (confirm('Make a new temporary password for ' + p.username + '? They are signed out.')) post('/reset-password', {}, function (x) { clear(out); out.appendChild(secretBox('Temporary password for ' + p.username, [['Password', x.tempPassword]])); }); } }, 'Reset password'));
+        if (can('admin')) act.appendChild(h('button', { onclick: function () {
+          var a = prompt('Amount to add (use a minus sign to take money away), in pesos:'); if (a === null) return; var m; try { m = toMinor(String(a).replace(/^-/, ''), 2); } catch (e) { return alert(e.message); } if (!m) return; if (String(a).trim().charAt(0) === '-') m = -m;
+          var why = prompt('Reason (kept in the audit log):'); if (!why) return; post('/adjust', { amount: m, reason: why });
+        } }, 'Adjust balance'));
+        act.appendChild(h('button', { onclick: function () { var n = prompt('Staff note about this player:', p.note || ''); if (n !== null) post('/note', { note: n }); } }, 'Note'));
+        box.appendChild(act); box.appendChild(out); if (p.note) box.appendChild(h('p', { class: 'mute' }, 'Note: ' + p.note));
+        box.appendChild(h('h2', null, 'Balance movements'));
+        box.appendChild(d.tx.length ? table([['Time'], ['Type'], ['Amount', 'right'], ['Balance', 'right'], ['Reference']], d.tx.map(function (t) { return h('tr', null, td(when(t.at), 'nowrap'), td(t.type), td(money(t.amount), 'right ' + (t.amount < 0 ? 'bad' : 'ok')), td(money(t.balance), 'right'), td(t.ref || '')); })) : h('p', { class: 'mute' }, 'None.'));
+        box.appendChild(h('h2', null, 'Deposits')); box.appendChild(d.deposits.length ? table([['Time'], ['Amount', 'right'], ['Method'], ['Reference'], ['Status']], d.deposits.map(function (x) { return h('tr', null, td(when(x.at), 'nowrap'), td(money(x.amount), 'right'), td(x.method), td(x.reference), td(x.status + (x.note ? ' - ' + x.note : ''))); })) : h('p', { class: 'mute' }, 'None.'));
+        box.appendChild(h('h2', null, 'Withdrawals')); box.appendChild(d.withdrawals.length ? table([['Time'], ['Amount', 'right'], ['To'], ['Status']], d.withdrawals.map(function (x) { return h('tr', null, td(when(x.at), 'nowrap'), td(money(x.amount), 'right'), td(x.method + ' ' + x.account), td(x.status + (x.payoutRef ? ' (ref ' + x.payoutRef + ')' : '') + (x.note ? ' - ' + x.note : ''))); })) : h('p', { class: 'mute' }, 'None.'));
+      });
+    }
+    load();
+  }
+  function settingsView(body) {
+    api('GET', 'house/summary').then(function (r) {
+      if (handleAuth(r) || r.status !== 200) return; var s = r.data.settings, rows = h('div'), out = h('div');
+      var inp = {};
+      [['minDeposit', 'Smallest deposit'], ['maxDeposit', 'Largest deposit'], ['minWithdraw', 'Smallest withdrawal'], ['maxWithdraw', 'Largest withdrawal']].forEach(function (k) { inp[k[0]] = h('input', { value: (s[k[0]] / 100).toFixed(2), inputmode: 'decimal' }); });
+      var reg = h('input', { type: 'checkbox', style: 'width:auto' }); reg.checked = !!s.registration;
+      function methodRow(m) {
+        var f = { id: h('input', { value: m.id || '', placeholder: 'gcash', style: 'max-width:110px' }), label: h('input', { value: m.label || '', placeholder: 'GCash' }), accountName: h('input', { value: m.accountName || '', placeholder: 'Account name' }),
+          accountNumber: h('input', { value: m.accountNumber || '', placeholder: 'Account number' }), note: h('input', { value: m.note || '', placeholder: 'Note for players (optional)' }) };
+        var row = h('div', { class: 'panel' }, h('div', { class: 'grid2' }, field('Id', f.id, 'letters and digits'), field('Name shown', f.label), field('Account name', f.accountName), field('Account number', f.accountNumber), field('Note', f.note)),
+          h('button', { class: 'danger', style: 'margin-top:8px', onclick: function () { row.parentNode.removeChild(row); } }, 'Remove'));
+        row.read = function () { return { id: f.id.value.trim(), label: f.label.value.trim(), accountName: f.accountName.value.trim(), accountNumber: f.accountNumber.value.trim(), note: f.note.value.trim() }; };
+        return row;
+      }
+      (s.methods || []).forEach(function (m) { rows.appendChild(methodRow(m)); });
+      body.appendChild(h('h2', null, 'Where players send their deposits'));
+      body.appendChild(h('p', { class: 'mute' }, 'Players see these accounts on their deposit page. Use accounts you control and check every deposit before you approve it.'));
+      body.appendChild(rows); body.appendChild(h('button', { onclick: function () { rows.appendChild(methodRow({})); } }, 'Add a payment account'));
+      body.appendChild(h('h2', null, 'Limits (pesos)'));
+      body.appendChild(h('div', { class: 'grid2' }, field('Smallest deposit', inp.minDeposit), field('Largest deposit', inp.maxDeposit), field('Smallest withdrawal', inp.minWithdraw), field('Largest withdrawal', inp.maxWithdraw)));
+      body.appendChild(h('label', { style: 'display:flex;gap:8px;align-items:center;margin-top:14px;color:inherit' }, reg, 'Registration is open to new players'));
+      body.appendChild(h('div', { style: 'margin-top:14px' }, h('button', { class: 'primary', onclick: function () {
+        var data = { registration: reg.checked, methods: Array.prototype.map.call(rows.children, function (x) { return x.read(); }) };
+        try { Object.keys(inp).forEach(function (k) { data[k] = toMinor(inp[k].value, 2); }); } catch (e) { clear(out); return out.appendChild(msg('err', e.message)); }
+        api('POST', 'house/settings', data).then(function (r2) { clear(out); out.appendChild(r2.status === 200 ? msg('ok', 'Saved.') : msg('err', errText(r2))); });
+      } }, 'Save'), out));
+    });
+  }
 })();

@@ -110,3 +110,7 @@ A temporary password must be changed at the first sign-in. Set `HORSE_COOKIE_SEC
 * Moving a live Node installation over: [`docs/CUTOVER.md`](../docs/CUTOVER.md) (`import:node`, `ledger verify|export`, `clients export`, `scripts/compare-servers.js`).
 * Running it in production: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 * `/api/public` is served from a cached copy (`horse:public-parts`), refreshed when a race opens, is drawn, settles or is voided; use Redis for the cache in production.
+
+## The operator's own site
+
+Added on top of the port (the Node server has no equivalent): player registration, a built-in wallet and a cashier, see [`docs/OWN_SITE.md`](docs/OWN_SITE.md). It changes two shared front-end files, so `bin/sync-frontend.sh` keeps `public/js/bet.js` and `public/js/admin.js` as they are here; if you change those two in `../public`, merge by hand.
