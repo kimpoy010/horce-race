@@ -120,16 +120,16 @@ if ! grep -qE '^APP_KEY=.+' .env; then php artisan key:generate --force --quiet;
 
 # ---------- PostgreSQL ----------
 say "Preparing PostgreSQL ($DB_NAME / $DB_USER)"
-if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
-  sudo -u postgres psql -qc "ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS'"
+if runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
+  runuser -u postgres -- psql -qc "ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS'"
 else
-  sudo -u postgres psql -qc "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS'"
+  runuser -u postgres -- psql -qc "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS'"
 fi
-sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1 || sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1 || runuser -u postgres -- createdb -O "$DB_USER" "$DB_NAME"
 
 # ---------- permissions, migrate, caches ----------
 chown -R www-data:www-data "$APP_DIR"; chmod 640 .env
-as_www() { sudo -u www-data -H "$@"; }
+as_www() { runuser -u www-data -- env HOME=/var/www "$@"; }
 say "Migrating the database"
 as_www php artisan migrate --force
 as_www php artisan config:cache; as_www php artisan route:cache; as_www php artisan view:cache >/dev/null 2>&1 || true
@@ -249,9 +249,9 @@ Clients key (HORSE_CLIENTS_KEY):    saved in $APP_DIR/.env  -> back it up somewh
                                     if it is lost the clients' wallet secrets cannot be decrypted.
 
 Next:
-  cd $APP_DIR && sudo -u www-data php artisan staff add-operator <name>     # login for /admin
-  sudo -u www-data php artisan clients ...                                   # add a platform client (see docs/DEPLOYMENT.md)
+  cd $APP_DIR && runuser -u www-data -- php artisan staff add-operator <name>     # login for /admin
+  runuser -u www-data -- php artisan clients ...                                   # add a platform client (see docs/DEPLOYMENT.md)
   journalctl -u horse-game -f                                                # round loop log
-After changing .env:  sudo -u www-data php artisan config:cache && sudo systemctl restart horse-game
+After changing .env:  runuser -u www-data -- php artisan config:cache && systemctl restart horse-game
 After updating code:  run this script again (it keeps your keys), or see docs/DEPLOYMENT.md.
 DONE
