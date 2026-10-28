@@ -5,12 +5,14 @@
 #
 # Run it as root from inside a copy of the project (the script lives in laravel/bin):
 #
-#   sudo ./bin/install-vps.sh --domain race.example.com --email you@example.com --operator-ip 203.0.113.7
+#   sudo ./bin/install-vps.sh --domain race.example.com --email you@example.com
 #
 # Options (or the same names as environment variables):
 #   --domain D        host name that already points to this server (without it: plain HTTP on the IP, no certificate)
 #   --email E         e-mail for Let's Encrypt
-#   --operator-ip IP  IP (or CIDR) allowed to open /controller, /admin, /metrics and the operator API; repeat for several
+#   --operator-ip IP  IP (or CIDR) allowed to use the key-only operator paths (/controller, /metrics, /api/command, /api/report, /api/clients, /api/admin); repeat for several.
+#                     /admin (the console with staff logins and 2-step sign-in) is open to every address and does not need this
+#   --open-controller let every address reach those key-only paths too (they are then protected by HORSE_CONTROLLER_KEY alone)
 #   --mode live|demo  live = real wallets of your clients (default); demo = play-money wallet
 #   --app-dir DIR     install location (default /var/www/horse)
 #   --repo URL        clone this git repository instead of using the copy the script runs from
@@ -24,7 +26,7 @@
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-}"; EMAIL="${EMAIL:-}"; MODE="${MODE:-live}"; APP_DIR="${APP_DIR:-/var/www/horse}"
-REPO="${REPO:-}"; BRANCH="${BRANCH:-}"; FIREWALL=1; CLOUDFLARE=0; HOUSE=1; OPERATOR_IPS=()
+REPO="${REPO:-}"; BRANCH="${BRANCH:-}"; FIREWALL=1; CLOUDFLARE=0; HOUSE=1; OPEN_CONTROLLER=0; OPERATOR_IPS=()
 PHP_V="${PHP_V:-8.4}"; DB_NAME=horserace; DB_USER=horse
 
 while [ $# -gt 0 ]; do
@@ -39,6 +41,7 @@ while [ $# -gt 0 ]; do
     --no-firewall) FIREWALL=0; shift;;
     --cloudflare) CLOUDFLARE=1; shift;;
     --no-house) HOUSE=0; shift;;
+    --open-controller) OPEN_CONTROLLER=1; shift;;
     -h|--help) sed -n '2,22p' "$0"; exit 0;;
     *) echo "unknown option: $1" >&2; exit 2;;
   esac
@@ -52,11 +55,6 @@ die() { echo "Error: $*" >&2; exit 1; }
 [ "${ID:-}" = ubuntu ] || die "this script is for Ubuntu (24.04 recommended); found ${ID:-unknown}"
 case "$MODE" in live|demo) ;; *) die "--mode must be live or demo";; esac
 [ -z "$DOMAIN" ] || [ -n "$EMAIL" ] || die "--email is needed with --domain (Let's Encrypt)"
-if [ ${#OPERATOR_IPS[@]} -eq 0 ]; then
-  # default: the address you are connected from over SSH, so the operator pages are never open to the world
-  [ -n "${SSH_CLIENT:-}" ] && OPERATOR_IPS+=("${SSH_CLIENT%% *}")
-fi
-[ ${#OPERATOR_IPS[@]} -gt 0 ] || die "give at least one --operator-ip (the operator pages are restricted to it)"
 
 # ---------- where the code comes from ----------
 if [ -n "$REPO" ]; then
@@ -176,7 +174,12 @@ if [ "$CLOUDFLARE" -eq 1 ]; then
 else
   rm -f /etc/nginx/conf.d/cloudflare-realip.conf
 fi
-ALLOW=""; for ip in "${OPERATOR_IPS[@]}"; do ALLOW="$ALLOW    allow $ip;"$'\n'; done
+ALLOW=""
+if [ "$OPEN_CONTROLLER" -eq 1 ]; then ALLOW="    allow all;"$'\n'
+else
+  for ip in "${OPERATOR_IPS[@]}"; do ALLOW="$ALLOW    allow $ip;"$'\n'; done
+  ALLOW="${ALLOW}    deny all;"$'\n'
+fi
 cat > /etc/nginx/sites-available/horse <<NGX
 server {
   listen 80;
@@ -190,10 +193,12 @@ server {
   add_header Referrer-Policy "no-referrer" always;
   add_header X-Content-Type-Options "nosniff" always;
 
-  # operator pages and API: only from the listed IPs
-  location ~ ^/(controller|admin|metrics|api/admin|api/report|api/command|api/clients) {
-${ALLOW}    deny all;
-    try_files \$uri /index.php?\$query_string;
+  # the console (/admin) is open to every address: staff logins, optional 2-step sign-in, throttled. Its login is rate limited here too
+  location /admin/api/login { limit_req zone=hr_login burst=5 nodelay; try_files \$uri /index.php?\$query_string; }
+  location /admin/api/ { limit_req zone=hr_api burst=40 nodelay; try_files \$uri /index.php?\$query_string; }
+  # key-only operator paths (HORSE_CONTROLLER_KEY, no staff login): only from the listed IPs, or nowhere
+  location ~ ^/(controller|metrics|api/admin|api/report|api/command|api/clients) {
+${ALLOW}    try_files \$uri /index.php?\$query_string;
   }
   # the operator's own players: sign-in and registration are rate limited
   location ~ ^/player/api/(login|register)\$ { limit_req zone=hr_login burst=5 nodelay; try_files \$uri /index.php?\$query_string; }
@@ -269,7 +274,8 @@ cat <<DONE
 Done. Site: $URL
 Mode:      $MODE
 App:       $APP_DIR
-Operator pages ($URL/controller, /admin, /metrics) only open from: ${OPERATOR_IPS[*]}
+Console:   $URL/admin  (open to every address; staff login, turn on 2-step sign-in under Security)
+Key-only paths (/controller, /metrics, /api/command, /api/report, /api/clients): $([ "$OPEN_CONTROLLER" -eq 1 ] && echo "open to every address, protected by the controller key only" || { [ ${#OPERATOR_IPS[@]} -gt 0 ] && echo "only from ${OPERATOR_IPS[*]}" || echo "blocked from the internet (use /admin)"; })
 
 Controller key (X-Controller-Key):  $CONTROLLER_KEY
 Clients key (HORSE_CLIENTS_KEY):    saved in $APP_DIR/.env  -> back it up somewhere safe, outside this server;

@@ -5,7 +5,7 @@ nginx + PHP-FPM serve browsers and platforms; **one** daemon (`php artisan game:
 ## Quick install on a fresh Ubuntu 24.04 VPS
 
 ```
-sudo ./bin/install-vps.sh --domain race.example.com --email you@example.com --operator-ip YOUR.IP
+sudo ./bin/install-vps.sh --domain race.example.com --email you@example.com
 ```
 
 Installs nginx, PHP 8.4, PostgreSQL, Redis and Composer, writes `.env` with generated keys, sets up the daemon, cron, firewall and HTTPS (`--help` lists the options, `--mode demo` uses the play-money wallet). Safe to re-run for updates. The sections below describe what it does.
@@ -80,7 +80,10 @@ server {
   add_header Strict-Transport-Security "max-age=31536000" always;
   add_header Referrer-Policy "no-referrer" always;
 
-  location ~ ^/(controller|admin|metrics|api/admin|api/report|api/command|api/clients) {   # operator paths: office/VPN IPs only
+  # the console /admin (staff logins, 2-step sign-in, throttled) is open to every address; only its login is rate limited
+  location /admin/api/login { limit_req zone=hr_login burst=5 nodelay; try_files $uri /index.php?$query_string; }
+  # key-only operator paths (HORSE_CONTROLLER_KEY, no staff login): office/VPN IPs only, or deny all
+  location ~ ^/(controller|metrics|api/admin|api/report|api/command|api/clients) {
     allow 203.0.113.0/24; deny all;
     try_files $uri /index.php?$query_string;
   }
@@ -113,7 +116,7 @@ A bet request holds a worker while the wallet call runs (up to ~8 s on a slow pl
 ## Security checklist
 
 - [ ] HTTPS only, HSTS, `APP_DEBUG=false`, mock wallet off
-- [ ] Operator paths IP-restricted; staff accounts have TOTP enabled
+- [ ] /admin is open to every address, so every staff account has 2-step sign-in on (Security tab) and a long password; the key-only paths (/controller, /metrics, /api/command ...) stay IP-restricted or blocked (`--open-controller` opens them to everyone, protected by the key alone)
 - [ ] `.env` readable by the app user only; `HORSE_CLIENTS_KEY` backed up separately from the database
 - [ ] DB reachable only from app hosts; backups encrypted
 - [ ] Platforms' wallet URLs use HTTPS and verify our signature
