@@ -55,11 +55,10 @@
   var C_COAT = 0, C_SOCK = 1, C_HOOF = 2, C_SILK = 3, C_CAP = 4, C_SKIN = 5, C_CLOTH = 6, C_DIGIT = 7, C_MUZZLE = 8, C_MANE = 9, C_PANTS = 10, C_BOOT = 11, C_EYE = 12;
   var C_WHITE = 13, C_STRIPE = 14, C_LENS = 15, C_REIN = 16, C_TACK = 17, C_METAL = 18, C_INNER = 19;
 
-  var models = {};
+  // A model is tens of MB of voxels, so it is NOT kept: getTurn() builds one, draws its three angled sprites from it and drops it
+  // (keeping all 72 of them used about 2.4 GB and made phones kill the page).
   function buildModel(no, step, standing) {
-    var key = no + ':' + (standing ? 's' : step), m = models[key];
-    if (m) return m;
-    m = new Model(no);
+    var m = new Model(no);
     var gp = window.HorseGait.pose(step / FRAMES), bob = standing ? 0 : 1.1 * gp.lift;     // the gallop of the reference sheet: see gait.js
     var legs = standing ? { fn: [0, 0], ff: [-0.05, -0.05], hn: [0.05, 0.05], hf: [-0.05, -0.05] } : { fn: gp.fn, ff: gp.ff, hn: gp.hn, hf: gp.hf };
     var b = bob;
@@ -145,13 +144,13 @@
     m.capsule([5.6, 41.4 + b, 0], [11.4, 43.6 + b, 0], 0.5, 0.5, C_STRIPE, 5);                        // helmet ridge
     m.capsule([11.2, 40.9 + b, 0], [14.0, 40.1 + b, 0], 1.0, 0.7, C_CAP, 5);                          // peak
     m.capsule([6.4, 40.5 + b, -3.1], [8.6, 37.7 + b, -2.4], 0.3, 0.3, C_REIN, 5);                      // chin strap
-    models[key] = m;
+    m.v = new Float64Array(m.v);
     return m;
   }
 
   /* ---------- rendering ---------- */
-  function render(no, step, standing, angDeg) {
-    var P = PAL[no], m = buildModel(no, step, standing), v = m.v, n = v.length / 8;
+  function render(no, step, standing, angDeg, m) {
+    var P = PAL[no], v = m.v, n = v.length / 8;
     var th = standing ? 0 : window.HorseGait.pose(step / FRAMES).pitch * 0.5, ct = Math.cos(th), stp = Math.sin(th);      // body pitch around the middle of the back
     var phiA = angDeg * Math.PI / 180, ca = Math.cos(phiA), sa = Math.sin(phiA), cp = Math.cos(PITCH), sp = Math.sin(PITCH);
     var zb = new Float32Array(TW * TH).fill(-1e9), id = new Int16Array(TW * TH).fill(-1), grp = new Int8Array(TW * TH), tone = new Uint8Array(TW * TH).fill(1);
@@ -181,12 +180,11 @@
     }
     // contours: black outside the silhouette and where one part passes in front of another; a soft darker
     // line where a limb overlaps the body (so the legs still flow out of it)
-    var black = [0, 0, 0], mark = [], soft = [];
+    var black = [0, 0, 0], mark = [], soft = [], NX = [-1, 1, 0, 0], NY = [0, 0, -1, 1];
     for (y2 = 0; y2 < TH; y2++) for (x2 = 0; x2 < TW; x2++) {
       k2 = y2 * TW + x2;
-      var nb = [[x2 - 1, y2], [x2 + 1, y2], [x2, y2 - 1], [x2, y2 + 1]];
       for (var q = 0; q < 4; q++) {
-        var qx = nb[q][0], qy = nb[q][1];
+        var qx = x2 + NX[q], qy = y2 + NY[q];
         if (qx < 0 || qy < 0 || qx >= TW || qy >= TH) continue;
         var kq = qy * TW + qx;
         if (id[k2] < 0 && id[kq] >= 0) { mark.push(k2); break; }
@@ -203,21 +201,35 @@
   }
 
   var cache = {};
+  function buildTurns(no, step, standing) {
+    var m = buildModel(no, step, standing), idx, key;
+    for (idx = 1; idx <= 3; idx++) {
+      key = no + ':' + idx + ':' + (standing ? 's' : step);
+      if (!cache[key]) cache[key] = render(no, step, standing, idx * 45, m);
+    }
+  }
   // angle index: 1 = 45 deg facing right (towards the camera), 2 = straight on, 3 = 45 deg facing left
   function getTurn(no, idx, phase, standing) {
     var step = standing ? 0 : Math.floor(phase / (Math.PI * 2) * FRAMES) % FRAMES;
     if (step < 0) step += FRAMES;
     var key = no + ':' + idx + ':' + (standing ? 's' : step);
-    return cache[key] || (cache[key] = render(no, step, standing, idx * 45));
+    if (!cache[key]) buildTurns(no, step, standing);
+    return cache[key];
   }
-  // builds every turning sprite a little at a time so the first curve does not stutter
+  // builds every turning sprite a little at a time so the first curve does not stutter: one step per tick (the model of a pose, then each of its three
+  // sprites), so no single pause is long on a phone. The model is dropped as soon as its three sprites exist.
   function warm() {
-    var jobs = [], no, idx, st;
-    for (st = 0; st < FRAMES; st++) for (idx = 1; idx <= 3; idx++) for (no = 1; no <= 6; no++) jobs.push([no, idx, st]);
+    var jobs = [], no, st, cur = null, idx = 1, m = null;
+    for (st = 0; st < FRAMES; st++) for (no = 1; no <= 6; no++) jobs.push([no, st]);
     (function next() {
-      var j = jobs.shift(); if (!j) return;
-      getTurn(j[0], j[1], j[2] / FRAMES * Math.PI * 2, false);
-      setTimeout(next, 30);
+      if (!cur) { cur = jobs.shift(); if (!cur) return; idx = 1; m = null; }
+      var key = cur[0] + ':' + idx + ':' + cur[1];
+      if (!cache[key]) {
+        if (!m) m = buildModel(cur[0], cur[1], false);
+        else cache[key] = render(cur[0], cur[1], false, idx * 45, m), idx++;
+      } else idx++;
+      if (idx > 3) { cur = null; m = null; }
+      setTimeout(next, 40);
     })();
   }
 
