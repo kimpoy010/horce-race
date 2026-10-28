@@ -16,13 +16,14 @@
 #   --repo URL        clone this git repository instead of using the copy the script runs from
 #   --branch B        branch to clone with --repo
 #   --no-firewall     do not touch ufw
+#   PHP_V=8.5 sudo -E ./bin/install-vps.sh ...   uses another PHP version (default 8.4)
 #
 # Safe to run again: it keeps the existing .env keys and the database password, updates the code and restarts the services.
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-}"; EMAIL="${EMAIL:-}"; MODE="${MODE:-live}"; APP_DIR="${APP_DIR:-/var/www/horse}"
 REPO="${REPO:-}"; BRANCH="${BRANCH:-}"; FIREWALL=1; OPERATOR_IPS=()
-PHP_V=8.4; DB_NAME=horserace; DB_USER=horse
+PHP_V="${PHP_V:-8.4}"; DB_NAME=horserace; DB_USER=horse
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -73,7 +74,7 @@ apt-get install -y -qq nginx postgresql redis-server \
   "php$PHP_V-fpm" "php$PHP_V-cli" "php$PHP_V-pgsql" "php$PHP_V-mbstring" "php$PHP_V-curl" "php$PHP_V-xml" "php$PHP_V-zip" \
   "php$PHP_V-bcmath" "php$PHP_V-intl" "php$PHP_V-redis" "php$PHP_V-opcache" >/dev/null
 update-alternatives --set php "/usr/bin/php$PHP_V" >/dev/null 2>&1 || true
-php -r 'exit(PHP_VERSION_ID >= 80400 ? 0 : 1);' || die "the php command is not 8.4"
+php -r 'exit(PHP_VERSION_ID >= 80300 ? 0 : 1);' || die "the php command is older than 8.3"
 php -m | grep -qi pdo_pgsql || die "pdo_pgsql is not loaded"
 systemctl enable --now postgresql redis-server nginx "php$PHP_V-fpm" >/dev/null 2>&1
 
