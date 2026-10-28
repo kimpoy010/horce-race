@@ -48,15 +48,43 @@
     el.grid.hidden = el.chips.hidden = el.clear.parentNode.hidden = true;
     el.placed.innerHTML = el.last.innerHTML = '';
     say(text || ERRORS.SESSION_EXPIRED);
-    signInLink();
+    guestPanel(text === LOBBY_HINT);
   }
-  // the operator's own site: offer to sign in or register (only when it is switched on)
-  function signInLink() {
+
+  /* ---------- the operator's own site: a visitor without a session sees LOGIN / REGISTER in the (open) betting panel ---------- */
+  var LOBBY_HINT = 'Open this game from the lobby to place bets. You can still watch the races.';
+  var guest = false, guestBusy = false;
+  function setGuest(on) {
+    guest = on;
+    var box = $('bAuth'); if (box) box.hidden = !on;
+  }
+  function guestPanel(quiet) {
+    var shown = $('bAuth');
+    if (guestBusy || (shown && !shown.hidden)) { guest = true; if (quiet) say(''); return; }          // already asked / already showing (refresh() calls this on every poll)
+    guestBusy = true; guest = true;                                                    // keep the panel open while we find out whether the own site is switched on
     fetch('/player/api/config', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (c) {
-      if (!c || !c.payment || !c.payment.enabled || el.msg.querySelector('a')) return;
-      var a = document.createElement('a'); a.href = '/account'; a.textContent = 'Sign in or register'; a.style.cssText = 'color:inherit;margin-left:8px;text-decoration:underline';
-      el.msg.hidden = false; el.msg.appendChild(a);
-    }).catch(function () { /* no own site */ });
+      guestBusy = false;
+      if (!c || !c.payment || !c.payment.enabled) { guest = false; return; }
+      if (S.session) { guest = false; return; }                     // signed in meanwhile
+      var box = $('bAuth');
+      if (!box) {
+        var st = document.createElement('style');
+        st.textContent = '.auth{margin:8px 0;padding:10px;background:#1a2550;border:2px solid #46537f;text-align:center}.auth p{margin:0 0 8px;color:#d6e0ff;font-size:13px}' +
+          '.auth .row{display:flex;gap:6px}.auth a{flex:1;display:block;padding:9px 6px;font:inherit;font-weight:bold;text-decoration:none;color:#fff;background:#2a3768;border:2px solid #46537f}' +
+          '.auth a.primary{background:#1e8a3c;border-color:#4fe07a}';
+        document.head.appendChild(st);
+        box = document.createElement('div'); box.id = 'bAuth'; box.className = 'auth';
+        var t = document.createElement('p'); t.textContent = 'Sign in to place bets. You can still watch the races.'; box.appendChild(t);
+        var row = document.createElement('div'); row.className = 'row'; box.appendChild(row);
+        var login = document.createElement('a'); login.href = '/login'; login.textContent = 'LOGIN'; login.className = 'primary'; row.appendChild(login);
+        var reg = document.createElement('a'); reg.href = '/register'; reg.id = 'bAuthReg'; reg.textContent = 'REGISTER'; row.appendChild(reg);
+        el.msg.parentNode.insertBefore(box, el.msg.nextSibling);
+      }
+      $('bAuthReg').hidden = !c.payment.registration;
+      box.hidden = false;
+      if (quiet) say('');                                            // the "open from the lobby" hint does not fit the own site
+      setPanel(true);
+    }).catch(function () { guestBusy = false; guest = false; });
   }
 
   /* ---------- build ---------- */
@@ -232,6 +260,7 @@
   }
   // the panel opens by itself when betting opens and hides when betting closes; the tab still toggles it by hand in between
   function autoPanel() {
+    if (guest) return;                                               // a visitor without a session: the panel stays open (they can still hide it by hand)
     var G = window.HorseGame, st = G && G.state(), r = st && st.round;
     if (!r) return;
     var betting = r.phase === 'betting' && G.now() < r.betCloseAt;
@@ -247,7 +276,7 @@
     el.tab.addEventListener('click', function () { setPanel(!panelOpen); });
     // a tap or click outside the open panel closes it (not on the tab itself, nor on the start and reality-check screens)
     document.addEventListener('pointerdown', function (e) {
-      if (!panelOpen || e.target.closest('#bet, #betTab, #start, #bReality')) return;
+      if (!panelOpen || guest || e.target.closest('#bet, #betTab, #start, #bReality')) return;
       setPanel(false);
     }, true);
     var x0 = null, y0 = 0;                                           // swipe right on the panel to hide, left from the screen edge to show
@@ -256,7 +285,7 @@
     document.addEventListener('touchend', function (e) {
       if (x0 === null) return; var t = pt(e.changedTouches[0]), dx = t.x - x0, dy = t.y - y0, edge = x0 > t.w - 40; x0 = null;
       if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      if (panelOpen && dx > 0 && el.bet.contains(e.target)) setPanel(false);
+      if (panelOpen && !guest && dx > 0 && el.bet.contains(e.target)) setPanel(false);
       else if (!panelOpen && dx < 0 && edge) setPanel(true);
     }, { passive: true });
     setInterval(function () { autoPanel(); tabLabel(); }, 250);
@@ -271,12 +300,12 @@
     if (token) {
       history.replaceState(null, '', location.pathname);                  // never leave the launch token in the address bar
       api('POST', 'api/auth', { token: token, client: qs.get('client') || undefined }).then(function (res) {
-        if (res.data.ok) { S.session = res.data.session; S.currency = res.data.currency || S.currency; try { sessionStorage.setItem('hr.session', S.session); } catch (e) { /* ignore */ } refresh(); }
+        if (res.data.ok) { setGuest(false); S.session = res.data.session; S.currency = res.data.currency || S.currency; try { sessionStorage.setItem('hr.session', S.session); } catch (e) { /* ignore */ } refresh(); }
         else needLaunch(ERRORS[res.data.error] || ERRORS.INVALID_TOKEN);
       }).catch(function () { needLaunch('Cannot reach the game server.'); });
     } else {
       try { S.session = sessionStorage.getItem('hr.session'); } catch (e) { /* ignore */ }
-      if (S.session) refresh(); else needLaunch('Open this game from the lobby to place bets. You can still watch the races.');
+      if (S.session) { setGuest(false); refresh(); } else needLaunch(LOBBY_HINT);
     }
     setInterval(refresh, 1500);
     setInterval(render, 250);
