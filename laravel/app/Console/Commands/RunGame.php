@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Game\AlertManager;
 use App\Game\Engine;
+use App\Game\LoopLock;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 
@@ -25,7 +26,7 @@ class RunGame extends Command
     public function handle(Engine $engine, AlertManager $alerts): int
     {
         $ttl = (int) config('horse.lock_ttl_seconds');
-        $lock = Cache::lock('horse:game-loop', $ttl);
+        $lock = new LoopLock('horse:game-loop', $ttl);
         if ($this->option('once')) {
             $engine->tick();
 
@@ -38,7 +39,7 @@ class RunGame extends Command
             }
         }
         $this->info('game:run: waiting for the round-loop lock');
-        while (! $this->stop && ! $lock->get()) {
+        while (! $this->stop && ! $lock->acquire()) {
             usleep(1000000);
         }
         if ($this->stop) {
@@ -47,13 +48,13 @@ class RunGame extends Command
         Cache::put('horse:started', $engine->now(), 86400 * 30);
         $this->info('game:run: running (tick every '.config('horse.tick_ms').' ms)');
         $every = max(50, (int) config('horse.tick_ms')) * 1000;
-        $renewAt = 0;
+        $renewAt = microtime(true) + $ttl / 3;
         $alertAt = 0;
         while (! $this->stop) {
             $t0 = microtime(true);
             try {
                 if ($t0 >= $renewAt) {                       // keep the lock; losing it means somebody else runs the game: stop at once
-                    if (! $lock->get()) {
+                    if (! $lock->renew()) {
                         $this->error('game:run: the lock was lost, stopping');
 
                         return self::FAILURE;
