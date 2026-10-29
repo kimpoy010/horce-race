@@ -13,7 +13,8 @@
 #   --operator-ip IP  IP (or CIDR) allowed to use the key-only operator paths (/controller, /metrics, /api/command, /api/report, /api/clients, /api/admin); repeat for several.
 #                     /admin (the console with staff logins and 2-step sign-in) is open to every address and does not need this
 #   --open-controller let every address reach those key-only paths too (they are then protected by HORSE_CONTROLLER_KEY alone)
-#   --mode live|demo  live = real wallets of your clients (default); demo = play-money wallet
+#   --mode live|demo  live = real wallets of your clients (default); demo = play-money wallet (installs as a staging environment: the app refuses play money in production)
+#   --staging         install as APP_ENV=staging: a test server that may use play-money wallets. NEVER point real platforms or real players at it (docs/STAGING.md)
 #   --app-dir DIR     install location (default /var/www/horse)
 #   --repo URL        clone this git repository instead of using the copy the script runs from
 #   --branch B        branch to clone with --repo
@@ -25,7 +26,7 @@
 # Safe to run again: it keeps the existing .env keys and the database password, updates the code and restarts the services.
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-}"; EMAIL="${EMAIL:-}"; MODE="${MODE:-live}"; APP_DIR="${APP_DIR:-/var/www/horse}"
+DOMAIN="${DOMAIN:-}"; EMAIL="${EMAIL:-}"; MODE="${MODE:-live}"; STAGING="${STAGING:-0}"; APP_DIR="${APP_DIR:-/var/www/horse}"
 REPO="${REPO:-}"; BRANCH="${BRANCH:-}"; FIREWALL=1; CLOUDFLARE=0; HOUSE=1; OPEN_CONTROLLER=0; OPERATOR_IPS=()
 PHP_V="${PHP_V:-8.4}"; DB_NAME=horserace; DB_USER=horse
 
@@ -35,6 +36,7 @@ while [ $# -gt 0 ]; do
     --email) EMAIL="$2"; shift 2;;
     --operator-ip) OPERATOR_IPS+=("$2"); shift 2;;
     --mode) MODE="$2"; shift 2;;
+    --staging) STAGING=1; shift;;
     --app-dir) APP_DIR="$2"; shift 2;;
     --repo) REPO="$2"; shift 2;;
     --branch) BRANCH="$2"; shift 2;;
@@ -119,14 +121,17 @@ DB_PASS="$(envget DB_PASSWORD)"; [ -n "$DB_PASS" ] || DB_PASS="$(openssl rand -h
 CONTROLLER_KEY="$(keep HORSE_CONTROLLER_KEY)"; CLIENTS_KEY="$(keep HORSE_CLIENTS_KEY)"
 if [ -n "$DOMAIN" ]; then URL="https://$DOMAIN"; else URL="http://$(curl -fsS https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"; fi
 
-envset APP_NAME '"Horse Race"'; envset APP_ENV production; envset APP_DEBUG false; envset APP_URL "$URL"
+[ "$MODE" = demo ] && STAGING=1
+APP_ENVIRONMENT=production; [ "$STAGING" -eq 1 ] && APP_ENVIRONMENT=staging
+envset APP_NAME '"Horse Race"'; envset APP_ENV "$APP_ENVIRONMENT"; envset APP_DEBUG false; envset APP_URL "$URL"
 envset LOG_LEVEL warning
 envset DB_CONNECTION pgsql; envset DB_HOST 127.0.0.1; envset DB_PORT 5432; envset DB_DATABASE "$DB_NAME"; envset DB_USERNAME "$DB_USER"; envset DB_PASSWORD "$DB_PASS"
 envset SESSION_DRIVER database; envset QUEUE_CONNECTION database
 envset CACHE_STORE "$([ "$HAVE_REDIS" -eq 1 ] && echo redis || echo database)"; envset REDIS_CLIENT phpredis; envset REDIS_HOST 127.0.0.1; envset REDIS_PORT 6379
 envset HORSE_CONTROLLER_KEY "$CONTROLLER_KEY"; envset HORSE_CLIENTS_KEY "$CLIENTS_KEY"
 envset HORSE_COOKIE_SECURE "$([ -n "$DOMAIN" ] && echo true || echo false)"; envset HORSE_TRUST_PROXY "$([ "$CLOUDFLARE" -eq 1 ] && echo false || echo true)"
-if [ "$MODE" = demo ]; then envset HORSE_WALLET mock; envset HORSE_ALLOW_MOCK_WALLET true; else envset HORSE_WALLET none; fi
+if [ "$MODE" = demo ]; then envset HORSE_WALLET mock; else envset HORSE_WALLET none; fi
+if [ "$STAGING" -eq 1 ]; then envset HORSE_ALLOW_MOCK_WALLET true; fi          # play-money clients are only accepted outside production
 if ! grep -qE '^APP_KEY=.+' .env; then php artisan key:generate --force --quiet; fi
 
 # ---------- PostgreSQL ----------
@@ -272,7 +277,8 @@ curl -fsS -o /dev/null -w "healthz: HTTP %{http_code}\n" http://127.0.0.1/health
 cat <<DONE
 
 Done. Site: $URL
-Mode:      $MODE
+Mode:      $MODE ($APP_ENVIRONMENT)
+$([ "$STAGING" -eq 1 ] && echo "STAGING: play money is allowed here. Never connect real platforms or real players to this server.")
 App:       $APP_DIR
 Console:   $URL/admin  (open to every address; staff login, turn on 2-step sign-in under Security)
 Key-only paths (/controller, /metrics, /api/command, /api/report, /api/clients): $([ "$OPEN_CONTROLLER" -eq 1 ] && echo "open to every address, protected by the controller key only" || { [ ${#OPERATOR_IPS[@]} -gt 0 ] && echo "only from ${OPERATOR_IPS[*]}" || echo "blocked from the internet (use /admin)"; })
