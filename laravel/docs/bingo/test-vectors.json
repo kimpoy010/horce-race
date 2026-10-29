@@ -1,0 +1,2210 @@
+{
+ "about": "Known-answer vectors for Bingo Pinball, made by docs/bingo/verify_play.py --make-vectors. Never edited by hand.",
+ "vectors": [
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "player-seed_01",
+   "nonce": 1,
+   "holes": [
+    8,
+    14,
+    19,
+    20,
+    22
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 4,
+     "bestLineIndex": 4,
+     "multiple": 5,
+     "payout": 5000
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 0,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "A",
+   "nonce": 2,
+   "holes": [
+    18,
+    17,
+    6,
+    21,
+    10
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 9,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 0,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "nonce": 3,
+   "holes": [
+    12,
+    7,
+    3,
+    2,
+    17
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 2,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "lucky_horse",
+   "nonce": 17,
+   "holes": [
+    3,
+    5,
+    19,
+    16,
+    1
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "7f3c9a1e",
+   "nonce": 1000,
+   "holes": [
+    6,
+    18,
+    13,
+    15,
+    16
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "lucky_horse",
+   "nonce": 1001,
+   "holes": [
+    18,
+    8,
+    1,
+    23,
+    4
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 0,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 6,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 6,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "c66935ca5487f9284813669e8f4a3aeecbbe711f593fa59fe315da716e4b9cbd",
+   "commit": "e2c1d27f6164e932936dca1b2fcfe5a105c7bac89b1b1d85902e8568ef2474db",
+   "clientSeed": "A",
+   "nonce": 1,
+   "holes": [
+    11,
+    24,
+    25,
+    23,
+    17
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 3,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 3,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 5,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 2,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "c66935ca5487f9284813669e8f4a3aeecbbe711f593fa59fe315da716e4b9cbd",
+   "commit": "e2c1d27f6164e932936dca1b2fcfe5a105c7bac89b1b1d85902e8568ef2474db",
+   "clientSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "nonce": 2,
+   "holes": [
+    20,
+    5,
+    9,
+    3,
+    15
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "c66935ca5487f9284813669e8f4a3aeecbbe711f593fa59fe315da716e4b9cbd",
+   "commit": "e2c1d27f6164e932936dca1b2fcfe5a105c7bac89b1b1d85902e8568ef2474db",
+   "clientSeed": "7f3c9a1e",
+   "nonce": 3,
+   "holes": [
+    1,
+    23,
+    8,
+    24,
+    9
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 8,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 4,
+     "bestLineIndex": 8,
+     "multiple": 5,
+     "payout": 5000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "c66935ca5487f9284813669e8f4a3aeecbbe711f593fa59fe315da716e4b9cbd",
+   "commit": "e2c1d27f6164e932936dca1b2fcfe5a105c7bac89b1b1d85902e8568ef2474db",
+   "clientSeed": "demo",
+   "nonce": 17,
+   "holes": [
+    10,
+    16,
+    7,
+    22,
+    13
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 5,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "c66935ca5487f9284813669e8f4a3aeecbbe711f593fa59fe315da716e4b9cbd",
+   "commit": "e2c1d27f6164e932936dca1b2fcfe5a105c7bac89b1b1d85902e8568ef2474db",
+   "clientSeed": "lucky_horse",
+   "nonce": 1000,
+   "holes": [
+    3,
+    7,
+    1,
+    8,
+    17
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 2,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "c66935ca5487f9284813669e8f4a3aeecbbe711f593fa59fe315da716e4b9cbd",
+   "commit": "e2c1d27f6164e932936dca1b2fcfe5a105c7bac89b1b1d85902e8568ef2474db",
+   "clientSeed": "demo",
+   "nonce": 1001,
+   "holes": [
+    14,
+    22,
+    24,
+    19,
+    18
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 7,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "7b962d331bb2c6d4d0a7adfc7236a4b7449426fa0f6c313e2a53d4f0f5ec1715",
+   "commit": "9edebc7cb822044e50b4717aba83cf2ef0ed5020aaf9d63c93fad03cb51d415f",
+   "clientSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "nonce": 1,
+   "holes": [
+    5,
+    20,
+    14,
+    15,
+    22
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "7b962d331bb2c6d4d0a7adfc7236a4b7449426fa0f6c313e2a53d4f0f5ec1715",
+   "commit": "9edebc7cb822044e50b4717aba83cf2ef0ed5020aaf9d63c93fad03cb51d415f",
+   "clientSeed": "7f3c9a1e",
+   "nonce": 2,
+   "holes": [
+    19,
+    2,
+    17,
+    6,
+    11
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 7,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "7b962d331bb2c6d4d0a7adfc7236a4b7449426fa0f6c313e2a53d4f0f5ec1715",
+   "commit": "9edebc7cb822044e50b4717aba83cf2ef0ed5020aaf9d63c93fad03cb51d415f",
+   "clientSeed": "lucky_horse",
+   "nonce": 3,
+   "holes": [
+    6,
+    10,
+    1,
+    20,
+    21
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 10,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 4,
+     "bestLineIndex": 0,
+     "multiple": 5,
+     "payout": 5000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "7b962d331bb2c6d4d0a7adfc7236a4b7449426fa0f6c313e2a53d4f0f5ec1715",
+   "commit": "9edebc7cb822044e50b4717aba83cf2ef0ed5020aaf9d63c93fad03cb51d415f",
+   "clientSeed": "player-seed_01",
+   "nonce": 17,
+   "holes": [
+    5,
+    22,
+    19,
+    15,
+    7
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "7b962d331bb2c6d4d0a7adfc7236a4b7449426fa0f6c313e2a53d4f0f5ec1715",
+   "commit": "9edebc7cb822044e50b4717aba83cf2ef0ed5020aaf9d63c93fad03cb51d415f",
+   "clientSeed": "demo",
+   "nonce": 1000,
+   "holes": [
+    15,
+    9,
+    1,
+    2,
+    11
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 6,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 4,
+     "bestLineIndex": 6,
+     "multiple": 4,
+     "payout": 4000
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 3,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "7b962d331bb2c6d4d0a7adfc7236a4b7449426fa0f6c313e2a53d4f0f5ec1715",
+   "commit": "9edebc7cb822044e50b4717aba83cf2ef0ed5020aaf9d63c93fad03cb51d415f",
+   "clientSeed": "player-seed_01",
+   "nonce": 1001,
+   "holes": [
+    13,
+    24,
+    2,
+    25,
+    7
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 8,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 5,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "31b331a719dff5a1c9a4985c856e5e20294ae30062b8673b2b72af8e239e2411",
+   "commit": "49519b43d5576c47c7b66e3f29f7bbc85ac5835b7387fad1be030b5bac211dcc",
+   "clientSeed": "7f3c9a1e",
+   "nonce": 1,
+   "holes": [
+    17,
+    19,
+    14,
+    20,
+    5
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "31b331a719dff5a1c9a4985c856e5e20294ae30062b8673b2b72af8e239e2411",
+   "commit": "49519b43d5576c47c7b66e3f29f7bbc85ac5835b7387fad1be030b5bac211dcc",
+   "clientSeed": "lucky_horse",
+   "nonce": 2,
+   "holes": [
+    6,
+    14,
+    18,
+    16,
+    11
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 2,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "31b331a719dff5a1c9a4985c856e5e20294ae30062b8673b2b72af8e239e2411",
+   "commit": "49519b43d5576c47c7b66e3f29f7bbc85ac5835b7387fad1be030b5bac211dcc",
+   "clientSeed": "demo",
+   "nonce": 3,
+   "holes": [
+    22,
+    1,
+    6,
+    25,
+    2
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 7,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 6,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "31b331a719dff5a1c9a4985c856e5e20294ae30062b8673b2b72af8e239e2411",
+   "commit": "49519b43d5576c47c7b66e3f29f7bbc85ac5835b7387fad1be030b5bac211dcc",
+   "clientSeed": "A",
+   "nonce": 17,
+   "holes": [
+    3,
+    24,
+    1,
+    10,
+    18
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "31b331a719dff5a1c9a4985c856e5e20294ae30062b8673b2b72af8e239e2411",
+   "commit": "49519b43d5576c47c7b66e3f29f7bbc85ac5835b7387fad1be030b5bac211dcc",
+   "clientSeed": "player-seed_01",
+   "nonce": 1000,
+   "holes": [
+    5,
+    17,
+    18,
+    6,
+    16
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 9,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "31b331a719dff5a1c9a4985c856e5e20294ae30062b8673b2b72af8e239e2411",
+   "commit": "49519b43d5576c47c7b66e3f29f7bbc85ac5835b7387fad1be030b5bac211dcc",
+   "clientSeed": "A",
+   "nonce": 1001,
+   "holes": [
+    19,
+    22,
+    7,
+    8,
+    18
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "d417a878dcc662e68866fd826b7f514ade1398720e4db4d00edabd7cdbc5b360",
+   "commit": "2783e6a165b397a63c5d7742f0f0cefce49fddbdb3d6f63f83aaf7f15fbe509f",
+   "clientSeed": "lucky_horse",
+   "nonce": 1,
+   "holes": [
+    13,
+    16,
+    3,
+    1,
+    22
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 8,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "d417a878dcc662e68866fd826b7f514ade1398720e4db4d00edabd7cdbc5b360",
+   "commit": "2783e6a165b397a63c5d7742f0f0cefce49fddbdb3d6f63f83aaf7f15fbe509f",
+   "clientSeed": "demo",
+   "nonce": 2,
+   "holes": [
+    19,
+    21,
+    14,
+    20,
+    10
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 0,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 0,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "d417a878dcc662e68866fd826b7f514ade1398720e4db4d00edabd7cdbc5b360",
+   "commit": "2783e6a165b397a63c5d7742f0f0cefce49fddbdb3d6f63f83aaf7f15fbe509f",
+   "clientSeed": "player-seed_01",
+   "nonce": 3,
+   "holes": [
+    20,
+    13,
+    6,
+    12,
+    11
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 4,
+     "bestLineIndex": 5,
+     "multiple": 3,
+     "payout": 3000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 3,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "d417a878dcc662e68866fd826b7f514ade1398720e4db4d00edabd7cdbc5b360",
+   "commit": "2783e6a165b397a63c5d7742f0f0cefce49fddbdb3d6f63f83aaf7f15fbe509f",
+   "clientSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "nonce": 17,
+   "holes": [
+    19,
+    8,
+    12,
+    9,
+    22
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "d417a878dcc662e68866fd826b7f514ade1398720e4db4d00edabd7cdbc5b360",
+   "commit": "2783e6a165b397a63c5d7742f0f0cefce49fddbdb3d6f63f83aaf7f15fbe509f",
+   "clientSeed": "A",
+   "nonce": 1000,
+   "holes": [
+    11,
+    20,
+    18,
+    24,
+    17
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "d417a878dcc662e68866fd826b7f514ade1398720e4db4d00edabd7cdbc5b360",
+   "commit": "2783e6a165b397a63c5d7742f0f0cefce49fddbdb3d6f63f83aaf7f15fbe509f",
+   "clientSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "nonce": 1001,
+   "holes": [
+    8,
+    4,
+    25,
+    20,
+    15
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 0,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "273dddce26950e2e3c8f6cfe07eccf2e07414be0a062576d52672c70991b84d2",
+   "commit": "16a66be270b60256f97a83d9097d391bb0ea06bda2a664868f5c34c1a2ff7cf9",
+   "clientSeed": "demo",
+   "nonce": 1,
+   "holes": [
+    8,
+    10,
+    4,
+    17,
+    1
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 8,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "273dddce26950e2e3c8f6cfe07eccf2e07414be0a062576d52672c70991b84d2",
+   "commit": "16a66be270b60256f97a83d9097d391bb0ea06bda2a664868f5c34c1a2ff7cf9",
+   "clientSeed": "player-seed_01",
+   "nonce": 2,
+   "holes": [
+    7,
+    15,
+    5,
+    22,
+    6
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 7,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "273dddce26950e2e3c8f6cfe07eccf2e07414be0a062576d52672c70991b84d2",
+   "commit": "16a66be270b60256f97a83d9097d391bb0ea06bda2a664868f5c34c1a2ff7cf9",
+   "clientSeed": "A",
+   "nonce": 3,
+   "holes": [
+    15,
+    18,
+    14,
+    21,
+    5
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 9,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "273dddce26950e2e3c8f6cfe07eccf2e07414be0a062576d52672c70991b84d2",
+   "commit": "16a66be270b60256f97a83d9097d391bb0ea06bda2a664868f5c34c1a2ff7cf9",
+   "clientSeed": "7f3c9a1e",
+   "nonce": 17,
+   "holes": [
+    19,
+    5,
+    2,
+    6,
+    20
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "273dddce26950e2e3c8f6cfe07eccf2e07414be0a062576d52672c70991b84d2",
+   "commit": "16a66be270b60256f97a83d9097d391bb0ea06bda2a664868f5c34c1a2ff7cf9",
+   "clientSeed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "nonce": 1000,
+   "holes": [
+    15,
+    21,
+    25,
+    10,
+    13
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "273dddce26950e2e3c8f6cfe07eccf2e07414be0a062576d52672c70991b84d2",
+   "commit": "16a66be270b60256f97a83d9097d391bb0ea06bda2a664868f5c34c1a2ff7cf9",
+   "clientSeed": "7f3c9a1e",
+   "nonce": 1001,
+   "holes": [
+    17,
+    25,
+    5,
+    8,
+    18
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 9,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 1,
+   "holes": [
+    20,
+    24,
+    23,
+    7,
+    3
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 8,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 5,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 184,
+   "holes": [
+    25,
+    24,
+    15,
+    21,
+    8
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 4,
+     "bestLineIndex": 11,
+     "multiple": 3,
+     "payout": 3000
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 3,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 1386,
+   "holes": [
+    21,
+    1,
+    4,
+    7,
+    12
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 5,
+     "bestLineIndex": 0,
+     "multiple": 75,
+     "payout": 75000
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 0,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 3,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 10,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 95,
+   "holes": [
+    5,
+    6,
+    21,
+    18,
+    17
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 9,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 4,
+     "bestLineIndex": 7,
+     "multiple": 4,
+     "payout": 4000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 507,
+   "holes": [
+    20,
+    10,
+    2,
+    4,
+    14
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 5,
+     "bestLineIndex": 9,
+     "multiple": 60,
+     "payout": 60000
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 5,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 20,
+   "holes": [
+    15,
+    17,
+    21,
+    8,
+    5
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 7,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 4,
+     "bestLineIndex": 9,
+     "multiple": 5,
+     "payout": 5000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 8,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 3495,
+   "holes": [
+    10,
+    6,
+    12,
+    25,
+    7
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 5,
+     "bestLineIndex": 6,
+     "multiple": 50,
+     "payout": 50000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 4,
+     "bestLineIndex": 3,
+     "multiple": 6,
+     "payout": 6000
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 3,
+   "holes": [
+    1,
+    21,
+    15,
+    20,
+    25
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 3,
+     "bestLineIndex": 11,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 0,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 4,
+   "holes": [
+    13,
+    8,
+    1,
+    16,
+    5
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 9,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 4,
+     "bestLineIndex": 1,
+     "multiple": 5,
+     "payout": 5000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 5881,
+   "holes": [
+    5,
+    11,
+    1,
+    16,
+    13
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 8,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 5,
+     "bestLineIndex": 1,
+     "multiple": 150,
+     "payout": 150000
+    },
+    "96": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 2,
+   "holes": [
+    16,
+    2,
+    5,
+    18,
+    23
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 8,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 3,
+     "bestLineIndex": 2,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 2,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 3,
+     "bestLineIndex": 1,
+     "multiple": 2,
+     "payout": 2000
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 16,
+   "holes": [
+    20,
+    16,
+    15,
+    5,
+    18
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 4,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 3,
+     "bestLineIndex": 9,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 4,
+     "bestLineIndex": 1,
+     "multiple": 6,
+     "payout": 6000
+    }
+   }
+  },
+  {
+   "serverSeed": "ce8e3bd0b21cce7ba2977887850776b1a1048f3ccd37b3125ccba6f90da8cad0",
+   "commit": "0a5eea7e6dacd60a10a608b761a0ae62f0dd1b69347d5a3833cb87b5e9eac7ad",
+   "clientSeed": "vector-search",
+   "nonce": 9383,
+   "holes": [
+    6,
+    1,
+    8,
+    2,
+    18
+   ],
+   "versions": {
+    "88": {
+     "bestLit": 3,
+     "bestLineIndex": 6,
+     "multiple": 2,
+     "payout": 2000
+    },
+    "90": {
+     "bestLit": 2,
+     "bestLineIndex": 4,
+     "multiple": 0,
+     "payout": 0
+    },
+    "92": {
+     "bestLit": 2,
+     "bestLineIndex": 1,
+     "multiple": 0,
+     "payout": 0
+    },
+    "94": {
+     "bestLit": 2,
+     "bestLineIndex": 3,
+     "multiple": 0,
+     "payout": 0
+    },
+    "96": {
+     "bestLit": 5,
+     "bestLineIndex": 6,
+     "multiple": 150,
+     "payout": 150000
+    }
+   }
+  }
+ ]
+}
