@@ -217,6 +217,9 @@ final class ClientRegistry
             }
             $out['allowedIps'][] = (string) $e;
         }
+        if (isset($c['games']) && is_array($c['games'])) {                // the games this client plays; absent = the server's defaults (config/games.php), nothing is stored.
+            $out['games'] = array_values(array_filter($c['games'], 'is_string'));       // Not checked here: reading a client must never fail (a game this server no longer has is skipped by Games::enabledFor)
+        }
         $out['returnUrlHosts'] = array_map(fn ($h) => strtolower((string) $h), $c['returnUrlHosts'] ?? []);
         $out['apiKeys'] = array_map(fn ($k) => ['id' => (string) $k['id'], 'hash' => (string) $k['hash'], 'createdAt' => $k['createdAt'] ?? 0, 'expiresAt' => $k['expiresAt'] ?? null, 'lastUsedAt' => $k['lastUsedAt'] ?? null],
             is_array($c['apiKeys'] ?? null) ? $c['apiKeys'] : []);
@@ -355,8 +358,25 @@ final class ClientRegistry
     }
 
     /** creates a client and its first API key (returned once); the wallet secret is generated when not given and returned once */
+    /** an operator's list of games must be a list of games this server has, without repeats (checked when it is written, not when it is read) */
+    private static function checkGames(mixed $games): void
+    {
+        $known = array_keys((array) config('games.modules', []));
+        if (! is_array($games) || ! array_is_list($games) || ! $games || count(array_unique($games, SORT_REGULAR)) !== count($games)) {
+            throw self::fail('games must be a list of game ids without repeats, for example ["horse-race"]');
+        }
+        foreach ($games as $g) {
+            if (! is_string($g) || ! in_array($g, $known, true)) {
+                throw self::fail('games: unknown game "'.(is_string($g) ? $g : json_encode($g)).'" (this server has: '.implode(', ', $known).')');
+            }
+        }
+    }
+
     public function create(array $input): array
     {
+        if (array_key_exists('games', $input)) {
+            self::checkGames($input['games']);
+        }
         if (DB::table('clients')->where('id', $input['id'] ?? '')->exists()) {
             throw self::fail('a client with this id exists', 409, 'CLIENT_EXISTS');
         }
@@ -389,9 +409,12 @@ final class ClientRegistry
 
     public function update(string $id, array $patch): array
     {
+        if (array_key_exists('games', $patch)) {
+            self::checkGames($patch['games']);
+        }
         $cur = $this->need($id);
         $merged = $cur;
-        foreach (['name', 'status', 'currency', 'realityCheckMinutes', 'bigWinMin', 'allowedIps', 'returnUrlHosts', 'limits', 'currencyLimits', 'webhook'] as $k) {
+        foreach (['name', 'status', 'currency', 'realityCheckMinutes', 'bigWinMin', 'allowedIps', 'returnUrlHosts', 'limits', 'currencyLimits', 'webhook', 'games'] as $k) {
             if (array_key_exists($k, $patch)) {
                 $merged[$k] = $patch[$k];
             }

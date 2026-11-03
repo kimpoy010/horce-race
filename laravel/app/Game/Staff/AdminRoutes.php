@@ -123,7 +123,7 @@ final class AdminRoutes
                 }
                 if (! $act && $method === 'POST') {
                     $need('admin');
-                    $patch = self::pick($body['client'] ?? $body, ['name', 'currency', 'limits', 'currencyLimits', 'realityCheckMinutes', 'bigWinMin', 'allowedIps', 'returnUrlHosts', 'wallet', 'webhook']);
+                    $patch = self::pick($body['client'] ?? $body, ['name', 'currency', 'limits', 'currencyLimits', 'realityCheckMinutes', 'bigWinMin', 'allowedIps', 'returnUrlHosts', 'wallet', 'webhook', 'games']);
                     if (isset($patch['wallet']) && empty($patch['wallet']['secret'])) {
                         unset($patch['wallet']['secret']);                                      // an empty secret field means "keep it"
                     }

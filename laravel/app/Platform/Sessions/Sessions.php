@@ -20,8 +20,9 @@ final class Sessions
     /**
      * @param  Closure(): int  $now  the clock in milliseconds
      * @param  Closure(array): void  $log  writes a line to the ledger
+     * @param  Closure(array, string): bool|null  $gameEnabled  whether a client (its registry entry) may play a game; asked for every game except the horse race
      */
-    public function __construct(private Closure $now, private Closure $log, private array $cfg, private ClientDirectory $clients, private WalletGateway $gateway, private Limits $limits) {}
+    public function __construct(private Closure $now, private Closure $log, private array $cfg, private ClientDirectory $clients, private WalletGateway $gateway, private Limits $limits, private ?Closure $gameEnabled = null) {}
 
     private function now(): int
     {
@@ -42,6 +43,9 @@ final class Sessions
         $wallet = $this->clients->walletFor($clientId);
         if (! $wallet) {
             throw new GameError(400, 'INVALID_CLIENT');
+        }
+        if ($gameId !== 'horse-race' && $this->gameEnabled && ! ($this->gameEnabled)($client, $gameId)) {          // a new game ships switched off: before the launch token is used up
+            throw new GameError(403, 'GAME_NOT_ENABLED');
         }
         try {
             $info = $this->gateway->call(fn () => $wallet->validateToken($token), 'validate', $clientId);

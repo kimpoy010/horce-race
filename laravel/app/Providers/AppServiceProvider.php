@@ -11,6 +11,7 @@ use App\Game\Staff\AdminRoutes;
 use App\Game\Staff\BackOffice;
 use App\Game\Staff\UserStore;
 use App\Game\Ledger;
+use App\Platform\Games\Games;
 use App\Game\Wallet\HttpWallet;
 use App\Game\Wallet\MockWallet;
 use App\Game\Wallet\Wallet;
@@ -68,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
             AdminRoutes::make($app->make(ClientRegistry::class), $app->make(UserStore::class), fn () => $app->make('horse.backoffice'), $app->make(House::class))));
         $this->app->singleton(House::class, fn ($app) => new House($app->make(Engine::class), (array) config('horse.argon')));
         $this->app->singleton(PlayerApi::class, fn ($app) => new PlayerApi($app->make(House::class), $app->make(Engine::class), (bool) $secure()));
+        $this->app->singleton(Games::class, fn ($app) => new Games($app, (array) config('games')));
         $this->app->singleton(AlertManager::class, fn ($app) => new AlertManager($app->make(Engine::class), (array) config('horse.alerts'), config('horse.alert_webhook_url')));
         $this->app->singleton(Ledger::class);
         $this->app->singleton(Engine::class, fn ($app) => new Engine($app->make('horse.default_wallet'), $app->make(Ledger::class), config('horse'), null, $app->make(ClientRegistry::class), $app->make('horse.default_webhook')));
