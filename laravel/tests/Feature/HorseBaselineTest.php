@@ -13,6 +13,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Tests\Support\DeterministicRandom;
 use Tests\Support\RecordingWallet;
 use Tests\TestCase;
@@ -37,6 +38,8 @@ class HorseBaselineTest extends TestCase
     private const PLATFORM_CLIENT = __DIR__.'/../golden/horse-platform-client.json';
 
     private const PAYOUTS = __DIR__.'/../golden/horse-odds-and-payouts.json';
+
+    private const FAILURES = __DIR__.'/../golden/horse-failure-paths.json';
 
     private const T0 = 1_800_000_000_000;
 
@@ -95,6 +98,32 @@ class HorseBaselineTest extends TestCase
     {
         $this->t += $ms;
         $engine->tick();
+    }
+
+    /**
+     * The state the game leaves in its tables (the refactoring of Phase 1 must not change it). Columns added later for other games (game_id, round_ref) are left out
+     * on purpose; JSON columns are decoded and numbers from PostgreSQL's decimal type are made numbers, so SQLite and PostgreSQL give the same recording.
+     */
+    private function db(array $tables = ['rounds' => 'race_no', 'bets' => 'id', 'game_sessions' => 'key', 'pending_ops' => 'tx_id']): array
+    {
+        $out = [];
+        foreach ($tables as $table => $order) {
+            $cols = array_values(array_diff(Schema::getColumnListing($table), ['game_id', 'round_ref']));
+            $out[$table] = DB::table($table)->orderBy($order)->get($cols)->map(function ($row) {
+                $r = (array) $row;
+                foreach ($r as $k => $v) {
+                    if (in_array($k, ['odds', 'order', 'limits', 'extra'], true) && is_string($v)) {
+                        $r[$k] = json_decode($v, true);
+                    } elseif (is_string($v) && is_numeric($v)) {
+                        $r[$k] = $v + 0;
+                    }
+                }
+
+                return $r;
+            })->all();
+        }
+
+        return $out;
     }
 
     private function ledgerLines(): array
@@ -179,7 +208,7 @@ class HorseBaselineTest extends TestCase
         $this->hit('report', 'GET', '/api/report', null, ['X-Controller-Key' => 'golden-controller-key']);
 
         return ['api' => $this->api, 'wallet' => $wallet->calls, 'webhooks' => $this->sent(['hook.default.test']), 'ledger' => $this->ledgerLines(), 'metrics' => $this->metricNames(),
-            'pending' => ['credits' => DB::table('pending_ops')->where('kind', 'credit')->count(), 'rollbacks' => DB::table('pending_ops')->where('kind', 'rollback')->count()]];
+            'pending' => ['credits' => DB::table('pending_ops')->where('kind', 'credit')->count(), 'rollbacks' => DB::table('pending_ops')->where('kind', 'rollback')->count()], 'db' => $this->db()];
     }
 
     /* ---------- scenario B: a platform client with an HTTP wallet, a webhook, a lost debit answer, the client API ---------- */
@@ -189,11 +218,12 @@ class HorseBaselineTest extends TestCase
         $this->api = [];
         $balance = 100000;
         $lose = 0;                                                                                            // number of debit answers to lose
-        Http::fake(function (Request $req) use (&$balance, &$lose) {
+        $hookDown = false;                                                                                    // the platform's webhook endpoint answers 500
+        Http::fake(function (Request $req) use (&$balance, &$lose, &$hookDown) {
             $path = parse_url($req->url(), PHP_URL_PATH);
             $b = json_decode($req->body(), true) ?: [];
             if (str_starts_with((string) parse_url($req->url(), PHP_URL_HOST), 'hook.')) {
-                return Http::response('ok', 200);
+                return $hookDown ? Http::response('', 500) : Http::response('ok', 200);
             }
             switch ($path) {
                 case '/api/session/validate':
@@ -242,8 +272,108 @@ class HorseBaselineTest extends TestCase
         $this->hit('client: unblock player', 'POST', '/api/client/players/unblock', ['playerId' => 'p-77'], $key);
         $this->hit('round 1 proof', 'GET', '/api/round/1');
 
+        // race 2: the platform's webhook endpoint is down when it settles, and the client removes its webhook before the retry: the event is dropped
+        $this->advance(10000, $engine);
+        $hookDown = true;
+        $this->hit('bet 3 (race 2)', 'POST', '/api/bet', ['bets' => array_map(fn ($c) => ['combo' => $c, 'stake' => 200], Odds::combos())], $this->bearer($s));
+        $this->advance(25000, $engine);
+        $this->advance(36000, $engine);
+        $this->hit('client info while the webhook is failing', 'GET', '/api/client/info', null, $key);
+        $reg->update('acme', ['webhook' => null]);
+        $this->advance(70000, $engine);
+        $this->hit('client report after the webhook was removed', 'GET', '/api/client/report', null, $key);
+
         return ['api' => $this->api, 'platformRequests' => $this->sent(['wallet.acme.test', 'hook.acme.test']), 'ledger' => $this->ledgerLines(), 'metrics' => $this->metricNames(),
-            'pending' => ['credits' => DB::table('pending_ops')->where('kind', 'credit')->count(), 'rollbacks' => DB::table('pending_ops')->where('kind', 'rollback')->count()]];
+            'pending' => ['credits' => DB::table('pending_ops')->where('kind', 'credit')->count(), 'rollbacks' => DB::table('pending_ops')->where('kind', 'rollback')->count()], 'db' => $this->db()];
+    }
+
+    /* ---------- scenario C: the failure paths of the default client (refusals, lost answers, retries with back-off, limits, expiry) ---------- */
+
+    private function scenarioFailurePaths(): array
+    {
+        $this->api = [];
+        config(['horse.daily_loss_limit' => 2500, 'horse.mock_start_balance' => 5000, 'horse.session_ttl_ms' => 3600000]);
+        Http::fake(['https://hook.flaky.test/*' => Http::sequence()->push('', 500)->push('', 503)->push('ok', 200)->whenEmpty(Http::response('ok', 200))]);
+        $wallet = new RecordingWallet(new MockWallet(5000, 'PHP'));
+        $hook = new Webhook('https://hook.flaky.test/events', 'flaky-webhook-secret-0123456789', 'fk1', 'round.settled,big.win');
+        $engine = new Engine($wallet, new Ledger, config('horse'), fn () => $this->t, null, $hook);
+        $this->app->instance(Engine::class, $engine);
+        $pending = [];
+        $snap = function (string $label) use (&$pending) {
+            $pending[] = ['at' => $label, 'ops' => $this->db(['pending_ops' => 'tx_id'])['pending_ops']];
+        };
+
+        DB::table('mock_accounts')->insert(['player_id' => 'dan', 'balance' => 2000]);                          // dan has a small wallet: below his daily limit
+        $engine->tick();
+        $carol = $this->hit('auth carol', 'POST', '/api/auth', ['token' => 'demo-carol'])['session'];
+        $dan = $this->hit('auth dan', 'POST', '/api/auth', ['token' => 'demo-dan'])['session'];
+        $this->hit('bet carol 1000', 'POST', '/api/bet', ['bets' => [['combo' => '1-2', 'stake' => 1000]]], $this->bearer($carol));
+        $this->hit('bet refused: not enough balance', 'POST', '/api/bet', ['bets' => [['combo' => '3-4', 'stake' => 2400]]], $this->bearer($dan));
+        $this->hit('bet refused: daily loss limit', 'POST', '/api/bet', ['bets' => [['combo' => '3-4', 'stake' => 1600]]], $this->bearer($carol));
+        $this->hit('bet carol: exactly up to the daily loss limit', 'POST', '/api/bet', ['bets' => [['combo' => '3-4', 'stake' => 1500]]], $this->bearer($carol));
+        $this->hit('bet refused: one centavo-step over the daily loss limit', 'POST', '/api/bet', ['bets' => [['combo' => '5-6', 'stake' => 100]]], $this->bearer($carol));
+        $this->hit('bet refused: more than the maximum on one combination', 'POST', '/api/bet', ['bets' => [['combo' => '5-6', 'stake' => 100001]]], $this->bearer($dan));
+        $this->hit('bet refused: not a list', 'POST', '/api/bet', ['bets' => ['combo' => '1-2', 'stake' => 500]], $this->bearer($dan));
+        $this->hit('bet refused: empty', 'POST', '/api/bet', ['bets' => []], $this->bearer($dan));
+
+        $wallet->refuseDebits = 1;                                                                           // the platform says no
+        $this->hit('bet refused: the wallet rejects it', 'POST', '/api/bet', ['bets' => [['combo' => '2-3', 'stake' => 300]]], $this->bearer($dan));
+        $wallet->loseDebitAnswers = 2;                                                                       // applied, answer lost twice: outcome unknown, rollback queued
+        $this->hit('bet refused: the debit answer is lost', 'POST', '/api/bet', ['bets' => [['combo' => '2-3', 'stake' => 400]]], $this->bearer($dan));
+        $snap('after the lost debit answer');
+        $wallet->unsupportedRollbacks = 1;                                                                   // the platform has no rollback call
+        $this->advance(1000, $engine);
+        $snap('after the rollback was refused as unsupported');
+        $this->hit('me dan', 'GET', '/api/me', null, $this->bearer($dan));
+
+        $wallet->loseDebitAnswers = 2;
+        $this->hit('bet refused: another lost answer', 'POST', '/api/bet', ['bets' => [['combo' => '1-3', 'stake' => 250]]], $this->bearer($dan));
+        $this->advance(1000, $engine);                                                                       // this time the rollback is delivered
+        $snap('after the rollback was delivered');
+
+        $this->hit('bet dan: every combination', 'POST', '/api/bet', ['bets' => array_map(fn ($c) => ['combo' => $c, 'stake' => 100], Odds::combos())], $this->bearer($dan));
+        $wallet->failCredits = 2;                                                                            // the win cannot be credited twice: retried with back-off
+        $this->advance(24000, $engine);                                                                      // betting closes (t = 26 s): the race is drawn
+        $this->advance(36000, $engine);                                                                      // settled; the first credit attempt fails
+        $snap('settled: credit failed once, webhook failed once');
+        foreach ([1000, 1000, 2000, 4000, 8000] as $wait) {                                                  // due times: +2 s, +4 s ...
+            $this->advance($wait, $engine);
+            $snap('retry after +'.$wait.' ms');
+        }
+        $this->hit('me dan after the win', 'GET', '/api/me', null, $this->bearer($dan));
+        $this->hit('history dan', 'GET', '/api/history', null, $this->bearer($dan));
+        $this->hit('report', 'GET', '/api/report', null, ['X-Controller-Key' => 'golden-controller-key']);
+
+        $this->t += 3600000 + 1;                                                                             // the sessions expire; no tick has removed them yet
+        $this->hit('me carol: session expired, found by the request', 'GET', '/api/me', null, $this->bearer($carol));
+        $this->hit('bet refused: session expired, found by the request', 'POST', '/api/bet', ['bets' => [['combo' => '1-2', 'stake' => 1000]]], $this->bearer($dan));
+        $engine->tick();                                                                                      // the round loop clears the rest
+        $this->hit('me dan: session expired', 'GET', '/api/me', null, $this->bearer($dan));
+        $snap('after the sessions expired');
+
+        // (d) the whole back-off schedule of a credit the platform never answers: 2 s, 4 s, 8 s ... up to the cap
+        $ref = new \ReflectionMethod($engine, 'queueCredit');
+        $ref->setAccessible(true);
+        $wallet->failCredits = 12;
+        $ref->invoke($engine, 'win:99:ellen', 'ellen', 1234, 99, 'win', ['betIds' => ['x:1-2'], 'currency' => 'PHP', 'brandId' => null]);
+        $schedule = [];
+        for ($i = 0; $i < 11; $i++) {
+            $row = DB::table('pending_ops')->where('tx_id', 'win:99:ellen')->first();
+            if (! $row) {
+                break;
+            }
+            $this->t = max($this->t, (int) $row->next_at);
+            $engine->tick();
+            $row = DB::table('pending_ops')->where('tx_id', 'win:99:ellen')->first();
+            $schedule[] = $row ? ['tries' => (int) $row->tries, 'waitMs' => (int) $row->next_at - $this->t] : 'delivered';
+            if (! $row) {
+                break;
+            }
+        }
+        $pending[] = ['backoffSchedule' => $schedule];
+
+        return ['api' => $this->api, 'wallet' => $wallet->calls, 'webhooks' => $this->sent(['hook.flaky.test']), 'pendingOverTime' => $pending, 'ledger' => $this->ledgerLines(),
+            'db' => $this->db(['rounds' => 'race_no', 'bets' => 'id', 'game_sessions' => 'key', 'pending_ops' => 'tx_id'])];
     }
 
     /* ---------- the comparison ---------- */
@@ -262,6 +392,11 @@ class HorseBaselineTest extends TestCase
     public function test_the_default_client_still_behaves_exactly_as_recorded(): void
     {
         $this->compare(self::DEFAULT_CLIENT, $this->scenarioDefaultClient());
+    }
+
+    public function test_the_failure_paths_still_behave_exactly_as_recorded(): void
+    {
+        $this->compare(self::FAILURES, $this->scenarioFailurePaths());
     }
 
     public function test_a_platform_client_with_an_http_wallet_still_behaves_exactly_as_recorded(): void
@@ -306,7 +441,10 @@ class HorseBaselineTest extends TestCase
         $this->assertGreaterThan(15, count($a['api']));
         $this->assertContains('horse_up gauge', $a['metrics']);
         $paths = array_column($b['platformRequests'], 'path');
-        $this->assertSame(['big.win', 'round.settled'], collect($b['platformRequests'])->where('path', '/events')->map(fn ($r) => json_decode($r['body'], true)['type'])->sort()->values()->all());
+        $hooks = collect($b['platformRequests'])->where('path', '/events');
+        $this->assertEqualsCanonicalizing(['big.win', 'round.settled'], $hooks->where('status', 200)->map(fn ($r) => json_decode($r['body'], true)['type'])->values()->all(), 'the events of race 1 were delivered');
+        $this->assertSame(500, $hooks->last()['status'], 'the webhook of race 2 failed once and was then dropped');
+        $this->assertContains('webhook_dropped', array_map(fn ($l) => json_decode($l, true)['e'], $b['ledger']));
         $this->assertSame(200, collect($b['api'])->firstWhere('label', 'client history')['status']);
         foreach (['/api/session/validate', '/api/wallet/debit', '/api/wallet/credit', '/api/wallet/rollback', '/events'] as $p) {
             $this->assertContains($p, $paths, "the platform is called on $p");

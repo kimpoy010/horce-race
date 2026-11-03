@@ -1,0 +1,2632 @@
+{
+    "about": "Recorded from the horse race as it ran in production. Do not edit by hand. See tests/Feature/HorseBaselineTest.php.",
+    "api": [
+        {
+            "label": "auth carol",
+            "request": {
+                "method": "POST",
+                "path": "/api/auth",
+                "body": {
+                    "token": "demo-carol"
+                }
+            },
+            "status": 200,
+            "answer": {
+                "ok": true,
+                "rules": {
+                    "combos": [
+                        "1-2",
+                        "1-3",
+                        "1-4",
+                        "1-5",
+                        "1-6",
+                        "2-3",
+                        "2-4",
+                        "2-5",
+                        "2-6",
+                        "3-4",
+                        "3-5",
+                        "3-6",
+                        "4-5",
+                        "4-6",
+                        "5-6"
+                    ],
+                    "oddsValues": [
+                        3,
+                        4,
+                        5,
+                        8,
+                        10,
+                        20,
+                        30,
+                        60,
+                        80,
+                        100,
+                        125,
+                        175,
+                        250,
+                        500,
+                        1000
+                    ],
+                    "shuffleOdds": true,
+                    "minBet": 100,
+                    "maxBet": 100000,
+                    "maxRoundStake": 500000,
+                    "currency": "PHP"
+                },
+                "session": "4975a444cfd365bab1daf3e581981d743eec065b480f8103",
+                "playerId": "carol",
+                "returnUrl": null,
+                "currency": "PHP",
+                "decimals": 2,
+                "balance": 5000,
+                "limits": {
+                    "minBet": 100,
+                    "maxBet": 100000,
+                    "maxRoundStake": 500000,
+                    "dailyLossLimit": 2500
+                },
+                "brandId": null,
+                "responsible": {
+                    "realityCheckMinutes": 0,
+                    "startedAt": 1800000000000,
+                    "staked": 0,
+                    "paid": 0,
+                    "dailyNetLoss": 0
+                }
+            }
+        },
+        {
+            "label": "auth dan",
+            "request": {
+                "method": "POST",
+                "path": "/api/auth",
+                "body": {
+                    "token": "demo-dan"
+                }
+            },
+            "status": 200,
+            "answer": {
+                "ok": true,
+                "rules": {
+                    "combos": [
+                        "1-2",
+                        "1-3",
+                        "1-4",
+                        "1-5",
+                        "1-6",
+                        "2-3",
+                        "2-4",
+                        "2-5",
+                        "2-6",
+                        "3-4",
+                        "3-5",
+                        "3-6",
+                        "4-5",
+                        "4-6",
+                        "5-6"
+                    ],
+                    "oddsValues": [
+                        3,
+                        4,
+                        5,
+                        8,
+                        10,
+                        20,
+                        30,
+                        60,
+                        80,
+                        100,
+                        125,
+                        175,
+                        250,
+                        500,
+                        1000
+                    ],
+                    "shuffleOdds": true,
+                    "minBet": 100,
+                    "maxBet": 100000,
+                    "maxRoundStake": 500000,
+                    "currency": "PHP"
+                },
+                "session": "286620240ec0451a0bea65522480dcd79992e96821f8254b",
+                "playerId": "dan",
+                "returnUrl": null,
+                "currency": "PHP",
+                "decimals": 2,
+                "balance": 2000,
+                "limits": {
+                    "minBet": 100,
+                    "maxBet": 100000,
+                    "maxRoundStake": 500000,
+                    "dailyLossLimit": 2500
+                },
+                "brandId": null,
+                "responsible": {
+                    "realityCheckMinutes": 0,
+                    "startedAt": 1800000000000,
+                    "staked": 0,
+                    "paid": 0,
+                    "dailyNetLoss": 0
+                }
+            }
+        },
+        {
+            "label": "bet carol 1000",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "1-2",
+                            "stake": 1000
+                        }
+                    ]
+                }
+            },
+            "status": 200,
+            "answer": {
+                "ok": true,
+                "bets": [
+                    {
+                        "id": "d35696cb68e51a8c:1-2",
+                        "raceNo": 1,
+                        "combo": "1-2",
+                        "stake": 1000,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 80
+                    }
+                ],
+                "balance": 4000
+            }
+        },
+        {
+            "label": "bet refused: not enough balance",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "3-4",
+                            "stake": 2400
+                        }
+                    ]
+                }
+            },
+            "status": 402,
+            "answer": {
+                "ok": false,
+                "error": "INSUFFICIENT_FUNDS"
+            }
+        },
+        {
+            "label": "bet refused: daily loss limit",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "3-4",
+                            "stake": 1600
+                        }
+                    ]
+                }
+            },
+            "status": 400,
+            "answer": {
+                "ok": false,
+                "error": "DAILY_LOSS_LIMIT"
+            }
+        },
+        {
+            "label": "bet carol: exactly up to the daily loss limit",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "3-4",
+                            "stake": 1500
+                        }
+                    ]
+                }
+            },
+            "status": 200,
+            "answer": {
+                "ok": true,
+                "bets": [
+                    {
+                        "id": "13cae9143060bd0c:3-4",
+                        "raceNo": 1,
+                        "combo": "3-4",
+                        "stake": 1500,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 60
+                    }
+                ],
+                "balance": 2500
+            }
+        },
+        {
+            "label": "bet refused: one centavo-step over the daily loss limit",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "5-6",
+                            "stake": 100
+                        }
+                    ]
+                }
+            },
+            "status": 400,
+            "answer": {
+                "ok": false,
+                "error": "DAILY_LOSS_LIMIT"
+            }
+        },
+        {
+            "label": "bet refused: more than the maximum on one combination",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "5-6",
+                            "stake": 100001
+                        }
+                    ]
+                }
+            },
+            "status": 400,
+            "answer": {
+                "ok": false,
+                "error": "BAD_BET"
+            }
+        },
+        {
+            "label": "bet refused: not a list",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": {
+                        "combo": "1-2",
+                        "stake": 500
+                    }
+                }
+            },
+            "status": 400,
+            "answer": {
+                "ok": false,
+                "error": "BAD_REQUEST"
+            }
+        },
+        {
+            "label": "bet refused: empty",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": []
+                }
+            },
+            "status": 400,
+            "answer": {
+                "ok": false,
+                "error": "BAD_REQUEST"
+            }
+        },
+        {
+            "label": "bet refused: the wallet rejects it",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "2-3",
+                            "stake": 300
+                        }
+                    ]
+                }
+            },
+            "status": 502,
+            "answer": {
+                "ok": false,
+                "error": "WALLET_REJECTED"
+            }
+        },
+        {
+            "label": "bet refused: the debit answer is lost",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "2-3",
+                            "stake": 400
+                        }
+                    ]
+                }
+            },
+            "status": 502,
+            "answer": {
+                "ok": false,
+                "error": "WALLET_UNAVAILABLE"
+            }
+        },
+        {
+            "label": "me dan",
+            "request": {
+                "method": "GET",
+                "path": "/api/me"
+            },
+            "status": 200,
+            "answer": {
+                "ok": true,
+                "playerId": "dan",
+                "returnUrl": null,
+                "raceNo": 1,
+                "bets": [],
+                "last": null,
+                "currency": "PHP",
+                "decimals": 2,
+                "balance": 2000,
+                "limits": {
+                    "minBet": 100,
+                    "maxBet": 100000,
+                    "maxRoundStake": 500000,
+                    "dailyLossLimit": 2500
+                },
+                "brandId": null,
+                "responsible": {
+                    "realityCheckMinutes": 0,
+                    "startedAt": 1800000000000,
+                    "staked": 0,
+                    "paid": 0,
+                    "dailyNetLoss": 0
+                }
+            }
+        },
+        {
+            "label": "bet refused: another lost answer",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "1-3",
+                            "stake": 250
+                        }
+                    ]
+                }
+            },
+            "status": 502,
+            "answer": {
+                "ok": false,
+                "error": "WALLET_UNAVAILABLE"
+            }
+        },
+        {
+            "label": "bet dan: every combination",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "1-2",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "1-3",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "1-4",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "1-5",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "1-6",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "2-3",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "2-4",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "2-5",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "2-6",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "3-4",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "3-5",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "3-6",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "4-5",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "4-6",
+                            "stake": 100
+                        },
+                        {
+                            "combo": "5-6",
+                            "stake": 100
+                        }
+                    ]
+                }
+            },
+            "status": 200,
+            "answer": {
+                "ok": true,
+                "bets": [
+                    {
+                        "id": "23d414c713739405:1-2",
+                        "raceNo": 1,
+                        "combo": "1-2",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 80
+                    },
+                    {
+                        "id": "23d414c713739405:1-3",
+                        "raceNo": 1,
+                        "combo": "1-3",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 30
+                    },
+                    {
+                        "id": "23d414c713739405:1-4",
+                        "raceNo": 1,
+                        "combo": "1-4",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 20
+                    },
+                    {
+                        "id": "23d414c713739405:1-5",
+                        "raceNo": 1,
+                        "combo": "1-5",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 3
+                    },
+                    {
+                        "id": "23d414c713739405:1-6",
+                        "raceNo": 1,
+                        "combo": "1-6",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 250
+                    },
+                    {
+                        "id": "23d414c713739405:2-3",
+                        "raceNo": 1,
+                        "combo": "2-3",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 5
+                    },
+                    {
+                        "id": "23d414c713739405:2-4",
+                        "raceNo": 1,
+                        "combo": "2-4",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 125
+                    },
+                    {
+                        "id": "23d414c713739405:2-5",
+                        "raceNo": 1,
+                        "combo": "2-5",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 4
+                    },
+                    {
+                        "id": "23d414c713739405:2-6",
+                        "raceNo": 1,
+                        "combo": "2-6",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 500
+                    },
+                    {
+                        "id": "23d414c713739405:3-4",
+                        "raceNo": 1,
+                        "combo": "3-4",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 60
+                    },
+                    {
+                        "id": "23d414c713739405:3-5",
+                        "raceNo": 1,
+                        "combo": "3-5",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 175
+                    },
+                    {
+                        "id": "23d414c713739405:3-6",
+                        "raceNo": 1,
+                        "combo": "3-6",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 100
+                    },
+                    {
+                        "id": "23d414c713739405:4-5",
+                        "raceNo": 1,
+                        "combo": "4-5",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 8
+                    },
+                    {
+                        "id": "23d414c713739405:4-6",
+                        "raceNo": 1,
+                        "combo": "4-6",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 1000
+                    },
+                    {
+                        "id": "23d414c713739405:5-6",
+                        "raceNo": 1,
+                        "combo": "5-6",
+                        "stake": 100,
+                        "status": "open",
+                        "payout": 0,
+                        "odds": 10
+                    }
+                ],
+                "balance": 100
+            }
+        },
+        {
+            "label": "me dan after the win",
+            "request": {
+                "method": "GET",
+                "path": "/api/me"
+            },
+            "status": 200,
+            "answer": {
+                "ok": true,
+                "playerId": "dan",
+                "returnUrl": null,
+                "raceNo": 2,
+                "bets": [],
+                "last": {
+                    "raceNo": 1,
+                    "combo": "1-5",
+                    "bets": [
+                        {
+                            "combo": "1-2",
+                            "stake": 100,
+                            "odds": 80,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "1-3",
+                            "stake": 100,
+                            "odds": 30,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "1-4",
+                            "stake": 100,
+                            "odds": 20,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "1-5",
+                            "stake": 100,
+                            "odds": 3,
+                            "status": "won",
+                            "payout": 300
+                        },
+                        {
+                            "combo": "1-6",
+                            "stake": 100,
+                            "odds": 250,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "2-3",
+                            "stake": 100,
+                            "odds": 5,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "2-4",
+                            "stake": 100,
+                            "odds": 125,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "2-5",
+                            "stake": 100,
+                            "odds": 4,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "2-6",
+                            "stake": 100,
+                            "odds": 500,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "3-4",
+                            "stake": 100,
+                            "odds": 60,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "3-5",
+                            "stake": 100,
+                            "odds": 175,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "3-6",
+                            "stake": 100,
+                            "odds": 100,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "4-5",
+                            "stake": 100,
+                            "odds": 8,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "4-6",
+                            "stake": 100,
+                            "odds": 1000,
+                            "status": "lost",
+                            "payout": 0
+                        },
+                        {
+                            "combo": "5-6",
+                            "stake": 100,
+                            "odds": 10,
+                            "status": "lost",
+                            "payout": 0
+                        }
+                    ]
+                },
+                "currency": "PHP",
+                "decimals": 2,
+                "balance": 400,
+                "limits": {
+                    "minBet": 100,
+                    "maxBet": 100000,
+                    "maxRoundStake": 500000,
+                    "dailyLossLimit": 2500
+                },
+                "brandId": null,
+                "responsible": {
+                    "realityCheckMinutes": 0,
+                    "startedAt": 1800000000000,
+                    "staked": 1500,
+                    "paid": 300,
+                    "dailyNetLoss": 1200
+                }
+            }
+        },
+        {
+            "label": "history dan",
+            "request": {
+                "method": "GET",
+                "path": "/api/history"
+            },
+            "status": 200,
+            "answer": {
+                "ok": true,
+                "playerId": "dan",
+                "clientId": "default",
+                "rounds": [
+                    {
+                        "raceNo": 1,
+                        "roundId": "1",
+                        "combo": "1-5",
+                        "order": [
+                            1,
+                            5,
+                            4,
+                            3,
+                            6,
+                            2
+                        ],
+                        "commit": "a15cc0dbd07649618c1c4f77445048d498130a08828dd6303435bf510bbd4852",
+                        "staked": 1500,
+                        "paid": 300,
+                        "bets": [
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:1-2",
+                                "combo": "1-2",
+                                "stake": 100,
+                                "odds": 80,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:1-3",
+                                "combo": "1-3",
+                                "stake": 100,
+                                "odds": 30,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:1-4",
+                                "combo": "1-4",
+                                "stake": 100,
+                                "odds": 20,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:1-5",
+                                "combo": "1-5",
+                                "stake": 100,
+                                "odds": 3,
+                                "status": "won",
+                                "payout": 300,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:1-6",
+                                "combo": "1-6",
+                                "stake": 100,
+                                "odds": 250,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:2-3",
+                                "combo": "2-3",
+                                "stake": 100,
+                                "odds": 5,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:2-4",
+                                "combo": "2-4",
+                                "stake": 100,
+                                "odds": 125,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:2-5",
+                                "combo": "2-5",
+                                "stake": 100,
+                                "odds": 4,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:2-6",
+                                "combo": "2-6",
+                                "stake": 100,
+                                "odds": 500,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:3-4",
+                                "combo": "3-4",
+                                "stake": 100,
+                                "odds": 60,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:3-5",
+                                "combo": "3-5",
+                                "stake": 100,
+                                "odds": 175,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:3-6",
+                                "combo": "3-6",
+                                "stake": 100,
+                                "odds": 100,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:4-5",
+                                "combo": "4-5",
+                                "stake": 100,
+                                "odds": 8,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:4-6",
+                                "combo": "4-6",
+                                "stake": 100,
+                                "odds": 1000,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            },
+                            {
+                                "raceNo": 1,
+                                "betId": "23d414c713739405:5-6",
+                                "combo": "5-6",
+                                "stake": 100,
+                                "odds": 10,
+                                "status": "lost",
+                                "payout": 0,
+                                "placedAt": 1800000002000,
+                                "currency": "PHP",
+                                "brandId": null
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "label": "report",
+            "request": {
+                "method": "GET",
+                "path": "/api/report"
+            },
+            "status": 200,
+            "answer": {
+                "serverNow": 1800000078000,
+                "mode": "live",
+                "rtpSetting": 0.9,
+                "rtpOfCurrentRace": 0.9,
+                "bestBetRtp": 0.9,
+                "cheapPairsRtp": 0.853541032,
+                "evenSpreadRtp": 0.8907082050666669,
+                "theoreticalRtp": 0.9,
+                "shuffleOdds": true,
+                "oddsValues": [
+                    3,
+                    4,
+                    5,
+                    8,
+                    10,
+                    20,
+                    30,
+                    60,
+                    80,
+                    100,
+                    125,
+                    175,
+                    250,
+                    500,
+                    1000
+                ],
+                "winsByOdds": {
+                    "3": 1
+                },
+                "oddsProb": {
+                    "3": 0.284513678,
+                    "4": 0.213385258,
+                    "5": 0.170708207,
+                    "8": 0.1125,
+                    "10": 0.09,
+                    "20": 0.045,
+                    "30": 0.03,
+                    "60": 0.015,
+                    "80": 0.01125,
+                    "100": 0.009,
+                    "125": 0.0072,
+                    "175": 0.005142857,
+                    "250": 0.0036,
+                    "500": 0.0018,
+                    "1000": 0.0009
+                },
+                "limits": {
+                    "minBet": 100,
+                    "maxBet": 100000,
+                    "maxRoundStake": 500000
+                },
+                "rounds": 1,
+                "bets": 17,
+                "staked": 4000,
+                "paid": 300,
+                "actualRtp": 0.075,
+                "houseWin": 3700,
+                "wins": {
+                    "1-2": 0,
+                    "1-3": 0,
+                    "1-4": 0,
+                    "1-5": 1,
+                    "1-6": 0,
+                    "2-3": 0,
+                    "2-4": 0,
+                    "2-5": 0,
+                    "2-6": 0,
+                    "3-4": 0,
+                    "3-5": 0,
+                    "3-6": 0,
+                    "4-5": 0,
+                    "4-6": 0,
+                    "5-6": 0
+                },
+                "pendingCredits": 0,
+                "pendingRollbacks": 0,
+                "pendingWebhooks": 0,
+                "blockedPlayers": 0,
+                "byCurrency": {
+                    "PHP": {
+                        "staked": 4000,
+                        "paid": 300
+                    }
+                },
+                "byClient": [],
+                "activeSessions": 2,
+                "recent": [
+                    {
+                        "raceNo": 1,
+                        "combo": "1-5",
+                        "order": [
+                            1,
+                            5,
+                            4,
+                            3,
+                            6,
+                            2
+                        ],
+                        "staked": 4000,
+                        "paid": 300,
+                        "bets": 17,
+                        "odds": 3
+                    }
+                ],
+                "commit": "3b67f8f5aa8d72be2cce0668720ceb4d3786814897bbb83b7bc9ef7e25c03386",
+                "currentRound": 2,
+                "ops": {
+                    "role": "active",
+                    "health": {
+                        "ok": true,
+                        "reasons": []
+                    },
+                    "alerts": [
+                        {
+                            "name": "wallet_failing",
+                            "severity": "critical",
+                            "message": "wallet calls failing: 35% of 17 in the last 5 minutes",
+                            "since": 1800000078000
+                        }
+                    ],
+                    "recentAlerts": [],
+                    "snapshot": {
+                        "round": 2,
+                        "rounds": 1,
+                        "bets": 17,
+                        "byCurrency": {
+                            "PHP": {
+                                "staked": 4000,
+                                "paid": 300
+                            }
+                        },
+                        "rtpSetting": 0.9,
+                        "rtpActual": 0.075,
+                        "rtpZ": -0.22564890903686138,
+                        "sessions": 2,
+                        "pending": {
+                            "credits": {
+                                "count": 0,
+                                "oldestSeconds": 0
+                            },
+                            "rollbacks": {
+                                "count": 0,
+                                "oldestSeconds": 0
+                            },
+                            "webhooks": {
+                                "count": 0,
+                                "oldestSeconds": 0
+                            }
+                        },
+                        "ledger": {
+                            "ok": true,
+                            "lines": 33,
+                            "head": "6552929b38f87ca4b6280642d355a8068a6b9585328f4acda8edeadba8ecfde7",
+                            "broken": null
+                        }
+                    },
+                    "wallet": {
+                        "calls": 17,
+                        "failures": 6,
+                        "failRate": 0.35294117647058826,
+                        "p95": "<measured on this machine>"
+                    },
+                    "clients": {
+                        "count": 0,
+                        "error": null
+                    },
+                    "tickAge": 0,
+                    "lease": null,
+                    "uptime": null,
+                    "diskFreeMb": "<measured on this machine>"
+                }
+            }
+        },
+        {
+            "label": "me carol: session expired, found by the request",
+            "request": {
+                "method": "GET",
+                "path": "/api/me"
+            },
+            "status": 401,
+            "answer": {
+                "ok": false,
+                "error": "SESSION_EXPIRED"
+            }
+        },
+        {
+            "label": "bet refused: session expired, found by the request",
+            "request": {
+                "method": "POST",
+                "path": "/api/bet",
+                "body": {
+                    "bets": [
+                        {
+                            "combo": "1-2",
+                            "stake": 1000
+                        }
+                    ]
+                }
+            },
+            "status": 401,
+            "answer": {
+                "ok": false,
+                "error": "SESSION_EXPIRED"
+            }
+        },
+        {
+            "label": "me dan: session expired",
+            "request": {
+                "method": "GET",
+                "path": "/api/me"
+            },
+            "status": 401,
+            "answer": {
+                "ok": false,
+                "error": "SESSION_EXPIRED"
+            }
+        }
+    ],
+    "wallet": [
+        {
+            "op": "validate",
+            "token": "demo-carol",
+            "answer": {
+                "playerId": "carol",
+                "currency": "PHP",
+                "balance": 5000
+            }
+        },
+        {
+            "op": "validate",
+            "token": "demo-dan",
+            "answer": {
+                "playerId": "dan",
+                "currency": "PHP",
+                "balance": 2000
+            }
+        },
+        {
+            "op": "debit",
+            "playerId": "carol",
+            "amount": 1000,
+            "txId": "bet:1:d35696cb68e51a8c",
+            "meta": {
+                "kind": "bet",
+                "betId": "d35696cb68e51a8c",
+                "betIds": [
+                    "d35696cb68e51a8c:1-2"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "answer": {
+                "balance": 4000
+            }
+        },
+        {
+            "op": "debit",
+            "playerId": "dan",
+            "amount": 2400,
+            "txId": "bet:1:6cbb24d54ecb2713",
+            "meta": {
+                "kind": "bet",
+                "betId": "6cbb24d54ecb2713",
+                "betIds": [
+                    "6cbb24d54ecb2713:3-4"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "INSUFFICIENT_FUNDS"
+        },
+        {
+            "op": "debit",
+            "playerId": "carol",
+            "amount": 1500,
+            "txId": "bet:1:13cae9143060bd0c",
+            "meta": {
+                "kind": "bet",
+                "betId": "13cae9143060bd0c",
+                "betIds": [
+                    "13cae9143060bd0c:3-4"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "answer": {
+                "balance": 2500
+            }
+        },
+        {
+            "op": "debit",
+            "playerId": "dan",
+            "amount": 300,
+            "txId": "bet:1:b40ed02a3ed85642",
+            "meta": {
+                "kind": "bet",
+                "betId": "b40ed02a3ed85642",
+                "betIds": [
+                    "b40ed02a3ed85642:2-3"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "REJECTED (injected)"
+        },
+        {
+            "op": "debit",
+            "playerId": "dan",
+            "amount": 400,
+            "txId": "bet:1:08b09b17aefc6e65",
+            "meta": {
+                "kind": "bet",
+                "betId": "08b09b17aefc6e65",
+                "betIds": [
+                    "08b09b17aefc6e65:2-3"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "answerLost": {
+                "balance": 1600
+            }
+        },
+        {
+            "op": "debit",
+            "playerId": "dan",
+            "amount": 400,
+            "txId": "bet:1:08b09b17aefc6e65",
+            "meta": {
+                "kind": "bet",
+                "betId": "08b09b17aefc6e65",
+                "betIds": [
+                    "08b09b17aefc6e65:2-3"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "answerLost": {
+                "balance": 1600
+            }
+        },
+        {
+            "op": "rollback",
+            "playerId": "dan",
+            "amount": 400,
+            "txId": "bet:1:08b09b17aefc6e65",
+            "meta": {
+                "raceNo": 1,
+                "roundId": "1",
+                "kind": "rollback",
+                "refTxId": "bet:1:08b09b17aefc6e65",
+                "currency": "PHP",
+                "betId": "08b09b17aefc6e65",
+                "betIds": [
+                    "08b09b17aefc6e65:2-3"
+                ]
+            },
+            "refused": "NOT_SUPPORTED (injected)"
+        },
+        {
+            "op": "debit",
+            "playerId": "dan",
+            "amount": 250,
+            "txId": "bet:1:d7fb614fc775c9d7",
+            "meta": {
+                "kind": "bet",
+                "betId": "d7fb614fc775c9d7",
+                "betIds": [
+                    "d7fb614fc775c9d7:1-3"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "answerLost": {
+                "balance": 1350
+            }
+        },
+        {
+            "op": "debit",
+            "playerId": "dan",
+            "amount": 250,
+            "txId": "bet:1:d7fb614fc775c9d7",
+            "meta": {
+                "kind": "bet",
+                "betId": "d7fb614fc775c9d7",
+                "betIds": [
+                    "d7fb614fc775c9d7:1-3"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "answerLost": {
+                "balance": 1350
+            }
+        },
+        {
+            "op": "rollback",
+            "playerId": "dan",
+            "amount": 250,
+            "txId": "bet:1:d7fb614fc775c9d7",
+            "meta": {
+                "raceNo": 1,
+                "roundId": "1",
+                "kind": "rollback",
+                "refTxId": "bet:1:d7fb614fc775c9d7",
+                "currency": "PHP",
+                "betId": "d7fb614fc775c9d7",
+                "betIds": [
+                    "d7fb614fc775c9d7:1-3"
+                ]
+            },
+            "answer": {
+                "balance": 1600,
+                "status": "rolled_back"
+            }
+        },
+        {
+            "op": "debit",
+            "playerId": "dan",
+            "amount": 1500,
+            "txId": "bet:1:23d414c713739405",
+            "meta": {
+                "kind": "bet",
+                "betId": "23d414c713739405",
+                "betIds": [
+                    "23d414c713739405:1-2",
+                    "23d414c713739405:1-3",
+                    "23d414c713739405:1-4",
+                    "23d414c713739405:1-5",
+                    "23d414c713739405:1-6",
+                    "23d414c713739405:2-3",
+                    "23d414c713739405:2-4",
+                    "23d414c713739405:2-5",
+                    "23d414c713739405:2-6",
+                    "23d414c713739405:3-4",
+                    "23d414c713739405:3-5",
+                    "23d414c713739405:3-6",
+                    "23d414c713739405:4-5",
+                    "23d414c713739405:4-6",
+                    "23d414c713739405:5-6"
+                ],
+                "raceNo": 1,
+                "roundId": "1",
+                "currency": "PHP",
+                "brandId": null
+            },
+            "answer": {
+                "balance": 100
+            }
+        },
+        {
+            "op": "credit",
+            "playerId": "dan",
+            "amount": 300,
+            "txId": "win:1:dan",
+            "meta": {
+                "raceNo": 1,
+                "roundId": "1",
+                "kind": "win",
+                "betIds": [
+                    "23d414c713739405:1-5"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "dan",
+            "amount": 300,
+            "txId": "win:1:dan",
+            "meta": {
+                "raceNo": 1,
+                "roundId": "1",
+                "kind": "win",
+                "betIds": [
+                    "23d414c713739405:1-5"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "dan",
+            "amount": 300,
+            "txId": "win:1:dan",
+            "meta": {
+                "raceNo": 1,
+                "roundId": "1",
+                "kind": "win",
+                "betIds": [
+                    "23d414c713739405:1-5"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "answer": {
+                "balance": 400
+            }
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        },
+        {
+            "op": "credit",
+            "playerId": "ellen",
+            "amount": 1234,
+            "txId": "win:99:ellen",
+            "meta": {
+                "raceNo": 99,
+                "roundId": "99",
+                "kind": "win",
+                "betIds": [
+                    "x:1-2"
+                ],
+                "currency": "PHP",
+                "brandId": null
+            },
+            "refused": "NO_ANSWER (injected)"
+        }
+    ],
+    "webhooks": [
+        {
+            "host": "hook.flaky.test",
+            "path": "/events",
+            "contentType": "application/json",
+            "keyId": "fk1",
+            "signed": true,
+            "body": "{\"id\":\"horse-race:round:1\",\"type\":\"round.settled\",\"createdAt\":1800000062000,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"1\",\"raceNo\":1,\"combo\":\"1-5\",\"order\":[1,5,4,3,6,2],\"odds\":{\"1-2\":80,\"1-3\":30,\"1-4\":20,\"1-5\":3,\"1-6\":250,\"2-3\":5,\"2-4\":125,\"2-5\":4,\"2-6\":500,\"3-4\":60,\"3-5\":175,\"3-6\":100,\"4-5\":8,\"4-6\":1000,\"5-6\":10},\"oddsOfWinner\":3,\"rtp\":0.9,\"commit\":\"a15cc0dbd07649618c1c4f77445048d498130a08828dd6303435bf510bbd4852\",\"seed\":\"ee95e78672a084bfecda20fd66b0c2275d46e13350ddac04f877aef98a27edbc\",\"bets\":17,\"staked\":4000,\"paid\":300,\"ledgerHash\":\"99199573c95234b407a3136263704825574e979b16227d02822827d514e148ca\",\"ledgerLines\":27}}",
+            "status": 500
+        },
+        {
+            "host": "hook.flaky.test",
+            "path": "/events",
+            "contentType": "application/json",
+            "keyId": "fk1",
+            "signed": true,
+            "body": "{\"id\":\"horse-race:win:1:dan\",\"type\":\"big.win\",\"createdAt\":1800000062000,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"1\",\"raceNo\":1,\"playerId\":\"dan\",\"brandId\":null,\"currency\":\"PHP\",\"stake\":100,\"payout\":300,\"odds\":3,\"betIds\":[\"23d414c713739405:1-5\"]}}",
+            "status": 503
+        },
+        {
+            "host": "hook.flaky.test",
+            "path": "/events",
+            "contentType": "application/json",
+            "keyId": "fk1",
+            "signed": true,
+            "body": "{\"id\":\"horse-race:round:1\",\"type\":\"round.settled\",\"createdAt\":1800000062000,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"1\",\"raceNo\":1,\"combo\":\"1-5\",\"order\":[1,5,4,3,6,2],\"odds\":{\"1-2\":80,\"1-3\":30,\"1-4\":20,\"1-5\":3,\"1-6\":250,\"2-3\":5,\"2-4\":125,\"2-5\":4,\"2-6\":500,\"3-4\":60,\"3-5\":175,\"3-6\":100,\"4-5\":8,\"4-6\":1000,\"5-6\":10},\"oddsOfWinner\":3,\"rtp\":0.9,\"commit\":\"a15cc0dbd07649618c1c4f77445048d498130a08828dd6303435bf510bbd4852\",\"seed\":\"ee95e78672a084bfecda20fd66b0c2275d46e13350ddac04f877aef98a27edbc\",\"bets\":17,\"staked\":4000,\"paid\":300,\"ledgerHash\":\"99199573c95234b407a3136263704825574e979b16227d02822827d514e148ca\",\"ledgerLines\":27}}",
+            "status": 200
+        },
+        {
+            "host": "hook.flaky.test",
+            "path": "/events",
+            "contentType": "application/json",
+            "keyId": "fk1",
+            "signed": true,
+            "body": "{\"id\":\"horse-race:win:1:dan\",\"type\":\"big.win\",\"createdAt\":1800000062000,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"1\",\"raceNo\":1,\"playerId\":\"dan\",\"brandId\":null,\"currency\":\"PHP\",\"stake\":100,\"payout\":300,\"odds\":3,\"betIds\":[\"23d414c713739405:1-5\"]}}",
+            "status": 200
+        },
+        {
+            "host": "hook.flaky.test",
+            "path": "/events",
+            "contentType": "application/json",
+            "keyId": "fk1",
+            "signed": true,
+            "body": "{\"id\":\"horse-race:round:2\",\"type\":\"round.settled\",\"createdAt\":1800003740001,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"2\",\"raceNo\":2,\"combo\":\"3-6\",\"order\":[3,6,1,4,5,2],\"odds\":{\"1-2\":250,\"1-3\":175,\"1-4\":100,\"1-5\":60,\"1-6\":8,\"2-3\":500,\"2-4\":10,\"2-5\":20,\"2-6\":30,\"3-4\":1000,\"3-5\":4,\"3-6\":3,\"4-5\":80,\"4-6\":5,\"5-6\":125},\"oddsOfWinner\":3,\"rtp\":0.9,\"commit\":\"3b67f8f5aa8d72be2cce0668720ceb4d3786814897bbb83b7bc9ef7e25c03386\",\"seed\":\"9a4a207d4e73fc7c50921f862df74c650b7d2e50e40949f263db4d36fc751c40\",\"bets\":0,\"staked\":0,\"paid\":0,\"ledgerHash\":\"8422d319ea806dff577153f50999dca332500b8de6e0ec257df3338c5ac8d6d6\",\"ledgerLines\":36}}",
+            "status": 200
+        },
+        {
+            "host": "hook.flaky.test",
+            "path": "/events",
+            "contentType": "application/json",
+            "keyId": "fk1",
+            "signed": true,
+            "body": "{\"id\":\"horse-race:round:3\",\"type\":\"round.settled\",\"createdAt\":1800003860001,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"3\",\"raceNo\":3,\"combo\":\"3-4\",\"order\":[3,4,6,1,5,2],\"odds\":{\"1-2\":125,\"1-3\":1000,\"1-4\":80,\"1-5\":60,\"1-6\":100,\"2-3\":3,\"2-4\":250,\"2-5\":10,\"2-6\":5,\"3-4\":4,\"3-5\":20,\"3-6\":8,\"4-5\":30,\"4-6\":500,\"5-6\":175},\"oddsOfWinner\":4,\"rtp\":0.9,\"commit\":\"ad6c35610b5bb549d5a3611150b3dc2decb0697013cbf1f2f44711c39d1512fc\",\"seed\":\"8c49fa5ea5eed5bfc7b168905360a1551fa071aa78ec205cccbea2e390d386c7\",\"bets\":0,\"staked\":0,\"paid\":0,\"ledgerHash\":\"d9b36386918d0e9cf342c122bee25c0c1173c32ab8e8cfc4fc604dff1c4523a7\",\"ledgerLines\":41}}",
+            "status": 200
+        },
+        {
+            "host": "hook.flaky.test",
+            "path": "/events",
+            "contentType": "application/json",
+            "keyId": "fk1",
+            "signed": true,
+            "body": "{\"id\":\"horse-race:round:4\",\"type\":\"round.settled\",\"createdAt\":1800003980001,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"4\",\"raceNo\":4,\"combo\":\"3-4\",\"order\":[3,4,5,1,6,2],\"odds\":{\"1-2\":250,\"1-3\":1000,\"1-4\":60,\"1-5\":3,\"1-6\":20,\"2-3\":175,\"2-4\":80,\"2-5\":500,\"2-6\":10,\"3-4\":30,\"3-5\":4,\"3-6\":100,\"4-5\":125,\"4-6\":8,\"5-6\":5},\"oddsOfWinner\":30,\"rtp\":0.9,\"commit\":\"1171232f83526c2b3d1c6b58de4108115e4bc966c86eafe2b2da2963ebb278e5\",\"seed\":\"5b66088618b0a5842d1545197d2d6b7c2ca9ec4ba8699fda934a840e3665bacb\",\"bets\":0,\"staked\":0,\"paid\":0,\"ledgerHash\":\"887ef129a34b0707e5d2622c861f5344b7be818a04d16464902d1498f00f9825\",\"ledgerLines\":46}}",
+            "status": 200
+        }
+    ],
+    "pendingOverTime": [
+        {
+            "at": "after the lost debit answer",
+            "ops": [
+                {
+                    "tx_id": "rb:bet:1:08b09b17aefc6e65",
+                    "kind": "rollback",
+                    "player_key": "dan",
+                    "amount": 400,
+                    "race_no": 1,
+                    "tx_kind": null,
+                    "extra": {
+                        "currency": "PHP",
+                        "betId": "08b09b17aefc6e65",
+                        "betIds": [
+                            "08b09b17aefc6e65:2-3"
+                        ]
+                    },
+                    "since": 1800000000000,
+                    "tries": 0,
+                    "next_at": 0
+                }
+            ]
+        },
+        {
+            "at": "after the rollback was refused as unsupported",
+            "ops": []
+        },
+        {
+            "at": "after the rollback was delivered",
+            "ops": []
+        },
+        {
+            "at": "settled: credit failed once, webhook failed once",
+            "ops": [
+                {
+                    "tx_id": "horse-race:round:1",
+                    "kind": "webhook",
+                    "player_key": "",
+                    "amount": 0,
+                    "race_no": 1,
+                    "tx_kind": null,
+                    "extra": {
+                        "id": "horse-race:round:1",
+                        "type": "round.settled",
+                        "createdAt": 1800000062000,
+                        "gameId": "horse-race",
+                        "clientId": "default",
+                        "data": {
+                            "roundId": "1",
+                            "raceNo": 1,
+                            "combo": "1-5",
+                            "order": [
+                                1,
+                                5,
+                                4,
+                                3,
+                                6,
+                                2
+                            ],
+                            "odds": {
+                                "1-2": 80,
+                                "1-3": 30,
+                                "1-4": 20,
+                                "1-5": 3,
+                                "1-6": 250,
+                                "2-3": 5,
+                                "2-4": 125,
+                                "2-5": 4,
+                                "2-6": 500,
+                                "3-4": 60,
+                                "3-5": 175,
+                                "3-6": 100,
+                                "4-5": 8,
+                                "4-6": 1000,
+                                "5-6": 10
+                            },
+                            "oddsOfWinner": 3,
+                            "rtp": 0.9,
+                            "commit": "a15cc0dbd07649618c1c4f77445048d498130a08828dd6303435bf510bbd4852",
+                            "seed": "ee95e78672a084bfecda20fd66b0c2275d46e13350ddac04f877aef98a27edbc",
+                            "bets": 17,
+                            "staked": 4000,
+                            "paid": 300,
+                            "ledgerHash": "99199573c95234b407a3136263704825574e979b16227d02822827d514e148ca",
+                            "ledgerLines": 27
+                        }
+                    },
+                    "since": 1800000062000,
+                    "tries": 1,
+                    "next_at": 1800000064000
+                },
+                {
+                    "tx_id": "horse-race:win:1:dan",
+                    "kind": "webhook",
+                    "player_key": "",
+                    "amount": 0,
+                    "race_no": 1,
+                    "tx_kind": null,
+                    "extra": {
+                        "id": "horse-race:win:1:dan",
+                        "type": "big.win",
+                        "createdAt": 1800000062000,
+                        "gameId": "horse-race",
+                        "clientId": "default",
+                        "data": {
+                            "roundId": "1",
+                            "raceNo": 1,
+                            "playerId": "dan",
+                            "brandId": null,
+                            "currency": "PHP",
+                            "stake": 100,
+                            "payout": 300,
+                            "odds": 3,
+                            "betIds": [
+                                "23d414c713739405:1-5"
+                            ]
+                        }
+                    },
+                    "since": 1800000062000,
+                    "tries": 1,
+                    "next_at": 1800000064000
+                },
+                {
+                    "tx_id": "win:1:dan",
+                    "kind": "credit",
+                    "player_key": "dan",
+                    "amount": 300,
+                    "race_no": 1,
+                    "tx_kind": "win",
+                    "extra": {
+                        "betIds": [
+                            "23d414c713739405:1-5"
+                        ],
+                        "currency": "PHP",
+                        "brandId": null
+                    },
+                    "since": 1800000062000,
+                    "tries": 1,
+                    "next_at": 1800000064000
+                }
+            ]
+        },
+        {
+            "at": "retry after +1000 ms",
+            "ops": [
+                {
+                    "tx_id": "horse-race:round:1",
+                    "kind": "webhook",
+                    "player_key": "",
+                    "amount": 0,
+                    "race_no": 1,
+                    "tx_kind": null,
+                    "extra": {
+                        "id": "horse-race:round:1",
+                        "type": "round.settled",
+                        "createdAt": 1800000062000,
+                        "gameId": "horse-race",
+                        "clientId": "default",
+                        "data": {
+                            "roundId": "1",
+                            "raceNo": 1,
+                            "combo": "1-5",
+                            "order": [
+                                1,
+                                5,
+                                4,
+                                3,
+                                6,
+                                2
+                            ],
+                            "odds": {
+                                "1-2": 80,
+                                "1-3": 30,
+                                "1-4": 20,
+                                "1-5": 3,
+                                "1-6": 250,
+                                "2-3": 5,
+                                "2-4": 125,
+                                "2-5": 4,
+                                "2-6": 500,
+                                "3-4": 60,
+                                "3-5": 175,
+                                "3-6": 100,
+                                "4-5": 8,
+                                "4-6": 1000,
+                                "5-6": 10
+                            },
+                            "oddsOfWinner": 3,
+                            "rtp": 0.9,
+                            "commit": "a15cc0dbd07649618c1c4f77445048d498130a08828dd6303435bf510bbd4852",
+                            "seed": "ee95e78672a084bfecda20fd66b0c2275d46e13350ddac04f877aef98a27edbc",
+                            "bets": 17,
+                            "staked": 4000,
+                            "paid": 300,
+                            "ledgerHash": "99199573c95234b407a3136263704825574e979b16227d02822827d514e148ca",
+                            "ledgerLines": 27
+                        }
+                    },
+                    "since": 1800000062000,
+                    "tries": 1,
+                    "next_at": 1800000064000
+                },
+                {
+                    "tx_id": "horse-race:win:1:dan",
+                    "kind": "webhook",
+                    "player_key": "",
+                    "amount": 0,
+                    "race_no": 1,
+                    "tx_kind": null,
+                    "extra": {
+                        "id": "horse-race:win:1:dan",
+                        "type": "big.win",
+                        "createdAt": 1800000062000,
+                        "gameId": "horse-race",
+                        "clientId": "default",
+                        "data": {
+                            "roundId": "1",
+                            "raceNo": 1,
+                            "playerId": "dan",
+                            "brandId": null,
+                            "currency": "PHP",
+                            "stake": 100,
+                            "payout": 300,
+                            "odds": 3,
+                            "betIds": [
+                                "23d414c713739405:1-5"
+                            ]
+                        }
+                    },
+                    "since": 1800000062000,
+                    "tries": 1,
+                    "next_at": 1800000064000
+                },
+                {
+                    "tx_id": "win:1:dan",
+                    "kind": "credit",
+                    "player_key": "dan",
+                    "amount": 300,
+                    "race_no": 1,
+                    "tx_kind": "win",
+                    "extra": {
+                        "betIds": [
+                            "23d414c713739405:1-5"
+                        ],
+                        "currency": "PHP",
+                        "brandId": null
+                    },
+                    "since": 1800000062000,
+                    "tries": 1,
+                    "next_at": 1800000064000
+                }
+            ]
+        },
+        {
+            "at": "retry after +1000 ms",
+            "ops": [
+                {
+                    "tx_id": "win:1:dan",
+                    "kind": "credit",
+                    "player_key": "dan",
+                    "amount": 300,
+                    "race_no": 1,
+                    "tx_kind": "win",
+                    "extra": {
+                        "betIds": [
+                            "23d414c713739405:1-5"
+                        ],
+                        "currency": "PHP",
+                        "brandId": null
+                    },
+                    "since": 1800000062000,
+                    "tries": 2,
+                    "next_at": 1800000068000
+                }
+            ]
+        },
+        {
+            "at": "retry after +2000 ms",
+            "ops": [
+                {
+                    "tx_id": "win:1:dan",
+                    "kind": "credit",
+                    "player_key": "dan",
+                    "amount": 300,
+                    "race_no": 1,
+                    "tx_kind": "win",
+                    "extra": {
+                        "betIds": [
+                            "23d414c713739405:1-5"
+                        ],
+                        "currency": "PHP",
+                        "brandId": null
+                    },
+                    "since": 1800000062000,
+                    "tries": 2,
+                    "next_at": 1800000068000
+                }
+            ]
+        },
+        {
+            "at": "retry after +4000 ms",
+            "ops": []
+        },
+        {
+            "at": "retry after +8000 ms",
+            "ops": []
+        },
+        {
+            "at": "after the sessions expired",
+            "ops": []
+        },
+        {
+            "backoffSchedule": [
+                {
+                    "tries": 1,
+                    "waitMs": 2000
+                },
+                {
+                    "tries": 2,
+                    "waitMs": 4000
+                },
+                {
+                    "tries": 3,
+                    "waitMs": 8000
+                },
+                {
+                    "tries": 4,
+                    "waitMs": 16000
+                },
+                {
+                    "tries": 5,
+                    "waitMs": 32000
+                },
+                {
+                    "tries": 6,
+                    "waitMs": 60000
+                },
+                {
+                    "tries": 7,
+                    "waitMs": 60000
+                },
+                {
+                    "tries": 8,
+                    "waitMs": 60000
+                },
+                {
+                    "tries": 9,
+                    "waitMs": 60000
+                },
+                {
+                    "tries": 10,
+                    "waitMs": 60000
+                },
+                {
+                    "tries": 11,
+                    "waitMs": 60000
+                }
+            ]
+        }
+    ],
+    "ledger": [
+        "{\"e\":\"open\",\"raceNo\":1,\"seed\":\"ee95e78672a084bfecda20fd66b0c2275d46e13350ddac04f877aef98a27edbc\",\"commit\":\"a15cc0dbd07649618c1c4f77445048d498130a08828dd6303435bf510bbd4852\",\"odds\":{\"1-2\":80,\"1-3\":30,\"1-4\":20,\"1-5\":3,\"1-6\":250,\"2-3\":5,\"2-4\":125,\"2-5\":4,\"2-6\":500,\"3-4\":60,\"3-5\":175,\"3-6\":100,\"4-5\":8,\"4-6\":1000,\"5-6\":10},\"rtp\":0.9,\"openAt\":1800000000000,\"betCloseAt\":1800000025000,\"t\":1800000000000,\"h\":\"56f85b27183a977359381555c6c06c89babcebc02f10ec8ae19c6db86b656970\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"d35696cb68e51a8c:1-2\",\"playerId\":\"carol\",\"combo\":\"1-2\",\"stake\":1000,\"txId\":\"bet:1:d35696cb68e51a8c\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000000000,\"h\":\"6eac281d29a5015c3581ca1debcc4cd91d65fd623cdad2e48e2da972d6c94e4a\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"13cae9143060bd0c:3-4\",\"playerId\":\"carol\",\"combo\":\"3-4\",\"stake\":1500,\"txId\":\"bet:1:13cae9143060bd0c\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000000000,\"h\":\"254446800836cf473c48402df4971c4fa867be2d4b4df84cb5fe67091ebdb360\"}",
+        "{\"e\":\"debit_unknown\",\"playerId\":\"dan\",\"amount\":400,\"txId\":\"bet:1:08b09b17aefc6e65\",\"t\":1800000000000,\"h\":\"a557ba3a702fdc9584475fc9c19a7ed24e807b89e1978df90fbe1cb32e60c203\"}",
+        "{\"e\":\"rollback_due\",\"txId\":\"bet:1:08b09b17aefc6e65\",\"playerId\":\"dan\",\"amount\":400,\"raceNo\":1,\"extra\":{\"currency\":\"PHP\",\"betId\":\"08b09b17aefc6e65\",\"betIds\":[\"08b09b17aefc6e65:2-3\"]},\"t\":1800000000000,\"h\":\"5ee559bc7e7d1e94a9a8f7953786cb96841b9649e95c7e82d2388accc3f68fa6\"}",
+        "{\"e\":\"rollback_unsupported\",\"txId\":\"bet:1:08b09b17aefc6e65\",\"t\":1800000001000,\"h\":\"69717f1ce9b3d87b2caa1289c2082d1b8705bb58ae2635c868d47c37aaea805f\"}",
+        "{\"e\":\"debit_unknown\",\"playerId\":\"dan\",\"amount\":250,\"txId\":\"bet:1:d7fb614fc775c9d7\",\"t\":1800000001000,\"h\":\"9a8d7bcc90f7ed17b4f11bce5448552b5a74f7092bbd6adb18e83d005f73fe7f\"}",
+        "{\"e\":\"rollback_due\",\"txId\":\"bet:1:d7fb614fc775c9d7\",\"playerId\":\"dan\",\"amount\":250,\"raceNo\":1,\"extra\":{\"currency\":\"PHP\",\"betId\":\"d7fb614fc775c9d7\",\"betIds\":[\"d7fb614fc775c9d7:1-3\"]},\"t\":1800000001000,\"h\":\"0a5745e295275299e41dc75a84d391f7b64ef99a0461bcf5a240fa872a296d40\"}",
+        "{\"e\":\"rollback_ok\",\"txId\":\"bet:1:d7fb614fc775c9d7\",\"status\":\"rolled_back\",\"t\":1800000002000,\"h\":\"77352253eede4ae079ffe6acae5b025e657a5051c85588b0221c9f451720d97d\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:1-2\",\"playerId\":\"dan\",\"combo\":\"1-2\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"94be5c0b4f8443fcdf2ee2dcc146f5e93fe1f5c8c990fa142a9d3f8287f9dbb0\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:1-3\",\"playerId\":\"dan\",\"combo\":\"1-3\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"bed290212e2f5fcb50b2affbd8850f7e7fbb6524be48cc86661b450e9d0c46df\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:1-4\",\"playerId\":\"dan\",\"combo\":\"1-4\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"1ed7bd55713b37898e5e144b1640bac4926b1b2a1eac305c82a1fa84e1d0fc9e\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:1-5\",\"playerId\":\"dan\",\"combo\":\"1-5\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"9f724fe8af7e444d134251e6fc8a5673149be0d718f0ed9a256cfb8758631104\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:1-6\",\"playerId\":\"dan\",\"combo\":\"1-6\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"8750b08b8edd5c3d1c60c9e7cf4897cedf6e9bbaeff03c26be3cc023de5b35fe\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:2-3\",\"playerId\":\"dan\",\"combo\":\"2-3\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"d1d4386526591ba155d71c15e7705f2370ae502237f204b35f91b9a5c748f7c1\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:2-4\",\"playerId\":\"dan\",\"combo\":\"2-4\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"62ec751b05e88cabf1ebb1fc676a30544c6662ce9e224ef0fde51b66b3b584e1\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:2-5\",\"playerId\":\"dan\",\"combo\":\"2-5\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"a816d3a371472c872c969c950027d2f2f1daee5a630fe856108f9d7f87045e54\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:2-6\",\"playerId\":\"dan\",\"combo\":\"2-6\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"22b98f10c32ba7b692ffd19533a14ac975f0f1cb75f5300029355f7c1bf9c419\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:3-4\",\"playerId\":\"dan\",\"combo\":\"3-4\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"8f80ce33795e2f1407db5be9d0d4bf26e0fb5bec0ee4f16c87033366fc2c5170\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:3-5\",\"playerId\":\"dan\",\"combo\":\"3-5\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"f2bf79ef7405b72e24bfd64fa785739e1a3e2911578f90644425bc59345c7e4f\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:3-6\",\"playerId\":\"dan\",\"combo\":\"3-6\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"fc439e356c255f864a2007bb5b7dd8ed27a3d6c5aa77af79beca59a062c127f7\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:4-5\",\"playerId\":\"dan\",\"combo\":\"4-5\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"7366b49405e61949f521a1a3c0a47bae88667df9eaf619811e67d97a2b22ca6e\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:4-6\",\"playerId\":\"dan\",\"combo\":\"4-6\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"0a2e667cee2f984fc095d178fd0e99bfb4001cf372c7a8e89b41a3f5b7b716b6\"}",
+        "{\"e\":\"bet\",\"raceNo\":1,\"id\":\"23d414c713739405:5-6\",\"playerId\":\"dan\",\"combo\":\"5-6\",\"stake\":100,\"txId\":\"bet:1:23d414c713739405\",\"currency\":\"PHP\",\"brandId\":null,\"t\":1800000002000,\"h\":\"3d50c4d77dd2c0cb78bd07f41856e40d7d4f3fbc82bfd7c834b81aaccfcfd250\"}",
+        "{\"e\":\"draw\",\"raceNo\":1,\"combo\":\"1-5\",\"order\":[1,5,4,3,6,2],\"animSeed\":1588750945,\"startAt\":1800000032000,\"t\":1800000026000,\"h\":\"ddad83b7c24a384dfef32bb30c0ce986725b944468171a2e9e325a402a85d4ac\"}",
+        "{\"e\":\"settled\",\"raceNo\":1,\"combo\":\"1-5\",\"staked\":4000,\"paid\":300,\"payouts\":[{\"playerId\":\"dan\",\"amount\":300}],\"t\":1800000062000,\"h\":\"f120894b6c5212df16dad499b0067361b53bc7cd673b06d98947275b2647191c\"}",
+        "{\"e\":\"credit_due\",\"txId\":\"win:1:dan\",\"playerId\":\"dan\",\"amount\":300,\"raceNo\":1,\"kind\":\"win\",\"extra\":{\"betIds\":[\"23d414c713739405:1-5\"],\"currency\":\"PHP\",\"brandId\":null},\"t\":1800000062000,\"h\":\"99199573c95234b407a3136263704825574e979b16227d02822827d514e148ca\"}",
+        "{\"e\":\"webhook_due\",\"ev\":{\"id\":\"horse-race:round:1\",\"type\":\"round.settled\",\"createdAt\":1800000062000,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"1\",\"raceNo\":1,\"combo\":\"1-5\",\"order\":[1,5,4,3,6,2],\"odds\":{\"1-2\":80,\"1-3\":30,\"1-4\":20,\"1-5\":3,\"1-6\":250,\"2-3\":5,\"2-4\":125,\"2-5\":4,\"2-6\":500,\"3-4\":60,\"3-5\":175,\"3-6\":100,\"4-5\":8,\"4-6\":1000,\"5-6\":10},\"oddsOfWinner\":3,\"rtp\":0.9,\"commit\":\"a15cc0dbd07649618c1c4f77445048d498130a08828dd6303435bf510bbd4852\",\"seed\":\"ee95e78672a084bfecda20fd66b0c2275d46e13350ddac04f877aef98a27edbc\",\"bets\":17,\"staked\":4000,\"paid\":300,\"ledgerHash\":\"99199573c95234b407a3136263704825574e979b16227d02822827d514e148ca\",\"ledgerLines\":27}},\"t\":1800000062000,\"h\":\"1a870bcefb0ec782d90d79fd7da72ce942f288de6f8a1f9890fc17fa0eb5263a\"}",
+        "{\"e\":\"webhook_due\",\"ev\":{\"id\":\"horse-race:win:1:dan\",\"type\":\"big.win\",\"createdAt\":1800000062000,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"1\",\"raceNo\":1,\"playerId\":\"dan\",\"brandId\":null,\"currency\":\"PHP\",\"stake\":100,\"payout\":300,\"odds\":3,\"betIds\":[\"23d414c713739405:1-5\"]}},\"t\":1800000062000,\"h\":\"d53e839a93a6d160adfeda3fe15d35ec0c6f853ac92eec193cd9bc56c39a4314\"}",
+        "{\"e\":\"webhook_ok\",\"id\":\"horse-race:round:1\",\"t\":1800000064000,\"h\":\"e4541c7b0e0bf0c5697e5145ed9e1d13f58f7aa3d6f9d9d104782138702f8954\"}",
+        "{\"e\":\"webhook_ok\",\"id\":\"horse-race:win:1:dan\",\"t\":1800000064000,\"h\":\"e266edb7d45ad2cc0d922e81014b240f1184a6d6988d67194bba7c16f9deb2b3\"}",
+        "{\"e\":\"credit_ok\",\"txId\":\"win:1:dan\",\"raceNo\":1,\"t\":1800000070000,\"h\":\"013693a1aeeb670ccd5ff3e76ef4c5342079fca38280e48b6354eb9d098b6051\"}",
+        "{\"e\":\"open\",\"raceNo\":2,\"seed\":\"9a4a207d4e73fc7c50921f862df74c650b7d2e50e40949f263db4d36fc751c40\",\"commit\":\"3b67f8f5aa8d72be2cce0668720ceb4d3786814897bbb83b7bc9ef7e25c03386\",\"odds\":{\"1-2\":250,\"1-3\":175,\"1-4\":100,\"1-5\":60,\"1-6\":8,\"2-3\":500,\"2-4\":10,\"2-5\":20,\"2-6\":30,\"3-4\":1000,\"3-5\":4,\"3-6\":3,\"4-5\":80,\"4-6\":5,\"5-6\":125},\"rtp\":0.9,\"openAt\":1800000078000,\"betCloseAt\":1800000103000,\"t\":1800000078000,\"h\":\"6552929b38f87ca4b6280642d355a8068a6b9585328f4acda8edeadba8ecfde7\"}",
+        "{\"e\":\"draw\",\"raceNo\":2,\"combo\":\"3-6\",\"order\":[3,6,1,4,5,2],\"animSeed\":2481387282,\"startAt\":1800003684001,\"t\":1800003678001,\"h\":\"c05a0feeaee13f34918566bf6ae12f31a456d2617dcad64453aedf9ba720649a\"}",
+        "{\"e\":\"credit_due\",\"txId\":\"win:99:ellen\",\"playerId\":\"ellen\",\"amount\":1234,\"raceNo\":99,\"kind\":\"win\",\"extra\":{\"betIds\":[\"x:1-2\"],\"currency\":\"PHP\",\"brandId\":null},\"t\":1800003678001,\"h\":\"ede3a3761f8b158200967345b541fdc187a8c72ceea425729375498875faa484\"}",
+        "{\"e\":\"settled\",\"raceNo\":2,\"combo\":\"3-6\",\"staked\":0,\"paid\":0,\"payouts\":[],\"t\":1800003740001,\"h\":\"8422d319ea806dff577153f50999dca332500b8de6e0ec257df3338c5ac8d6d6\"}",
+        "{\"e\":\"webhook_due\",\"ev\":{\"id\":\"horse-race:round:2\",\"type\":\"round.settled\",\"createdAt\":1800003740001,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"2\",\"raceNo\":2,\"combo\":\"3-6\",\"order\":[3,6,1,4,5,2],\"odds\":{\"1-2\":250,\"1-3\":175,\"1-4\":100,\"1-5\":60,\"1-6\":8,\"2-3\":500,\"2-4\":10,\"2-5\":20,\"2-6\":30,\"3-4\":1000,\"3-5\":4,\"3-6\":3,\"4-5\":80,\"4-6\":5,\"5-6\":125},\"oddsOfWinner\":3,\"rtp\":0.9,\"commit\":\"3b67f8f5aa8d72be2cce0668720ceb4d3786814897bbb83b7bc9ef7e25c03386\",\"seed\":\"9a4a207d4e73fc7c50921f862df74c650b7d2e50e40949f263db4d36fc751c40\",\"bets\":0,\"staked\":0,\"paid\":0,\"ledgerHash\":\"8422d319ea806dff577153f50999dca332500b8de6e0ec257df3338c5ac8d6d6\",\"ledgerLines\":36}},\"t\":1800003740001,\"h\":\"11f53a24c9f5610288a655ad0ea088846d4864b691b14a27b41e57a25d8befca\"}",
+        "{\"e\":\"open\",\"raceNo\":3,\"seed\":\"8c49fa5ea5eed5bfc7b168905360a1551fa071aa78ec205cccbea2e390d386c7\",\"commit\":\"ad6c35610b5bb549d5a3611150b3dc2decb0697013cbf1f2f44711c39d1512fc\",\"odds\":{\"1-2\":125,\"1-3\":1000,\"1-4\":80,\"1-5\":60,\"1-6\":100,\"2-3\":3,\"2-4\":250,\"2-5\":10,\"2-6\":5,\"3-4\":4,\"3-5\":20,\"3-6\":8,\"4-5\":30,\"4-6\":500,\"5-6\":175},\"rtp\":0.9,\"openAt\":1800003740001,\"betCloseAt\":1800003765001,\"t\":1800003740001,\"h\":\"13fb8962e822c6b7db61e0732c5460383371bce97483d6fd2852efe8d347e09a\"}",
+        "{\"e\":\"webhook_ok\",\"id\":\"horse-race:round:2\",\"t\":1800003740001,\"h\":\"5fe27acda81fb2d5e3528b4b3020604621d2b080c131ef6368b0aa1e7a20ba3d\"}",
+        "{\"e\":\"draw\",\"raceNo\":3,\"combo\":\"3-4\",\"order\":[3,4,6,1,5,2],\"animSeed\":1779993974,\"startAt\":1800003806001,\"t\":1800003800001,\"h\":\"9f08c534ad23fadc6f099b699846b249d18a706d1fd885fc655bc54fb3dfbb68\"}",
+        "{\"e\":\"settled\",\"raceNo\":3,\"combo\":\"3-4\",\"staked\":0,\"paid\":0,\"payouts\":[],\"t\":1800003860001,\"h\":\"d9b36386918d0e9cf342c122bee25c0c1173c32ab8e8cfc4fc604dff1c4523a7\"}",
+        "{\"e\":\"webhook_due\",\"ev\":{\"id\":\"horse-race:round:3\",\"type\":\"round.settled\",\"createdAt\":1800003860001,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"3\",\"raceNo\":3,\"combo\":\"3-4\",\"order\":[3,4,6,1,5,2],\"odds\":{\"1-2\":125,\"1-3\":1000,\"1-4\":80,\"1-5\":60,\"1-6\":100,\"2-3\":3,\"2-4\":250,\"2-5\":10,\"2-6\":5,\"3-4\":4,\"3-5\":20,\"3-6\":8,\"4-5\":30,\"4-6\":500,\"5-6\":175},\"oddsOfWinner\":4,\"rtp\":0.9,\"commit\":\"ad6c35610b5bb549d5a3611150b3dc2decb0697013cbf1f2f44711c39d1512fc\",\"seed\":\"8c49fa5ea5eed5bfc7b168905360a1551fa071aa78ec205cccbea2e390d386c7\",\"bets\":0,\"staked\":0,\"paid\":0,\"ledgerHash\":\"d9b36386918d0e9cf342c122bee25c0c1173c32ab8e8cfc4fc604dff1c4523a7\",\"ledgerLines\":41}},\"t\":1800003860001,\"h\":\"0ef3af8f83207c81ae8a90e978e5b38e7c554f95cf06cb176f3582e0ac67086a\"}",
+        "{\"e\":\"open\",\"raceNo\":4,\"seed\":\"5b66088618b0a5842d1545197d2d6b7c2ca9ec4ba8699fda934a840e3665bacb\",\"commit\":\"1171232f83526c2b3d1c6b58de4108115e4bc966c86eafe2b2da2963ebb278e5\",\"odds\":{\"1-2\":250,\"1-3\":1000,\"1-4\":60,\"1-5\":3,\"1-6\":20,\"2-3\":175,\"2-4\":80,\"2-5\":500,\"2-6\":10,\"3-4\":30,\"3-5\":4,\"3-6\":100,\"4-5\":125,\"4-6\":8,\"5-6\":5},\"rtp\":0.9,\"openAt\":1800003860001,\"betCloseAt\":1800003885001,\"t\":1800003860001,\"h\":\"be423ed540fbbc17015c6e22cd54271e1750a71c7f361360c72cf87415a80e0d\"}",
+        "{\"e\":\"webhook_ok\",\"id\":\"horse-race:round:3\",\"t\":1800003860001,\"h\":\"e30626089b37ec27ca881aa3dea4af2fd0948c1e8335f87baf5f2c365dd9c456\"}",
+        "{\"e\":\"draw\",\"raceNo\":4,\"combo\":\"3-4\",\"order\":[3,4,5,1,6,2],\"animSeed\":3687379993,\"startAt\":1800003926001,\"t\":1800003920001,\"h\":\"360f6ffb80cdffd6172ae53ec56511d2088b675b87bd001775121a4a8583af15\"}",
+        "{\"e\":\"settled\",\"raceNo\":4,\"combo\":\"3-4\",\"staked\":0,\"paid\":0,\"payouts\":[],\"t\":1800003980001,\"h\":\"887ef129a34b0707e5d2622c861f5344b7be818a04d16464902d1498f00f9825\"}",
+        "{\"e\":\"webhook_due\",\"ev\":{\"id\":\"horse-race:round:4\",\"type\":\"round.settled\",\"createdAt\":1800003980001,\"gameId\":\"horse-race\",\"clientId\":\"default\",\"data\":{\"roundId\":\"4\",\"raceNo\":4,\"combo\":\"3-4\",\"order\":[3,4,5,1,6,2],\"odds\":{\"1-2\":250,\"1-3\":1000,\"1-4\":60,\"1-5\":3,\"1-6\":20,\"2-3\":175,\"2-4\":80,\"2-5\":500,\"2-6\":10,\"3-4\":30,\"3-5\":4,\"3-6\":100,\"4-5\":125,\"4-6\":8,\"5-6\":5},\"oddsOfWinner\":30,\"rtp\":0.9,\"commit\":\"1171232f83526c2b3d1c6b58de4108115e4bc966c86eafe2b2da2963ebb278e5\",\"seed\":\"5b66088618b0a5842d1545197d2d6b7c2ca9ec4ba8699fda934a840e3665bacb\",\"bets\":0,\"staked\":0,\"paid\":0,\"ledgerHash\":\"887ef129a34b0707e5d2622c861f5344b7be818a04d16464902d1498f00f9825\",\"ledgerLines\":46}},\"t\":1800003980001,\"h\":\"690f11bddf398aa5e685b1c3e887e20e2a01076e3a6ec4981058b4eab3a75aa7\"}",
+        "{\"e\":\"open\",\"raceNo\":5,\"seed\":\"930612603ae2d55eb943b0a1728f9df790913597c837b45c21434057a4b1642d\",\"commit\":\"a46a71a7b07bdf487238f3029793c945ff61140947103b7cbecda0a6bcdf541c\",\"odds\":{\"1-2\":5,\"1-3\":125,\"1-4\":60,\"1-5\":30,\"1-6\":20,\"2-3\":10,\"2-4\":100,\"2-5\":1000,\"2-6\":4,\"3-4\":3,\"3-5\":500,\"3-6\":8,\"4-5\":80,\"4-6\":250,\"5-6\":175},\"rtp\":0.9,\"openAt\":1800003980001,\"betCloseAt\":1800004005001,\"t\":1800003980001,\"h\":\"c67e58a09773050c4e15b5f345a525b4de83268cb43b69cf576da717b6dba3d0\"}",
+        "{\"e\":\"webhook_ok\",\"id\":\"horse-race:round:4\",\"t\":1800003980001,\"h\":\"d45b951523afc973ffc165494533a95e004a4b185d44c961c141ab1c1adc75b6\"}",
+        "{\"e\":\"draw\",\"raceNo\":5,\"combo\":\"1-2\",\"order\":[1,2,6,5,3,4],\"animSeed\":400040989,\"startAt\":1800004046001,\"t\":1800004040001,\"h\":\"f4f3587b77260e0c955c7384665d5937c40580bde81a1cb2f08997fd5de39fff\"}"
+    ],
+    "db": {
+        "rounds": [
+            {
+                "race_no": 1,
+                "seed": "ee95e78672a084bfecda20fd66b0c2275d46e13350ddac04f877aef98a27edbc",
+                "commit": "a15cc0dbd07649618c1c4f77445048d498130a08828dd6303435bf510bbd4852",
+                "odds": {
+                    "1-2": 80,
+                    "1-3": 30,
+                    "1-4": 20,
+                    "1-5": 3,
+                    "1-6": 250,
+                    "2-3": 5,
+                    "2-4": 125,
+                    "2-5": 4,
+                    "2-6": 500,
+                    "3-4": 60,
+                    "3-5": 175,
+                    "3-6": 100,
+                    "4-5": 8,
+                    "4-6": 1000,
+                    "5-6": 10
+                },
+                "rtp": 0.9,
+                "open_at": 1800000000000,
+                "bet_close_at": 1800000025000,
+                "status": "settled",
+                "combo": "1-5",
+                "order": [
+                    1,
+                    5,
+                    4,
+                    3,
+                    6,
+                    2
+                ],
+                "anim_seed": 1588750945,
+                "start_at": 1800000032000,
+                "settled_at": 1800000062000,
+                "staked": 4000,
+                "paid": 300
+            },
+            {
+                "race_no": 2,
+                "seed": "9a4a207d4e73fc7c50921f862df74c650b7d2e50e40949f263db4d36fc751c40",
+                "commit": "3b67f8f5aa8d72be2cce0668720ceb4d3786814897bbb83b7bc9ef7e25c03386",
+                "odds": {
+                    "1-2": 250,
+                    "1-3": 175,
+                    "1-4": 100,
+                    "1-5": 60,
+                    "1-6": 8,
+                    "2-3": 500,
+                    "2-4": 10,
+                    "2-5": 20,
+                    "2-6": 30,
+                    "3-4": 1000,
+                    "3-5": 4,
+                    "3-6": 3,
+                    "4-5": 80,
+                    "4-6": 5,
+                    "5-6": 125
+                },
+                "rtp": 0.9,
+                "open_at": 1800000078000,
+                "bet_close_at": 1800000103000,
+                "status": "settled",
+                "combo": "3-6",
+                "order": [
+                    3,
+                    6,
+                    1,
+                    4,
+                    5,
+                    2
+                ],
+                "anim_seed": 2481387282,
+                "start_at": 1800003684001,
+                "settled_at": 1800003740001,
+                "staked": 0,
+                "paid": 0
+            },
+            {
+                "race_no": 3,
+                "seed": "8c49fa5ea5eed5bfc7b168905360a1551fa071aa78ec205cccbea2e390d386c7",
+                "commit": "ad6c35610b5bb549d5a3611150b3dc2decb0697013cbf1f2f44711c39d1512fc",
+                "odds": {
+                    "1-2": 125,
+                    "1-3": 1000,
+                    "1-4": 80,
+                    "1-5": 60,
+                    "1-6": 100,
+                    "2-3": 3,
+                    "2-4": 250,
+                    "2-5": 10,
+                    "2-6": 5,
+                    "3-4": 4,
+                    "3-5": 20,
+                    "3-6": 8,
+                    "4-5": 30,
+                    "4-6": 500,
+                    "5-6": 175
+                },
+                "rtp": 0.9,
+                "open_at": 1800003740001,
+                "bet_close_at": 1800003765001,
+                "status": "settled",
+                "combo": "3-4",
+                "order": [
+                    3,
+                    4,
+                    6,
+                    1,
+                    5,
+                    2
+                ],
+                "anim_seed": 1779993974,
+                "start_at": 1800003806001,
+                "settled_at": 1800003860001,
+                "staked": 0,
+                "paid": 0
+            },
+            {
+                "race_no": 4,
+                "seed": "5b66088618b0a5842d1545197d2d6b7c2ca9ec4ba8699fda934a840e3665bacb",
+                "commit": "1171232f83526c2b3d1c6b58de4108115e4bc966c86eafe2b2da2963ebb278e5",
+                "odds": {
+                    "1-2": 250,
+                    "1-3": 1000,
+                    "1-4": 60,
+                    "1-5": 3,
+                    "1-6": 20,
+                    "2-3": 175,
+                    "2-4": 80,
+                    "2-5": 500,
+                    "2-6": 10,
+                    "3-4": 30,
+                    "3-5": 4,
+                    "3-6": 100,
+                    "4-5": 125,
+                    "4-6": 8,
+                    "5-6": 5
+                },
+                "rtp": 0.9,
+                "open_at": 1800003860001,
+                "bet_close_at": 1800003885001,
+                "status": "settled",
+                "combo": "3-4",
+                "order": [
+                    3,
+                    4,
+                    5,
+                    1,
+                    6,
+                    2
+                ],
+                "anim_seed": 3687379993,
+                "start_at": 1800003926001,
+                "settled_at": 1800003980001,
+                "staked": 0,
+                "paid": 0
+            },
+            {
+                "race_no": 5,
+                "seed": "930612603ae2d55eb943b0a1728f9df790913597c837b45c21434057a4b1642d",
+                "commit": "a46a71a7b07bdf487238f3029793c945ff61140947103b7cbecda0a6bcdf541c",
+                "odds": {
+                    "1-2": 5,
+                    "1-3": 125,
+                    "1-4": 60,
+                    "1-5": 30,
+                    "1-6": 20,
+                    "2-3": 10,
+                    "2-4": 100,
+                    "2-5": 1000,
+                    "2-6": 4,
+                    "3-4": 3,
+                    "3-5": 500,
+                    "3-6": 8,
+                    "4-5": 80,
+                    "4-6": 250,
+                    "5-6": 175
+                },
+                "rtp": 0.9,
+                "open_at": 1800003980001,
+                "bet_close_at": 1800004005001,
+                "status": "racing",
+                "combo": "1-2",
+                "order": [
+                    1,
+                    2,
+                    6,
+                    5,
+                    3,
+                    4
+                ],
+                "anim_seed": 400040989,
+                "start_at": 1800004046001,
+                "settled_at": null,
+                "staked": 0,
+                "paid": 0
+            }
+        ],
+        "bets": [
+            {
+                "id": "13cae9143060bd0c:3-4",
+                "race_no": 1,
+                "player_key": "carol",
+                "combo": "3-4",
+                "stake": 1500,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000000000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:1-2",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "1-2",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:1-3",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "1-3",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:1-4",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "1-4",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:1-5",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "1-5",
+                "stake": 100,
+                "status": "won",
+                "payout": 300,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:1-6",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "1-6",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:2-3",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "2-3",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:2-4",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "2-4",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:2-5",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "2-5",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:2-6",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "2-6",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:3-4",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "3-4",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:3-5",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "3-5",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:3-6",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "3-6",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:4-5",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "4-5",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:4-6",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "4-6",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "23d414c713739405:5-6",
+                "race_no": 1,
+                "player_key": "dan",
+                "combo": "5-6",
+                "stake": 100,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000002000,
+                "client_id": "default"
+            },
+            {
+                "id": "d35696cb68e51a8c:1-2",
+                "race_no": 1,
+                "player_key": "carol",
+                "combo": "1-2",
+                "stake": 1000,
+                "status": "lost",
+                "payout": 0,
+                "currency": "PHP",
+                "brand_id": null,
+                "placed_at": 1800000000000,
+                "client_id": "default"
+            }
+        ],
+        "game_sessions": [],
+        "pending_ops": [
+            {
+                "tx_id": "win:99:ellen",
+                "kind": "credit",
+                "player_key": "ellen",
+                "amount": 1234,
+                "race_no": 99,
+                "tx_kind": "win",
+                "extra": {
+                    "betIds": [
+                        "x:1-2"
+                    ],
+                    "currency": "PHP",
+                    "brandId": null
+                },
+                "since": 1800003678001,
+                "tries": 11,
+                "next_at": 1800004100001
+            }
+        ]
+    }
+}
