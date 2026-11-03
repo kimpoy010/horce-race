@@ -4,7 +4,8 @@ namespace App\Game;
 
 use App\Game\Clients\ClientRegistry;
 use App\Game\Wallet\Wallet;
-use App\Game\Wallet\WalletException;
+use App\Platform\PlayerKey;
+use App\Platform\Wallet\WalletGateway;
 use Closure;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -32,12 +33,15 @@ final class Engine
 
     private array $values;         // the 15 odds values, sorted
 
+    private WalletGateway $gateway;    // wallet calls and the queue of credits and rollbacks (shared by every game)
+
     /**
      * @param  Wallet|null  $wallet  wallet of the implicit "default" client (HORSE_WALLET); null = registry clients only (HORSE_WALLET=none)
      * @param  Webhook|null  $webhook  webhook of the default client
      */
     public function __construct(private ?Wallet $wallet, private Ledger $ledger, private array $cfg, private ?Closure $clock = null, private ?ClientRegistry $clients = null, private ?Webhook $webhook = null)
     {
+        $this->gateway = new WalletGateway(fn () => $this->now(), fn (array $ev) => $this->log($ev), fn (string $clientId) => $this->walletFor($clientId));
         $this->table = Odds::build($cfg['odds'] ?? null);
         $this->values = array_map(fn ($c) => $this->table['odds'][$c], Odds::combos());
         sort($this->values);
@@ -209,7 +213,7 @@ final class Engine
             }
             $this->log(['e' => 'settled', 'raceNo' => $r->race_no, 'combo' => $r->combo, 'staked' => $staked, 'paid' => $paid, 'payouts' => $list]);
             foreach ($payouts as $pk => $w) {
-                $this->queueCredit('win:'.$r->race_no.':'.$pk, $pk, $w['amount'], $r->race_no, 'win', ['betIds' => $w['betIds'], 'currency' => $w['currency'], 'brandId' => $w['brandId']]);
+                $this->gateway->queueCredit('win:'.$r->race_no.':'.$pk, $pk, $w['amount'], $r->race_no, 'win', ['betIds' => $w['betIds'], 'currency' => $w['currency'], 'brandId' => $w['brandId']]);
                 DB::table('game_sessions')->where('player_key', $pk)->increment('s_paid', $w['amount']);
             }
             // every client with a webhook gets the result; the money figures are its own players'
@@ -279,7 +283,7 @@ final class Engine
                 $per[$b->player_key] = ($per[$b->player_key] ?? 0) + $b->stake;
             }
             foreach ($per as $pk => $amount) {
-                $this->queueCredit('refund:'.$raceNo.':'.$pk, $pk, $amount, $raceNo, 'refund');
+                $this->gateway->queueCredit('refund:'.$raceNo.':'.$pk, $pk, $amount, $raceNo, 'refund');
             }
 
             return $bets->count();
@@ -342,34 +346,22 @@ final class Engine
         Cache::put('horse:tick', $t, 3600);
     }
 
-    /* ---------- wallet queues (credits and rollbacks that still have to reach the platform) ---------- */
+    /* ---------- wallet queues (credits and rollbacks that still have to reach the platform): App\Platform\Wallet\WalletGateway ---------- */
 
-    private function queueCredit(string $txId, string $playerKey, int $amount, int $raceNo, string $kind, array $extra = []): void
+    public function flushCredits(): void
     {
-        if ($amount <= 0 || DB::table('pending_ops')->where('tx_id', $txId)->exists()) {
-            return;
-        }
-        $this->log(['e' => 'credit_due', 'txId' => $txId, 'playerId' => $playerKey, 'amount' => $amount, 'raceNo' => $raceNo, 'kind' => $kind, 'extra' => $extra ?: new \stdClass]);
-        DB::table('pending_ops')->insert(['tx_id' => $txId, 'kind' => 'credit', 'player_key' => $playerKey, 'amount' => $amount, 'race_no' => $raceNo, 'tx_kind' => $kind,
-            'extra' => json_encode($extra ?: new \stdClass), 'since' => $this->now(), 'tries' => 0, 'next_at' => 0]);
+        $this->gateway->flushCredits();
     }
 
-    /** a debit that timed out twice may or may not have been applied: ask the wallet to cancel it (and refuse it if it arrives late) */
-    private function queueRollback(string $txId, string $playerKey, int $amount, array $meta): void
+    public function flushRollbacks(): void
     {
-        if (DB::table('pending_ops')->where('tx_id', 'rb:'.$txId)->exists()) {
-            return;
-        }
-        $extra = array_filter(['currency' => $meta['currency'] ?? null, 'brandId' => $meta['brandId'] ?? null, 'betId' => $meta['betId'] ?? null, 'betIds' => $meta['betIds'] ?? null], fn ($v) => $v !== null);
-        $this->log(['e' => 'rollback_due', 'txId' => $txId, 'playerId' => $playerKey, 'amount' => $amount, 'raceNo' => $meta['raceNo'] ?? null, 'extra' => $extra ?: new \stdClass]);
-        DB::table('pending_ops')->insert(['tx_id' => 'rb:'.$txId, 'kind' => 'rollback', 'player_key' => $playerKey, 'amount' => $amount, 'race_no' => $meta['raceNo'] ?? null,
-            'extra' => json_encode($extra ?: new \stdClass), 'since' => $this->now(), 'tries' => 0, 'next_at' => 0]);
+        $this->gateway->flushRollbacks();
     }
 
-    private function backoff(object $p, int $t): void
+    /** calls in the last $windowMs: calls, failures, failRate, p95 (ms) */
+    public function walletWindow(int $windowMs, ?string $client = null): array
     {
-        $tries = $p->tries + 1;
-        DB::table('pending_ops')->where('tx_id', $p->tx_id)->update(['tries' => $tries, 'next_at' => $t + min(60000, 1000 * (2 ** min($tries, 6)))]);
+        return $this->gateway->window($windowMs, $client);
     }
 
     /** webhooks to the platform: at least once; the platform de-duplicates on `id` */
@@ -403,121 +395,22 @@ final class Engine
                 DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
                 $this->log(['e' => 'webhook_ok', 'id' => $p->tx_id]);
             } catch (\Throwable $e) {
-                $this->backoff($p, $t);
+                $this->gateway->backoff($p, $t);
             }
         }
-    }
-
-    public function flushCredits(): void
-    {
-        $t = $this->now();
-        foreach (DB::table('pending_ops')->where('kind', 'credit')->where('next_at', '<=', $t)->orderBy('since')->limit(200)->get() as $p) {
-            try {
-                $extra = json_decode($p->extra ?? '{}', true) ?: [];
-                [$cid, $raw] = self::splitPk($p->player_key);
-                $w = $this->walletFor($cid) ?? throw new \RuntimeException('no wallet for client '.$cid);
-                $res = $this->walletCall(fn () => $w->credit($raw, $p->amount, $p->tx_id, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => $p->tx_kind] + $extra), 'credit', $cid);
-                DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
-                $this->log(['e' => 'credit_ok', 'txId' => $p->tx_id, 'raceNo' => $p->race_no]);
-                if (isset($res['balance'])) {
-                    DB::table('game_sessions')->where('player_key', $p->player_key)->update(['balance' => $res['balance']]);
-                }
-            } catch (\Throwable $e) {
-                $this->backoff($p, $t);
-            }
-        }
-    }
-
-    public function flushRollbacks(): void
-    {
-        $t = $this->now();
-        foreach (DB::table('pending_ops')->where('kind', 'rollback')->where('next_at', '<=', $t)->orderBy('since')->limit(200)->get() as $p) {
-            $orig = substr($p->tx_id, 3);
-            try {
-                $extra = json_decode($p->extra ?? '{}', true) ?: [];
-                [$cid, $raw] = self::splitPk($p->player_key);
-                $w = $this->walletFor($cid) ?? throw new \RuntimeException('no wallet for client '.$cid);
-                $res = $this->walletCall(fn () => $w->rollback($raw, $p->amount, $orig, ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no, 'kind' => 'rollback', 'refTxId' => $orig] + $extra), 'rollback', $cid);
-                DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
-                $this->log(['e' => 'rollback_ok', 'txId' => $orig, 'status' => $res['status'] ?? null]);
-                if (isset($res['balance'])) {
-                    DB::table('game_sessions')->where('player_key', $p->player_key)->update(['balance' => $res['balance']]);
-                }
-            } catch (WalletException $e) {
-                if ($e->unsupported) {                      // the platform has no rollback: reconcile by hand
-                    DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
-                    $this->log(['e' => 'rollback_unsupported', 'txId' => $orig]);
-
-                    continue;
-                }
-                $this->backoff($p, $t);
-            } catch (\Throwable $e) {
-                $this->backoff($p, $t);
-            }
-        }
-    }
-
-    /** every wallet call goes through here: timing and failures feed the overview and /metrics. A normal refusal is an answer; no answer, a server error or a rejected signature is a failure. */
-    private function walletCall(Closure $fn, string $op = 'call', string $clientId = 'default'): mixed
-    {
-        $t0 = hrtime(true);
-        $ok = true;
-        try {
-            return $fn();
-        } catch (\Throwable $e) {
-            $ok = $e->getMessage() === 'INSUFFICIENT_FUNDS' || ($e instanceof WalletException && $e->definitive && ! in_array($e->status, [401, 403], true));
-            throw $e;
-        } finally {
-            try {
-                $ms = (int) round((hrtime(true) - $t0) / 1e6);
-                DB::table('wallet_calls')->insert(['at' => $this->now(), 'client' => $clientId, 'op' => $op, 'ms' => $ms, 'ok' => $ok]);
-                $this->countWalletCall($clientId, $op, $ms, $ok);
-            } catch (\Throwable $e) {
-                // metrics must never break a bet
-            }
-        }
-    }
-
-    /** running totals for /metrics (counters only go up, so they are kept apart from the hour of detailed calls) */
-    private function countWalletCall(string $clientId, string $op, int $ms, bool $ok): void
-    {
-        DB::table('wallet_stats')->insertOrIgnore(['client' => $clientId, 'op' => $op]);
-        $set = [$ok ? 'ok' : 'fail' => DB::raw(($ok ? 'ok' : 'fail').' + 1'), 'sum_ms' => DB::raw('sum_ms + '.$ms)];
-        foreach ([50, 100, 250, 500, 1000, 2500, 5000, 10000] as $le) {
-            if ($ms <= $le) {
-                $set['le'.$le] = DB::raw('le'.$le.' + 1');
-            }
-        }
-        DB::table('wallet_stats')->where('client', $clientId)->where('op', $op)->update($set);
-    }
-
-    /** calls in the last $windowMs: calls, failures, failRate, p95 (ms) */
-    public function walletWindow(int $windowMs, ?string $client = null): array
-    {
-        $q = DB::table('wallet_calls')->where('at', '>=', $this->now() - $windowMs);
-        if ($client !== null) {
-            $q->where('client', $client);
-        }
-        $ms = (clone $q)->orderBy('ms')->pluck('ms')->all();
-        $n = count($ms);
-        $fails = (int) (clone $q)->where('ok', false)->count();
-
-        return ['calls' => $n, 'failures' => $fails, 'failRate' => $n ? $fails / $n : 0, 'p95' => $n ? $ms[min($n - 1, (int) floor($n * 0.95))] : 0];
     }
 
     /* ---------- clients: every player belongs to one client (platform). Internally a player is "clientId:playerId" ("default" client: just playerId) ---------- */
 
     public static function pk(?string $clientId, string $playerId): string
     {
-        return ! $clientId || $clientId === 'default' ? $playerId : $clientId.':'.$playerId;
+        return PlayerKey::make($clientId, $playerId);
     }
 
     /** @return array{0:string,1:string} [clientId, playerId] */
     public static function splitPk(string $pk): array
     {
-        $i = strpos($pk, ':');
-
-        return $i === false ? ['default', $pk] : [substr($pk, 0, $i), substr($pk, $i + 1)];
+        return PlayerKey::split($pk);
     }
 
     private function clientCfg(string $id): array
@@ -634,7 +527,7 @@ final class Engine
             throw new GameError(400, 'INVALID_CLIENT');
         }
         try {
-            $info = $this->walletCall(fn () => $wallet->validateToken($token), 'validate', $clientId);
+            $info = $this->gateway->call(fn () => $wallet->validateToken($token), 'validate', $clientId);
         } catch (\Throwable $e) {
             throw new GameError(401, 'INVALID_TOKEN');
         }
@@ -804,12 +697,12 @@ final class Engine
         $txId = 'bet:'.$raceNo.':'.$batch;
         $base = ['raceNo' => $raceNo, 'roundId' => (string) $raceNo, 'currency' => $s->currency, 'brandId' => $s->brand_id];
         $betIds = array_map(fn ($c) => $batch.':'.$c, array_keys($merged));
-        $res = $this->debit($s->player_key, $total, $txId, ['kind' => 'bet', 'betId' => $batch, 'betIds' => $betIds] + $base);
+        $res = $this->gateway->debit($s->player_key, $total, $txId, ['kind' => 'bet', 'betId' => $batch, 'betIds' => $betIds] + $base);
 
         $placed = DB::transaction(function () use ($raceNo, $merged, $s, $total, $batch, $txId, $res, $betIds, $base) {
             $r = DB::table('rounds')->where('race_no', $raceNo)->lockForUpdate()->first();
             if (! $r || $r->status !== 'betting' || $this->now() >= $r->bet_close_at) {     // betting closed while the wallet was busy
-                $this->queueCredit('refund:'.$txId, $s->player_key, $total, $raceNo, 'refund', ['betId' => $batch, 'betIds' => $betIds, 'refTxId' => $txId] + $base);
+                $this->gateway->queueCredit('refund:'.$txId, $s->player_key, $total, $raceNo, 'refund', ['betId' => $batch, 'betIds' => $betIds, 'refTxId' => $txId] + $base);
 
                 return null;
             }
@@ -832,34 +725,6 @@ final class Engine
         }
 
         return ['bets' => $placed, 'balance' => $res['balance'] ?? null];
-    }
-
-    private function debit(string $playerKey, int $amount, string $txId, array $meta): array
-    {
-        [$cid, $raw] = self::splitPk($playerKey);
-        $wallet = $this->walletFor($cid);
-        if (! $wallet) {
-            throw new GameError(502, 'WALLET_UNAVAILABLE');
-        }
-        for ($attempt = 0; $attempt < 2; $attempt++) {
-            try {
-                return $this->walletCall(fn () => $wallet->debit($raw, $amount, $txId, $meta), 'debit', $cid);
-            } catch (WalletException $e) {
-                if ($e->getMessage() === 'INSUFFICIENT_FUNDS') {
-                    throw new GameError(402, 'INSUFFICIENT_FUNDS');
-                }
-                if ($e->definitive) {
-                    throw new GameError(502, 'WALLET_REJECTED');
-                }
-                if ($attempt === 1) {
-                    $this->log(['e' => 'debit_unknown', 'playerId' => $playerKey, 'amount' => $amount, 'txId' => $txId]);
-                    $this->queueRollback($txId, $playerKey, $amount, $meta);
-                    throw new GameError(502, 'WALLET_UNAVAILABLE');
-                }
-                usleep(250000);                          // the same txId again: the wallet is idempotent
-            }
-        }
-        throw new GameError(502, 'WALLET_UNAVAILABLE');
     }
 
     /* ---------- views ---------- */
@@ -963,7 +828,7 @@ final class Engine
             DB::table('game_sessions')->where('key', $s->key)->update(['refreshed_at' => $this->now()]);
             try {
                 $w = $this->walletFor($s->client_id) ?? throw new \RuntimeException('no wallet');
-                $bal = $this->walletCall(fn () => $w->balance($s->raw_id), 'balance', $s->client_id);
+                $bal = $this->gateway->call(fn () => $w->balance($s->raw_id), 'balance', $s->client_id);
                 DB::table('game_sessions')->where('key', $s->key)->update(['balance' => $bal]);
             } catch (\Throwable $e) {
                 // keep the cached balance

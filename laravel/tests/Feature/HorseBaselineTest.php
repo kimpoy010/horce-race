@@ -352,10 +352,9 @@ class HorseBaselineTest extends TestCase
         $snap('after the sessions expired');
 
         // (d) the whole back-off schedule of a credit the platform never answers: 2 s, 4 s, 8 s ... up to the cap
-        $ref = new \ReflectionMethod($engine, 'queueCredit');
-        $ref->setAccessible(true);
+        $gateway = (new \ReflectionProperty($engine, 'gateway'))->getValue($engine);                       // the queue of credits owed to the platform
         $wallet->failCredits = 12;
-        $ref->invoke($engine, 'win:99:ellen', 'ellen', 1234, 99, 'win', ['betIds' => ['x:1-2'], 'currency' => 'PHP', 'brandId' => null]);
+        $gateway->queueCredit('win:99:ellen', 'ellen', 1234, 99, 'win', ['betIds' => ['x:1-2'], 'currency' => 'PHP', 'brandId' => null]);
         $schedule = [];
         for ($i = 0; $i < 11; $i++) {
             $row = DB::table('pending_ops')->where('tx_id', 'win:99:ellen')->first();

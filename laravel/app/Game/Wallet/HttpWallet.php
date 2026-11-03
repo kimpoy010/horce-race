@@ -60,11 +60,11 @@ final class HttpWallet implements Wallet
         return (int) $this->post('/wallet/balance', ['playerId' => $playerId])['balance'];
     }
 
-    /** every transaction names the game, round, bet(s), type, currency and brand, so the platform can show history without parsing meta */
+    /** every transaction names the game, round, bet(s), type, currency and brand, so the platform can show history without parsing meta (the game is the wallet's own, unless the call names another: a second game on the same platform) */
     private function tx(string $playerId, int $amount, string $txId, array $meta, array $extra = []): array
     {
         return array_filter([
-            'playerId' => $playerId, 'amount' => $amount, 'txId' => $txId, 'gameId' => $this->gameId, 'transactionType' => $meta['kind'] ?? null,
+            'playerId' => $playerId, 'amount' => $amount, 'txId' => $txId, 'gameId' => $meta['gameId'] ?? $this->gameId, 'transactionType' => $meta['kind'] ?? null,
             'roundId' => $meta['roundId'] ?? null, 'betId' => $meta['betId'] ?? null, 'betIds' => $meta['betIds'] ?? null, 'refTxId' => $meta['refTxId'] ?? null,
             'currency' => $meta['currency'] ?? $this->currency, 'brandId' => $meta['brandId'] ?? null,
         ] + $extra, fn ($v) => $v !== null) + ['meta' => (object) $meta];
