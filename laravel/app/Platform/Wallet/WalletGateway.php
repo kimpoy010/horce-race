@@ -104,10 +104,15 @@ final class WalletGateway
         return ($p->round_ref ?? null) === null ? ['raceNo' => $p->race_no, 'roundId' => (string) $p->race_no] : ['roundId' => $p->round_ref, 'gameId' => $p->game_id ?? self::HORSE_RACE];
     }
 
-    public function flushCredits(): void
+    /** @param string|null $onlyTxId deliver just this queued credit now (an instant game tries its player's win at once); null = every credit that is due, as the round loop does */
+    public function flushCredits(?string $onlyTxId = null): void
     {
         $t = $this->now();
-        foreach (DB::table('pending_ops')->where('kind', 'credit')->where('next_at', '<=', $t)->orderBy('since')->limit(200)->get() as $p) {
+        $due = DB::table('pending_ops')->where('kind', 'credit')->where('next_at', '<=', $t);
+        if ($onlyTxId !== null) {
+            $due->where('tx_id', $onlyTxId);
+        }
+        foreach ($due->orderBy('since')->limit(200)->get() as $p) {
             try {
                 $extra = json_decode($p->extra ?? '{}', true) ?: [];
                 [$cid, $raw] = PlayerKey::split($p->player_key);
