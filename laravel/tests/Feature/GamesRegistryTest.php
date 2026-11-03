@@ -31,18 +31,20 @@ class GamesRegistryTest extends StaffTestCase
         return $this->signIn('admin', null, 'olga')[0];
     }
 
-    public function test_the_horse_race_is_the_one_registered_game_and_a_module(): void
+    public function test_the_horse_race_is_the_default_game_and_bingo_pinball_ships_switched_off(): void
     {
         $g = $this->games();
-        $this->assertSame(['horse-race'], $g->ids());
-        $this->assertSame(['horse-race'], $g->defaults());
+        $this->assertSame(['horse-race', 'bingo-pinball'], $g->ids());
+        $this->assertSame(['horse-race'], $g->defaults(), 'a new game is registered but is not in the defaults: no client plays it until an operator adds it');
+        $this->assertFalse($g->isEnabled($this->reg->get('acme'), 'bingo-pinball'));
+        $this->assertSame(['instant', 'Bingo Pinball', '/games/bingo-pinball'], [$g->get('bingo-pinball')->kind(), $g->get('bingo-pinball')->name(), $g->get('bingo-pinball')->launchPath()]);
         $m = $g->get('horse-race');
         $this->assertInstanceOf(GameModule::class, $m);
         $this->assertInstanceOf(HorseRaceModule::class, $m);
         $this->assertSame(['horse-race', 'shared', 'Horse Race', '/'], [$m->id(), $m->kind(), $m->name(), $m->launchPath()]);
         $this->assertSame($this->engine->rules(), $m->rules());
         $this->assertSame([], $m->clientSettings());
-        $this->assertSame(['horse-race'], array_keys($g->all()));
+        $this->assertSame(['horse-race', 'bingo-pinball'], array_keys($g->all()));
         $this->expectException(\InvalidArgumentException::class);
         $g->get('nope');
     }
@@ -59,7 +61,6 @@ class GamesRegistryTest extends StaffTestCase
 
     public function test_a_clients_own_list_is_validated_stored_and_changed(): void
     {
-        config(['games.modules' => ['horse-race' => HorseRaceModule::class, 'bingo-pinball' => HorseRaceModule::class]]);       // a second game id, for the test only
         $this->reg->update('acme', ['games' => ['horse-race', 'bingo-pinball']]);
         $c = $this->reg->get('acme');
         $this->assertSame(['horse-race', 'bingo-pinball'], $c['games']);
@@ -74,7 +75,7 @@ class GamesRegistryTest extends StaffTestCase
             }
         }
         $this->assertArrayNotHasKey('games', $this->reg->get('zeta'), 'a refused list changes nothing');
-        config(['games.modules' => ['horse-race' => HorseRaceModule::class]]);                                                     // the other game is taken away again
+        config(['games.modules' => ['horse-race' => HorseRaceModule::class]]);                                                     // the server no longer has the other game
         $this->assertSame(['horse-race'], $this->games()->enabledFor($this->reg->get('acme')), 'a game this server no longer has is skipped');
     }
 
@@ -84,14 +85,13 @@ class GamesRegistryTest extends StaffTestCase
         $this->postJson('/admin/api/clients/acme', ['client' => ['games' => ['horse-race']]], $h)->assertOk();
         $this->assertSame(['horse-race'], $this->reg->get('acme')['games']);
         $this->assertSame(['horse-race'], $this->getJson('/admin/api/clients/acme', $h)->assertOk()->json('client.games'));
-        $this->postJson('/admin/api/clients/acme', ['client' => ['games' => ['bingo-pinball']]], $h)->assertStatus(400);
+        $this->postJson('/admin/api/clients/acme', ['client' => ['games' => ['no-such-game']]], $h)->assertStatus(400);
         $this->assertSame(['horse-race'], $this->reg->get('acme')['games']);
         $this->assertArrayNotHasKey('games', $this->getJson('/admin/api/clients/zeta', $h)->json('client'), 'a client that has no list shows none');
     }
 
     public function test_a_game_that_is_not_enabled_for_the_client_cannot_be_launched_and_the_launch_token_is_kept(): void
     {
-        config(['games.modules' => ['horse-race' => HorseRaceModule::class, 'bingo-pinball' => HorseRaceModule::class]]);
         $wallet = new RecordingWallet(new MockWallet(1000, 'PHP'));
         $dir = new ClientDirectory($wallet, null, $this->reg);
         $log = fn (array $ev) => (new Ledger)->append($ev + ['t' => $this->t]);

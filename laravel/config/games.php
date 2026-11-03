@@ -11,5 +11,15 @@ return [
     // game id => the class of its module
     'modules' => [
         'horse-race' => App\Games\HorseRace\HorseRaceModule::class,
+        'bingo-pinball' => App\Games\BingoPinball\BingoPinballModule::class,          // ships switched off: not in 'default'
+    ],
+
+    // settings of the games themselves
+    'settings' => [
+        'bingo-pinball' => [
+            'min_interval_ms' => (int) env('BINGO_MIN_INTERVAL_MS', 3000),      // at least this long between two plays of a player
+            'rotate_every' => (int) env('BINGO_ROTATE_EVERY', 1000),            // the seed pair is replaced (and the old server seed revealed) after this many plays
+            'stuck_after_ms' => 30000,                                           // a play still waiting for its debit this long after it started is cancelled
+        ],
     ],
 ];

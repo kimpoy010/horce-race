@@ -40,6 +40,15 @@ final class HorseRaceModule implements GameModule
         return $this->engine->rules();
     }
 
+    public function validateClientSettings(array $settings): array
+    {
+        if ($settings) {
+            throw new \InvalidArgumentException('the horse race has no settings per client');
+        }
+
+        return [];
+    }
+
     public function clientSettings(): array
     {
         return [];

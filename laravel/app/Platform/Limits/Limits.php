@@ -3,7 +3,9 @@
 namespace App\Platform\Limits;
 
 use Closure;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * The limits a player plays under (minimum and maximum bet, maximum stake per round, daily loss limit) and what the player has staked and lost today.
@@ -48,8 +50,21 @@ final class Limits
         $day = gmdate('Y-m-d', intdiv(($this->now)(), 1000));
         $from = strtotime($day.' 00:00:00 UTC') * 1000;
         $q = DB::table('bets')->where('player_key', $playerKey)->where('placed_at', '>=', $from)->where('placed_at', '<', $from + 86400000)->where('status', '!=', 'refunded');
+        $staked = (int) $q->sum('stake');
+        $paid = (int) (clone $q)->sum('payout');
+        if (self::hasInstantRounds()) {                                  // the daily loss limit is shared by every game: the instant rounds of today count too
+            $i = DB::table('instant_rounds')->where('player_key', $playerKey)->where('created_at', '>=', $from)->where('created_at', '<', $from + 86400000)->where('status', 'settled');
+            $staked += (int) $i->sum('stake');
+            $paid += (int) (clone $i)->sum('payout');
+        }
 
-        return ['staked' => (int) $q->sum('stake'), 'paid' => (int) (clone $q)->sum('payout')];
+        return ['staked' => $staked, 'paid' => $paid];
+    }
+
+    /** false until the table of the instant games exists (a deploy whose migration has not run yet must not break the horse race) */
+    private static function hasInstantRounds(): bool
+    {
+        return Cache::remember('horse:has-instant-rounds', 300, fn () => Schema::hasTable('instant_rounds'));
     }
 
     /** what the player has lost today (stake minus payout; negative when ahead) */

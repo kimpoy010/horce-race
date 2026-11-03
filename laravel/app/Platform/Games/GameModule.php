@@ -25,6 +25,15 @@ interface GameModule
     public function rules(): array;
 
     /**
+     * Checks and cleans the settings an operator gives a client for this game (config of the client: "gameSettings": {"<game id>": {...}}).
+     *
+     * @return array the settings as they are stored
+     *
+     * @throws \InvalidArgumentException with a message that says what is wrong
+     */
+    public function validateClientSettings(array $settings): array;
+
+    /**
      * What an operator may set per client for this game, as {setting: description}; an empty list when nothing is per client (the horse race's RTP is one setting for
      * the whole server).
      *

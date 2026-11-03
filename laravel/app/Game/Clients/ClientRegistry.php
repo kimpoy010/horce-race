@@ -220,6 +220,9 @@ final class ClientRegistry
         if (isset($c['games']) && is_array($c['games'])) {                // the games this client plays; absent = the server's defaults (config/games.php), nothing is stored.
             $out['games'] = array_values(array_filter($c['games'], 'is_string'));       // Not checked here: reading a client must never fail (a game this server no longer has is skipped by Games::enabledFor)
         }
+        if (isset($c['gameSettings']) && is_array($c['gameSettings']) && $c['gameSettings']) {      // per-game settings (App\Platform\Games\GameModule::validateClientSettings), checked when written
+            $out['gameSettings'] = $c['gameSettings'];
+        }
         $out['returnUrlHosts'] = array_map(fn ($h) => strtolower((string) $h), $c['returnUrlHosts'] ?? []);
         $out['apiKeys'] = array_map(fn ($k) => ['id' => (string) $k['id'], 'hash' => (string) $k['hash'], 'createdAt' => $k['createdAt'] ?? 0, 'expiresAt' => $k['expiresAt'] ?? null, 'lastUsedAt' => $k['lastUsedAt'] ?? null],
             is_array($c['apiKeys'] ?? null) ? $c['apiKeys'] : []);
@@ -372,10 +375,44 @@ final class ClientRegistry
         }
     }
 
+    /** the per-game settings of a client, each checked by its game; returns what is stored */
+    private static function checkGameSettings(mixed $settings): array
+    {
+        if ($settings === null || $settings === []) {
+            return [];
+        }
+        if (! is_array($settings) || array_is_list($settings)) {
+            throw self::fail('gameSettings must be an object: {"<game id>": {...}}');
+        }
+        $games = app(\App\Platform\Games\Games::class);
+        $out = [];
+        foreach ($settings as $id => $one) {
+            if (! is_string($id) || ! $games->exists($id)) {
+                throw self::fail('gameSettings: unknown game "'.$id.'"');
+            }
+            if (! is_array($one)) {
+                throw self::fail("gameSettings.$id must be an object");
+            }
+            try {
+                $clean = $games->get($id)->validateClientSettings($one);
+            } catch (\InvalidArgumentException $e) {
+                throw self::fail("gameSettings.$id: ".$e->getMessage());
+            }
+            if ($clean) {
+                $out[$id] = $clean;
+            }
+        }
+
+        return $out;
+    }
+
     public function create(array $input): array
     {
         if (array_key_exists('games', $input)) {
             self::checkGames($input['games']);
+        }
+        if (array_key_exists('gameSettings', $input)) {
+            $input['gameSettings'] = self::checkGameSettings($input['gameSettings']);
         }
         if (DB::table('clients')->where('id', $input['id'] ?? '')->exists()) {
             throw self::fail('a client with this id exists', 409, 'CLIENT_EXISTS');
@@ -412,9 +449,12 @@ final class ClientRegistry
         if (array_key_exists('games', $patch)) {
             self::checkGames($patch['games']);
         }
+        if (array_key_exists('gameSettings', $patch)) {
+            $patch['gameSettings'] = self::checkGameSettings($patch['gameSettings']);
+        }
         $cur = $this->need($id);
         $merged = $cur;
-        foreach (['name', 'status', 'currency', 'realityCheckMinutes', 'bigWinMin', 'allowedIps', 'returnUrlHosts', 'limits', 'currencyLimits', 'webhook', 'games'] as $k) {
+        foreach (['name', 'status', 'currency', 'realityCheckMinutes', 'bigWinMin', 'allowedIps', 'returnUrlHosts', 'limits', 'currencyLimits', 'webhook', 'games', 'gameSettings'] as $k) {
             if (array_key_exists($k, $patch)) {
                 $merged[$k] = $patch[$k];
             }
@@ -424,6 +464,9 @@ final class ClientRegistry
         }
         if (array_key_exists('webhook', $patch) && $patch['webhook'] === null) {
             unset($merged['webhook']);
+        }
+        if (array_key_exists('gameSettings', $patch) && ! $patch['gameSettings']) {
+            unset($merged['gameSettings']);
         }
         $c = $this->normalize($merged);
         $c['createdAt'] = $cur['createdAt'];

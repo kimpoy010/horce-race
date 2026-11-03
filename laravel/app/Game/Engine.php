@@ -59,11 +59,43 @@ final class Engine
         $this->directory = new ClientDirectory($wallet, $webhook, $clients);
         $this->gateway = new WalletGateway(fn () => $this->now(), fn (array $ev) => $this->log($ev), fn (string $clientId) => $this->directory->walletFor($clientId));
         $this->webhooks = new WebhookQueue(fn () => $this->now(), fn (array $ev) => $this->log($ev), $this->directory, $this->gateway, (string) ($cfg['game_id'] ?? 'horse-race'));
-        $this->sessions = new Sessions(fn () => $this->now(), fn (array $ev) => $this->log($ev), $cfg, $this->directory, $this->gateway, $this->limits);
+        $this->sessions = new Sessions(fn () => $this->now(), fn (array $ev) => $this->log($ev), $cfg, $this->directory, $this->gateway, $this->limits, fn (array $client, string $game) => app(\App\Platform\Games\Games::class)->isEnabled($client, $game));
         $this->table = Odds::build($cfg['odds'] ?? null);
         $this->values = array_map(fn ($c) => $this->table['odds'][$c], Odds::combos());
         sort($this->values);
         Odds::buildForRtp($this->table['odds'], $this->rtp());       // throws if the configured RTP is out of range
+    }
+
+    /* the shared platform services, for the other games (the horse race uses them through this class) */
+
+    public function sessions(): Sessions
+    {
+        return $this->sessions;
+    }
+
+    public function gateway(): WalletGateway
+    {
+        return $this->gateway;
+    }
+
+    public function limits(): Limits
+    {
+        return $this->limits;
+    }
+
+    public function directory(): ClientDirectory
+    {
+        return $this->directory;
+    }
+
+    public function journal(): Journal
+    {
+        return $this->journal;
+    }
+
+    public function webhooks(): WebhookQueue
+    {
+        return $this->webhooks;
     }
 
     public function now(): int
