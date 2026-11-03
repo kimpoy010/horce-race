@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Game\AlertManager;
 use App\Game\Engine;
+use App\Games\BingoPinball\BingoPinballService;
 use App\Game\LoopLock;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -29,6 +30,7 @@ class RunGame extends Command
         $lock = new LoopLock('horse:game-loop', $ttl);
         if ($this->option('once')) {
             $engine->tick();
+            $this->recoverInstantGames();
 
             return self::SUCCESS;
         }
@@ -50,6 +52,7 @@ class RunGame extends Command
         $every = max(50, (int) config('horse.tick_ms')) * 1000;
         $renewAt = microtime(true) + $ttl / 3;
         $alertAt = 0;
+        $recoverAt = 0;
         while (! $this->stop) {
             $t0 = microtime(true);
             try {
@@ -70,6 +73,10 @@ class RunGame extends Command
                 $this->error('tick failed: '.$e->getMessage());
                 report($e);
             }
+            if ($t0 >= $recoverAt) {                         // plays of the instant games that died between the debit and the draw, every 5 seconds (apart from the horse race's tick)
+                $recoverAt = $t0 + 5;
+                $this->recoverInstantGames();
+            }
             $left = $every - (int) ((microtime(true) - $t0) * 1000000);
             if ($left > 0) {
                 usleep($left);
@@ -79,5 +86,19 @@ class RunGame extends Command
         $this->info('game:run: stopped');
 
         return self::SUCCESS;
+    }
+
+    /** cancels and refunds instant-game plays that never finished; it must never disturb the horse race, so every problem is only reported */
+    private function recoverInstantGames(): void
+    {
+        try {
+            $n = app(BingoPinballService::class)->recoverStuck();
+            if ($n) {
+                $this->info("game:run: $n instant play(s) that never finished were cancelled and their debit is being rolled back");
+            }
+        } catch (\Throwable $e) {
+            $this->error('instant game recovery failed: '.$e->getMessage());
+            report($e);
+        }
     }
 }

@@ -526,6 +526,21 @@ class BingoPlayTest extends TestCase
         $this->assertSame(0, $svc->recoverStuck(), 'once only');
     }
 
+    public function test_the_round_loop_cleans_up_by_itself(): void
+    {
+        $s = $this->auth();
+        DB::table('instant_rounds')->insert(['game_id' => 'bingo-pinball', 'player_key' => 'acme:p1', 'client_id' => 'acme', 'stake' => 700, 'currency' => 'PHP', 'brand_id' => null, 'paytable_id' => 'bp-v96-1',
+            'paytable_version' => 96, 'status' => 'debiting', 'request_id' => 'orphan-request-1', 'created_at' => $this->t - 60000]);          // a play whose process died a minute ago
+        $this->t += 1000;
+        $this->artisan('game:run', ['--once' => true])->expectsOutputToContain('1 instant play(s) that never finished')->assertSuccessful();
+        $id = DB::table('instant_rounds')->value('id');
+        $this->assertSame('void', DB::table('instant_rounds')->value('status'));
+        $this->assertSame(['rollback'], DB::table('pending_ops')->pluck('kind')->all(), 'its debit is to be rolled back');
+        $this->artisan('game:run', ['--once' => true])->doesntExpectOutputToContain('never finished')->assertSuccessful();
+        $this->assertSame(0, DB::table('pending_ops')->count(), 'the next tick delivered the rollback');
+        $this->assertTrue($this->rolledBack['bp:'.$id.':bet'] ?? false);
+    }
+
     /* ---------- the client API ---------- */
 
     public function test_a_platform_asks_which_games_it_can_offer(): void

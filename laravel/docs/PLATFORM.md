@@ -18,9 +18,20 @@ The horse race's own logic (rounds, odds, draw, settlement) is still `App\Game\E
 
 Rows that belong to a game carry its id: `game_sessions.game_id`, `bets.game_id`, `pending_ops.game_id` (default `horse-race`), and `pending_ops.round_ref` for a game with no race number. The ledger events of the horse race are as they always were; an event of another game has a `game` field right after its name.
 
+## The games
+
+| Game | Kind | Where |
+|---|---|---|
+| Horse Race | shared rounds, moved by the round loop | `App\Game\Engine` (the module `App\Games\HorseRace\HorseRaceModule` only describes it) |
+| Bingo Pinball | instant: one round per play, settled inside the player's request | `app/Games/BingoPinball/` (`BingoPinballService`, `SeedService`, the maths package), API in [bingo/API.md](bingo/API.md) |
+
+An instant game's flow (see `BingoPinballService`): take the player's lock, check limits, debit through the gateway, draw, and save the result with its ledger lines and the queued credit in one transaction. The round loop (`php artisan game:run`) delivers queued credits, rollbacks and webhooks for every game and cancels instant plays that never finished.
+
 ## Which games a client plays
 
 `config/games.php` lists the games the server has (`modules`) and the ones every client plays unless told otherwise (`default`, now only the horse race). A client can have its own `games` list (admin console → client settings, or `POST /admin/api/clients/<id>` with `{"games": ["horse-race", "<other game>"]}`). A client without a list plays the defaults, and nothing is stored for it. A list is checked when it is written, never when it is read, so a client that names a game this server no longer has keeps working: that game is just skipped.
+
+A client's settings for a game (`gameSettings`, for example the paytable of Bingo Pinball) are checked by the game's module when they are written, and never when they are read.
 
 **A new game ships switched off**: add it to `modules` but not to `default`, and no client plays it until an operator adds it to the client's list. `Sessions::auth(..., $gameId)` refuses a game that is not enabled for the client (`403 GAME_NOT_ENABLED`) before the launch token is used up. The horse race is not switched off by a list yet.
 

@@ -87,6 +87,6 @@ A paytable file in use is **never edited**. Each carries an id (`bp-v96-1`), and
 * **uniformity**: over 1,000,000 draws, every hole is equally likely overall and for each ball, and all 53,130 sets of holes are equally likely (chi-square, failing beyond 4.5 standard deviations). The lab can run more: `BINGO_STAT_DRAWS=10000000 php artisan test --filter=test_holes_are_uniform`. The test was also run against a deliberately biased shuffle and a shuffle with an off-by-one error and failed both at more than 180 standard deviations;
 * the observed RTP over 200,000 plays is within 5 standard errors of the exact one.
 
-## 6. Still to come
+## 6. The server side
 
-The server side is not built yet (Phases 3 to 5 of the implementation plan): per-player seed storage (server seed encrypted, commit shown before the first play, rotation on request and every 1,000 plays with the old seed revealed), the play request with wallet debit, settlement and credit, the ledger events, limits shared with the horse race, and the screens. They must use `Draw::holes()` and `Paytable::payout()` unchanged, so that everything in this document keeps holding.
+Built in Phase 3, see [API.md](API.md): per-player seed pairs (server seed encrypted, commit shown before the first play, rotation on request and after 1,000 plays with the old seed revealed), the play request with the wallet debit, settlement and credit, the ledger events, limits shared with the horse race. The server calls `Draw::holes()` and `Paytable::payout()` exactly as they are in this package, so everything in this document holds for every play.
