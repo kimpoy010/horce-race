@@ -56,6 +56,13 @@ namespace App\Game\Wallet {
     }
 }
 
+namespace App\Platform\Sessions {
+    function random_bytes(int $length): string
+    {
+        return \Tests\Support\DeterministicRandom::$on ? \Tests\Support\DeterministicRandom::bytes($length) : \random_bytes($length);
+    }
+}
+
 namespace App\Game\Clients {
     function random_bytes(int $length): string
     {

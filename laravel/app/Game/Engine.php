@@ -7,6 +7,7 @@ use App\Game\Wallet\Wallet;
 use App\Platform\Clients\ClientDirectory;
 use App\Platform\Limits\Limits;
 use App\Platform\PlayerKey;
+use App\Platform\Sessions\Sessions;
 use App\Platform\Wallet\WalletGateway;
 use Closure;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -37,6 +38,8 @@ final class Engine
 
     private Limits $limits;                // stake limits and the daily loss figures
 
+    private Sessions $sessions;            // launch token to session, session lookup, blocking
+
     private WalletGateway $gateway;    // wallet calls and the queue of credits and rollbacks (shared by every game)
 
     /**
@@ -48,6 +51,7 @@ final class Engine
         $this->limits = new Limits(fn () => $this->now(), $cfg);
         $this->directory = new ClientDirectory($wallet, $webhook, $clients);
         $this->gateway = new WalletGateway(fn () => $this->now(), fn (array $ev) => $this->log($ev), fn (string $clientId) => $this->directory->walletFor($clientId));
+        $this->sessions = new Sessions(fn () => $this->now(), fn (array $ev) => $this->log($ev), $cfg, $this->directory, $this->gateway, $this->limits);
         $this->table = Odds::build($cfg['odds'] ?? null);
         $this->values = array_map(fn ($c) => $this->table['odds'][$c], Odds::combos());
         sort($this->values);
@@ -437,108 +441,32 @@ final class Engine
 
     /* ---------- sessions ---------- */
 
-    private static function skey(string $id): string
-    {
-        return hash('sha256', $id);
-    }
+    /* ---------- sessions: App\Platform\Sessions\Sessions ---------- */
 
     public function auth(string $token, ?string $clientHint = null): array
     {
-        $clientId = $this->resolveClient($clientHint);
-        $client = $this->directory->config($clientId);
-        $wallet = $this->directory->walletFor($clientId);
-        if (! $wallet) {
-            throw new GameError(400, 'INVALID_CLIENT');
-        }
-        try {
-            $info = $this->gateway->call(fn () => $wallet->validateToken($token), 'validate', $clientId);
-        } catch (\Throwable $e) {
-            throw new GameError(401, 'INVALID_TOKEN');
-        }
-        if (! preg_match(ClientDirectory::PLAYER_ID_RE, (string) ($info['playerId'] ?? ''))) {
-            throw new GameError(401, 'INVALID_PLAYER_ID');
-        }
-        $pk = self::pk($clientId, (string) $info['playerId']);
-        if (! empty($info['blocked']) || DB::table('blocked_players')->where('player_key', $pk)->exists()) {
-            throw new GameError(403, 'PLAYER_BLOCKED');
-        }
-        $id = bin2hex(random_bytes(24));
-        $currency = $info['currency'] ?? $client['currency'] ?? $this->cfg['currency'];
-        $rm = isset($info['realityCheckMinutes']) && is_int($info['realityCheckMinutes']) ? $info['realityCheckMinutes'] : ($client['realityCheckMinutes'] ?? $this->cfg['reality_check_minutes']);
-        $returnUrl = $info['returnUrl'] ?? null;
-        if ($returnUrl && ! empty($client['returnUrlHosts'])) {
-            $host = strtolower((string) parse_url($returnUrl, PHP_URL_HOST));
-            if (! in_array($host, $client['returnUrlHosts'], true)) {
-                $returnUrl = null;
-            }
-        }
-        $d = $info['decimals'] ?? ($client['currencyLimits'][$currency]['decimals'] ?? ($this->cfg['currency_limits'][$currency]['decimals'] ?? null));
-        $t = $this->now();
-        DB::table('game_sessions')->insert([
-            'key' => self::skey($id), 'player_key' => $pk, 'raw_id' => (string) $info['playerId'], 'client_id' => $clientId, 'brand_id' => ! empty($info['brandId']) ? (string) $info['brandId'] : null,
-            'currency' => $currency, 'decimals' => is_int($d) && $d >= 0 && $d <= 4 ? $d : 2, 'balance' => $info['balance'] ?? null, 'return_url' => $returnUrl,
-            'limits' => json_encode($this->limits->for($currency, $info, $client)), 'reality_minutes' => $rm > 0 ? (int) $rm : 0, 's_staked' => 0, 's_paid' => 0,
-            'created_at' => $t, 'expires_at' => $t + $this->cfg['session_ttl_ms'], 'refreshed_at' => $t,
-        ]);
-        $s = DB::table('game_sessions')->where('key', self::skey($id))->first();
-
-        return ['session' => $id, 'playerId' => (string) $info['playerId'], 'returnUrl' => $returnUrl] + $this->sessionView($s);
-    }
-
-    private function sessionView(object $s): array
-    {
-        return ['currency' => $s->currency, 'decimals' => (int) $s->decimals, 'balance' => $s->balance === null ? null : (int) $s->balance, 'limits' => json_decode($s->limits, true), 'brandId' => $s->brand_id,
-            'responsible' => ['realityCheckMinutes' => (int) $s->reality_minutes, 'startedAt' => (int) $s->created_at, 'staked' => (int) $s->s_staked, 'paid' => (int) $s->s_paid,
-                'dailyNetLoss' => max(0, $this->limits->dayNet($s->player_key))]];
+        return $this->sessions->auth($token, $clientHint);
     }
 
     public function session(string $id): ?object
     {
-        if ($id === '') {
-            return null;
-        }
-        $s = DB::table('game_sessions')->where('key', self::skey($id))->first();
-        if (! $s) {
-            return null;
-        }
-        if ($s->expires_at < $this->now() || ! $this->clientActive($s->client_id)) {          // a disabled client ends its sessions
-            DB::table('game_sessions')->where('key', $s->key)->delete();
-
-            return null;
-        }
-
-        return $s;
+        return $this->sessions->find($id);
     }
 
     public function blockPlayer(string $playerKey, string $who = 'operator'): array
     {
-        if ($playerKey === '') {
-            throw new GameError(400, 'BAD_REQUEST');
-        }
-        DB::table('blocked_players')->updateOrInsert(['player_key' => $playerKey], ['who' => $who]);
-        $n = DB::table('game_sessions')->where('player_key', $playerKey)->delete();
-        $this->log(['e' => 'player_blocked', 'playerId' => $playerKey, 'who' => $who]);
-
-        return ['ok' => true, 'blocked' => true, 'closed' => $n];
+        return $this->sessions->blockPlayer($playerKey, $who);
     }
 
     /** operator / platform: end a player's sessions (all of them) at once */
     public function closeSessions(string $playerKey): int
     {
-        $n = DB::table('game_sessions')->where('player_key', $playerKey)->delete();
-        if ($n) {
-            $this->log(['e' => 'sessions_closed', 'playerId' => $playerKey, 'count' => $n]);
-        }
-
-        return $n;
+        return $this->sessions->closeSessions($playerKey);
     }
 
     public function unblockPlayer(string $playerKey, string $who = 'operator'): array
     {
-        DB::table('blocked_players')->where('player_key', $playerKey)->delete();
-        $this->log(['e' => 'player_unblocked', 'playerId' => $playerKey, 'who' => $who]);
-
-        return ['ok' => true, 'blocked' => false];
+        return $this->sessions->unblockPlayer($playerKey, $who);
     }
 
     /* ---------- betting ---------- */
@@ -742,7 +670,7 @@ final class Engine
             }
             $s = DB::table('game_sessions')->where('key', $s->key)->first();
         }
-        $out = ['playerId' => $s->raw_id, 'returnUrl' => $s->return_url, 'raceNo' => null, 'bets' => [], 'last' => null] + $this->sessionView($s);
+        $out = ['playerId' => $s->raw_id, 'returnUrl' => $s->return_url, 'raceNo' => null, 'bets' => [], 'last' => null] + $this->sessions->view($s);
         $cur = $this->current();
         if ($cur) {
             $out['raceNo'] = (int) $cur->race_no;
