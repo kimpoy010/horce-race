@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bingo Pinball">
+<meta name="robots" content="noindex">
+<title>Bingo Pinball</title>
+<link rel="stylesheet" href="/css/bingo.css">
+</head>
+<body>
+<div class="layout" id="layout">
+<div class="stage" id="stage">
+  <canvas id="screen" width="320" height="180"></canvas>
+
+  <div class="balbox"><span class="lbl">BALANCE</span> <span id="balance">-</span></div>
+
+  <div class="ctl" id="ctl">
+    <div class="stakeRow">
+      <button id="stakeDown" type="button" aria-label="Lower stake">-</button>
+      <div class="stakeBox"><span class="lbl">STAKE</span><span id="stake">-</span></div>
+      <button id="stakeUp" type="button" aria-label="Higher stake">+</button>
+    </div>
+    <button id="play" class="play" type="button" disabled>PLAY</button>
+    <div class="mini">
+      <button id="btnRules" type="button">RULES</button>
+      <button id="btnFair" type="button">FAIR</button>
+      <button id="btnSound" type="button" aria-label="Sound">SOUND</button>
+    </div>
+  </div>
+
+  <div class="hint" id="hint" hidden>HOLD HERE TO PULL THE PLUNGER, LET GO TO LAUNCH</div>
+  <div class="banner" id="banner" hidden></div>
+  <div class="note" id="note" hidden></div>
+
+  <div class="gate" id="gate" hidden>
+    <div class="box"><p class="gtitle" id="gateTitle">BINGO PINBALL</p><p id="gateText"></p><p><a id="gateLink" href="/account" hidden>SIGN IN OR REGISTER</a></p></div>
+  </div>
+
+  <section class="sheet" id="rules" hidden>
+    <div class="sheetBox">
+      <button class="close" type="button" data-close="rules">CLOSE</button>
+      <h2>HOW TO PLAY</h2>
+      <p>Choose your stake and press PLAY. Five balls are played, one after the other, and each one drops into a different hole of the table. The numbers of the five holes light up on your card.</p>
+      <p>The card has <b>12 lines</b>: 5 rows, 5 columns and the 2 diagonals. <b>Only your best line pays</b>; lines do not add up.</p>
+      <table class="pays" id="rulesPays"></table>
+      <p class="warn"><b>The plunger is for show.</b> The result of every play is decided by the server before the first ball is launched. How hard or how long you pull the plunger never changes where the balls go.</p>
+      <p id="rulesLimits"></p>
+      <p>There are at least 3 seconds between two plays. The balance shown is the one of your account. Win paid is added to your balance as soon as the platform confirms it.</p>
+      <p>Every play is provably fair: press FAIR to see the commitment to the next draws and to check past plays yourself.</p>
+      <p class="small">18+. Gambling can be addictive. Play only what you can afford to lose.</p>
+    </div>
+  </section>
+
+  <section class="sheet" id="fair" hidden>
+    <div class="sheetBox">
+      <button class="close" type="button" data-close="fair">CLOSE</button>
+      <h2>FAIR PLAY</h2>
+      <p>Before your first play the server committed to a secret number (the <b>server seed</b>) by showing you its fingerprint. Every result comes from that secret, your own <b>client seed</b> and a play counter, so the server cannot change a result after seeing your stake. When you start a new seed, the old secret is shown and you can check every play made with it, here in your browser.</p>
+      <div class="kv"><span>COMMITMENT</span><code id="fairCommit">-</code></div>
+      <div class="kv"><span>YOUR CLIENT SEED</span><code id="fairClient">-</code></div>
+      <div class="kv"><span>PLAYS WITH THIS PAIR</span><code id="fairPlays">-</code></div>
+      <div class="row"><input id="fairNewSeed" maxlength="64" placeholder="your own seed (optional)" autocomplete="off" autocapitalize="off" spellcheck="false"><button id="fairRotate" type="button">START A NEW SEED</button></div>
+      <p class="small">Starting a new seed shows the old server seed. Letters, digits, - and _ only.</p>
+      <div id="fairOut"></div>
+      <h3>YOUR LAST PLAYS</h3>
+      <div id="fairList" class="list"></div>
+    </div>
+  </section>
+</div>
+</div>
+
+<div class="start" id="start" role="button" tabindex="0" aria-label="Tap to play" hidden>
+  <div class="box">
+    <p class="stitle">BINGO<br>PINBALL</p>
+    <p class="go blink">TAP TO PLAY</p>
+    <p class="sub">SOUND ON</p>
+  </div>
+</div>
+
+<script src="/js/bingo/table.js"></script>
+<script src="/js/bingo/paths-data.js"></script>
+<script src="/js/bingo/fair.js"></script>
+<script src="/js/bingo/api.js"></script>
+<script src="/js/bingo/paths.js"></script>
+<script src="/js/bingo/art.js"></script>
+<script src="/js/bingo/sound.js"></script>
+<script src="/js/bingo/game.js"></script>
+<script src="/js/orient.js"></script>
+</body>
+</html>

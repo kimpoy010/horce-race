@@ -17,8 +17,8 @@ class PanelController extends Controller
     /** adds ?v=<modified time and size> to the script and style addresses of a page */
     public static function versioned(string $html): string
     {
-        return preg_replace_callback('#\b(src|href)="((?:js|css)/[A-Za-z0-9_.-]+\.(?:js|css))"#', function (array $m): string {
-            $file = public_path($m[2]);
+        return preg_replace_callback('#\b(src|href)="(/?(?:js|css)/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_.-]+\.(?:js|css))"#', function (array $m): string {
+            $file = public_path(ltrim($m[2], '/'));
 
             return $m[1].'="'.$m[2].(is_file($file) ? '?v='.dechex((int) filemtime($file)).dechex((int) filesize($file)) : '').'"';
         }, $html) ?? $html;
@@ -35,6 +35,12 @@ class PanelController extends Controller
     public function game(): Response
     {
         return $this->page('index.html', ['X-Content-Type-Options' => 'nosniff']);
+    }
+
+    /** Bingo Pinball: like the horse race it may be embedded by a platform */
+    public function bingo(): Response
+    {
+        return $this->page('bingo-pinball.html', ['X-Content-Type-Options' => 'nosniff']);
     }
 
     public function show(string $file): Response

@@ -32,4 +32,17 @@ class PagesTest extends TestCase
         }
         $this->assertNull($this->get('/')->headers->get('X-Frame-Options'), 'platforms embed the game');
     }
+
+    public function test_the_bingo_page_is_served_with_versioned_assets_and_can_be_embedded(): void
+    {
+        $r = $this->get('/games/bingo-pinball')->assertOk()->assertHeader('Cache-Control', 'no-cache, private');
+        $html = $r->getContent();
+        $this->assertNull($r->headers->get('X-Frame-Options'), 'platforms embed the game');
+        $this->assertSame(0, preg_match('#(?:src|href)="/(?:js|css)/[^"?]+"#', $html), 'every script and style address carries a version');
+        $this->assertMatchesRegularExpression('#src="/js/bingo/game\.js\?v=[0-9a-f]+"#', $html);
+        $this->assertMatchesRegularExpression('#href="/css/bingo\.css\?v=[0-9a-f]+"#', $html);
+        foreach (['table', 'paths-data', 'fair', 'api', 'paths', 'art', 'sound', 'game'] as $f) {
+            $this->assertFileExists(public_path("js/bingo/$f.js"));
+        }
+    }
 }
