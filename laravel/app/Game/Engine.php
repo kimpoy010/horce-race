@@ -5,10 +5,12 @@ namespace App\Game;
 use App\Game\Clients\ClientRegistry;
 use App\Game\Wallet\Wallet;
 use App\Platform\Clients\ClientDirectory;
+use App\Platform\Ledger\Journal;
 use App\Platform\Limits\Limits;
 use App\Platform\PlayerKey;
 use App\Platform\Sessions\Sessions;
 use App\Platform\Wallet\WalletGateway;
+use App\Platform\Webhooks\WebhookQueue;
 use Closure;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -36,6 +38,10 @@ final class Engine
 
     private ClientDirectory $directory;   // which client a player belongs to, and its wallet and webhook
 
+    private Journal $journal;              // the one hash-chained ledger of every game
+
+    private WebhookQueue $webhooks;        // events to the platforms
+
     private Limits $limits;                // stake limits and the daily loss figures
 
     private Sessions $sessions;            // launch token to session, session lookup, blocking
@@ -46,11 +52,13 @@ final class Engine
      * @param  Wallet|null  $wallet  wallet of the implicit "default" client (HORSE_WALLET); null = registry clients only (HORSE_WALLET=none)
      * @param  Webhook|null  $webhook  webhook of the default client
      */
-    public function __construct(?Wallet $wallet, private Ledger $ledger, private array $cfg, private ?Closure $clock = null, private ?ClientRegistry $clients = null, ?Webhook $webhook = null)
+    public function __construct(?Wallet $wallet, Ledger $ledger, private array $cfg, private ?Closure $clock = null, private ?ClientRegistry $clients = null, ?Webhook $webhook = null)
     {
+        $this->journal = new Journal($ledger, fn () => $this->now());
         $this->limits = new Limits(fn () => $this->now(), $cfg);
         $this->directory = new ClientDirectory($wallet, $webhook, $clients);
         $this->gateway = new WalletGateway(fn () => $this->now(), fn (array $ev) => $this->log($ev), fn (string $clientId) => $this->directory->walletFor($clientId));
+        $this->webhooks = new WebhookQueue(fn () => $this->now(), fn (array $ev) => $this->log($ev), $this->directory, $this->gateway, (string) ($cfg['game_id'] ?? 'horse-race'));
         $this->sessions = new Sessions(fn () => $this->now(), fn (array $ev) => $this->log($ev), $cfg, $this->directory, $this->gateway, $this->limits);
         $this->table = Odds::build($cfg['odds'] ?? null);
         $this->values = array_map(fn ($c) => $this->table['odds'][$c], Odds::combos());
@@ -126,17 +134,16 @@ final class Engine
         return intdiv($stake * (int) floor($odds * 1000 + 0.5), 1000);
     }
 
-    /* ---------- ledger ---------- */
+    /* ---------- ledger: App\Platform\Ledger\Journal ---------- */
 
     public function log(array $ev): void
     {
-        $ev['t'] = $this->now();
-        $this->ledger->append($ev);
+        $this->journal->log($ev);
     }
 
     public function ledger(): Ledger
     {
-        return $this->ledger;
+        return $this->journal->ledger();
     }
 
     /* ---------- rounds ---------- */
@@ -230,15 +237,15 @@ final class Engine
             $cids = array_unique(array_merge(['default'], $this->clients ? DB::table('clients')->pluck('id')->all() : []));
             foreach ($cids as $cid) {
                 $x = $per[$cid] ?? ['bets' => 0, 'staked' => 0, 'paid' => 0];
-                $this->emit('round.settled', 'round:'.$r->race_no, ['roundId' => (string) $r->race_no, 'raceNo' => (int) $r->race_no, 'combo' => $r->combo, 'order' => json_decode($r->order, true), 'odds' => $odds,
+                $this->webhooks->emit('round.settled', 'round:'.$r->race_no, ['roundId' => (string) $r->race_no, 'raceNo' => (int) $r->race_no, 'combo' => $r->combo, 'order' => json_decode($r->order, true), 'odds' => $odds,
                     'oddsOfWinner' => $odds[$r->combo], 'rtp' => (float) $r->rtp, 'commit' => $r->commit, 'seed' => $r->seed, 'bets' => $x['bets'], 'staked' => $x['staked'], 'paid' => $x['paid'],
-                    'ledgerHash' => $this->ledger->head(), 'ledgerLines' => $this->ledger->lines()], $cid);
+                    'ledgerHash' => $this->journal->ledger()->head(), 'ledgerLines' => $this->journal->ledger()->lines()], $cid);
             }
             foreach ($payouts as $pk => $w) {
                 [$cid, $raw] = self::splitPk($pk);
                 $min = $this->directory->config($cid)['bigWinMin'] ?? $this->cfg['big_win_min'];
                 if ($w['amount'] >= $min) {
-                    $this->emit('big.win', 'win:'.$r->race_no.':'.$raw, ['roundId' => (string) $r->race_no, 'raceNo' => (int) $r->race_no, 'playerId' => $raw, 'brandId' => $w['brandId'], 'currency' => $w['currency'],
+                    $this->webhooks->emit('big.win', 'win:'.$r->race_no.':'.$raw, ['roundId' => (string) $r->race_no, 'raceNo' => (int) $r->race_no, 'playerId' => $raw, 'brandId' => $w['brandId'], 'currency' => $w['currency'],
                         'stake' => $w['stake'], 'payout' => $w['amount'], 'odds' => $w['odds'], 'betIds' => $w['betIds']], $cid);
                 }
             }
@@ -358,6 +365,11 @@ final class Engine
 
     /* ---------- wallet queues (credits and rollbacks that still have to reach the platform): App\Platform\Wallet\WalletGateway ---------- */
 
+    public function flushWebhooks(): void
+    {
+        $this->webhooks->flush();
+    }
+
     public function flushCredits(): void
     {
         $this->gateway->flushCredits();
@@ -372,42 +384,6 @@ final class Engine
     public function walletWindow(int $windowMs, ?string $client = null): array
     {
         return $this->gateway->window($windowMs, $client);
-    }
-
-    /** webhooks to the platform: at least once; the platform de-duplicates on `id` */
-    private function emit(string $type, string $key, array $data, string $clientId): void
-    {
-        $wh = $this->clientActive($clientId) ? $this->directory->webhookFor($clientId) : null;
-        if (! $wh || ! $wh->wants($type)) {
-            return;
-        }
-        $ev = ['id' => $this->cfg['game_id'].':'.($clientId === 'default' ? '' : $clientId.':').$key, 'type' => $type, 'createdAt' => $this->now(), 'gameId' => $this->cfg['game_id'], 'clientId' => $clientId, 'data' => $data];
-        $this->log(['e' => 'webhook_due', 'ev' => $ev]);
-        DB::table('pending_ops')->insertOrIgnore(['tx_id' => $ev['id'], 'kind' => 'webhook', 'player_key' => '', 'amount' => 0, 'race_no' => $data['raceNo'] ?? null,
-            'extra' => json_encode($ev, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 'since' => $this->now(), 'tries' => 0, 'next_at' => 0]);
-    }
-
-    public function flushWebhooks(): void
-    {
-        $t = $this->now();
-        foreach (DB::table('pending_ops')->where('kind', 'webhook')->where('next_at', '<=', $t)->orderBy('since')->limit(100)->get() as $p) {
-            $ev = json_decode($p->extra, true);
-            $cid = $ev['clientId'] ?? 'default';
-            $wh = $this->clientActive($cid) ? $this->directory->webhookFor($cid) : null;
-            if (! $wh) {
-                DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
-                $this->log(['e' => 'webhook_dropped', 'id' => $p->tx_id, 'reason' => 'client has no webhook any more']);
-
-                continue;
-            }
-            try {
-                $wh->send($ev);
-                DB::table('pending_ops')->where('tx_id', $p->tx_id)->delete();
-                $this->log(['e' => 'webhook_ok', 'id' => $p->tx_id]);
-            } catch (\Throwable $e) {
-                $this->gateway->backoff($p, $t);
-            }
-        }
     }
 
     /* ---------- clients: every player belongs to one client (platform). Internally a player is "clientId:playerId" ("default" client: just playerId) ---------- */
@@ -838,7 +814,7 @@ final class Engine
 
             return ['count' => (int) $c->count(), 'oldestSeconds' => $min ? max(0, ($t - (int) $min) / 1000) : 0];
         };
-        $l = $this->ledger->verify();
+        $l = $this->journal->ledger()->verify();
         $cur = $this->current();
         $st = $this->report();
 
@@ -909,7 +885,7 @@ final class Engine
     public function health(): array
     {
         $reasons = [];
-        $l = $this->ledger->verify();
+        $l = $this->journal->ledger()->verify();
         if (! $l['ok']) {
             $reasons[] = 'ledger hash chain is broken at line '.$l['broken']['line'];
         }
