@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BingoPinballController;
 use App\Http\Controllers\ClientAdminController;
 use App\Http\Controllers\ClientApiController;
 use App\Http\Controllers\GameController;
@@ -16,9 +17,22 @@ Route::post('/command', [GameController::class, 'command']);
 Route::get('/report', [GameController::class, 'report']);
 Route::get('/admin', [GameController::class, 'report']);
 
+// Bingo Pinball (an instant game; reachable only for clients that have it in their games list)
+Route::prefix('games/bingo-pinball')->group(function () {
+    Route::post('/auth', [BingoPinballController::class, 'auth']);
+    Route::get('/state', [BingoPinballController::class, 'state']);
+    Route::post('/play', [BingoPinballController::class, 'play']);
+    Route::get('/round/{id}', [BingoPinballController::class, 'round'])->whereNumber('id');
+    Route::post('/round/{id}/seen', [BingoPinballController::class, 'seen'])->whereNumber('id');
+    Route::get('/history', [BingoPinballController::class, 'history']);
+    Route::post('/seed/rotate', [BingoPinballController::class, 'rotate']);
+    Route::get('/proof/{id}', [BingoPinballController::class, 'proof'])->whereNumber('id');
+});
+
 // the client API: a platform with its own API key, limited to its own players (docs/CLIENT_API.md)
 Route::prefix('client')->group(function () {
     Route::get('/info', [ClientApiController::class, 'info']);
+    Route::get('/games', [BingoPinballController::class, 'clientGames']);
     Route::get('/report', [ClientApiController::class, 'report']);
     Route::get('/history', [ClientApiController::class, 'history']);
     Route::post('/players/block', [ClientApiController::class, 'block']);

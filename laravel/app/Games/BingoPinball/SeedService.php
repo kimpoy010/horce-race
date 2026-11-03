@@ -24,11 +24,17 @@ final class SeedService
     /** @param Closure(): int $now the clock in milliseconds */
     public function __construct(private Journal $journal, private Closure $now, private string $clientsKey, private int $rotateEvery = 1000) {}
 
-    private function newPair(string $playerKey, ?string $clientSeed): object
+    /** the seeds cannot be kept secret without the key: refuse to run (checked before a launch token is used up) */
+    public function assertReady(): void
     {
-        if ($this->clientsKey === '') {                       // SecretBox would store the seed in clear text without a key
+        if ($this->clientsKey === '') {
             throw new GameError(503, 'GAME_NOT_CONFIGURED', 'HORSE_CLIENTS_KEY is needed to keep the seeds secret');
         }
+    }
+
+    private function newPair(string $playerKey, ?string $clientSeed): object
+    {
+        $this->assertReady();                                 // SecretBox would store the seed in clear text without a key
         $clientSeed ??= bin2hex(random_bytes(8));
         if (! preg_match(Draw::CLIENT_SEED_RE, $clientSeed)) {
             throw new GameError(400, 'BAD_CLIENT_SEED', 'The client seed is 1 to 64 letters, digits, "-" or "_".');

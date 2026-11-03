@@ -19,6 +19,7 @@ return [
         'bingo-pinball' => [
             'min_interval_ms' => (int) env('BINGO_MIN_INTERVAL_MS', 3000),      // at least this long between two plays of a player
             'rotate_every' => (int) env('BINGO_ROTATE_EVERY', 1000),            // the seed pair is replaced (and the old server seed revealed) after this many plays
+            'lock_wait_seconds' => 5,                                            // how long a play waits for the player's other action to finish
             'stuck_after_ms' => 30000,                                           // a play still waiting for its debit this long after it started is cancelled
         ],
     ],

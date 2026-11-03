@@ -458,7 +458,7 @@ final class Engine
 
     public function session(string $id): ?object
     {
-        return $this->sessions->find($id);
+        return $this->sessions->find($id, 'horse-race');          // a session of another game is not a session of the horse race
     }
 
     public function blockPlayer(string $playerKey, string $who = 'operator'): array

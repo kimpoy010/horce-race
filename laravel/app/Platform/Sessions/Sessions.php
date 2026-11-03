@@ -90,14 +90,21 @@ final class Sessions
                 'dailyNetLoss' => max(0, $this->limits->dayNet($s->player_key))]];
     }
 
-    /** the live session of a session id, or null (unknown, expired, or its client was disabled) */
-    public function find(string $id): ?object
+    /**
+     * the live session of a session id, or null (unknown, expired, or its client was disabled)
+     *
+     * @param  string|null  $game  when given, a session of another game is not found (a session is for one game only)
+     */
+    public function find(string $id, ?string $game = null): ?object
     {
         if ($id === '') {
             return null;
         }
         $s = DB::table('game_sessions')->where('key', self::key($id))->first();
         if (! $s) {
+            return null;
+        }
+        if ($game !== null && ($s->game_id ?? 'horse-race') !== $game) {
             return null;
         }
         if ($s->expires_at < $this->now() || ! $this->clients->isActive($s->client_id)) {          // a disabled client ends its sessions

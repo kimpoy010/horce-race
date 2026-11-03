@@ -11,6 +11,8 @@ use App\Game\Staff\AdminRoutes;
 use App\Game\Staff\BackOffice;
 use App\Game\Staff\UserStore;
 use App\Game\Ledger;
+use App\Games\BingoPinball\BingoPinballService;
+use App\Games\BingoPinball\SeedService;
 use App\Platform\Games\Games;
 use App\Game\Wallet\HttpWallet;
 use App\Game\Wallet\MockWallet;
@@ -70,6 +72,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(House::class, fn ($app) => new House($app->make(Engine::class), (array) config('horse.argon')));
         $this->app->singleton(PlayerApi::class, fn ($app) => new PlayerApi($app->make(House::class), $app->make(Engine::class), (bool) $secure()));
         $this->app->singleton(Games::class, fn ($app) => new Games($app, (array) config('games')));
+        // Bingo Pinball: an instant game on the shared platform services of the Engine
+        $this->app->singleton(SeedService::class, fn ($app) => new SeedService($app->make(Engine::class)->journal(), fn () => $app->make(Engine::class)->now(), (string) config('horse.clients_key'), (int) config('games.settings.bingo-pinball.rotate_every', 1000)));
+        $this->app->singleton(BingoPinballService::class, function ($app) {
+            $e = $app->make(Engine::class);
+
+            return new BingoPinballService($e->sessions(), $e->gateway(), $e->limits(), $e->directory(), $e->journal(), $e->webhooks(), $app->make(SeedService::class), $app->make(Games::class), fn () => $e->now(),
+                (array) config('games.settings.bingo-pinball'), (int) $e->cfg('big_win_min'));
+        });
         $this->app->singleton(AlertManager::class, fn ($app) => new AlertManager($app->make(Engine::class), (array) config('horse.alerts'), config('horse.alert_webhook_url')));
         $this->app->singleton(Ledger::class);
         $this->app->singleton(Engine::class, fn ($app) => new Engine($app->make('horse.default_wallet'), $app->make(Ledger::class), config('horse'), null, $app->make(ClientRegistry::class), $app->make('horse.default_webhook')));
