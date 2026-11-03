@@ -5,6 +5,7 @@ namespace App\Game;
 use App\Game\Clients\ClientRegistry;
 use App\Game\Wallet\Wallet;
 use App\Platform\Clients\ClientDirectory;
+use App\Platform\Limits\Limits;
 use App\Platform\PlayerKey;
 use App\Platform\Wallet\WalletGateway;
 use Closure;
@@ -34,6 +35,8 @@ final class Engine
 
     private ClientDirectory $directory;   // which client a player belongs to, and its wallet and webhook
 
+    private Limits $limits;                // stake limits and the daily loss figures
+
     private WalletGateway $gateway;    // wallet calls and the queue of credits and rollbacks (shared by every game)
 
     /**
@@ -42,6 +45,7 @@ final class Engine
      */
     public function __construct(?Wallet $wallet, private Ledger $ledger, private array $cfg, private ?Closure $clock = null, private ?ClientRegistry $clients = null, ?Webhook $webhook = null)
     {
+        $this->limits = new Limits(fn () => $this->now(), $cfg);
         $this->directory = new ClientDirectory($wallet, $webhook, $clients);
         $this->gateway = new WalletGateway(fn () => $this->now(), fn (array $ev) => $this->log($ev), fn (string $clientId) => $this->directory->walletFor($clientId));
         $this->table = Odds::build($cfg['odds'] ?? null);
@@ -438,29 +442,6 @@ final class Engine
         return hash('sha256', $id);
     }
 
-    private function limitsFor(string $currency, ?array $info, array $client = []): array
-    {
-        $base = ['minBet' => $this->cfg['min_bet'], 'maxBet' => $this->cfg['max_bet'], 'maxRoundStake' => $this->cfg['max_round_stake'], 'dailyLossLimit' => $this->cfg['daily_loss_limit'] ?: 0];
-        $pos = fn ($v) => is_int($v) && $v > 0;
-        foreach ([($this->cfg['currency_limits'][$currency] ?? null), $client['limits'] ?? null, ($client['currencyLimits'][$currency] ?? null), $info['limits'] ?? null] as $src) {      // server table, the client's settings, then what the platform sends for this player
-            if (! is_array($src)) {
-                continue;
-            }
-            foreach (['minBet', 'maxBet', 'maxRoundStake'] as $k) {
-                if ($pos($src[$k] ?? null)) {
-                    $base[$k] = $src[$k];
-                }
-            }
-            if (isset($src['dailyLossLimit']) && is_int($src['dailyLossLimit']) && $src['dailyLossLimit'] >= 0) {
-                $base['dailyLossLimit'] = $src['dailyLossLimit'];
-            }
-        }
-        $base['maxBet'] = max($base['maxBet'], $base['minBet']);
-        $base['maxRoundStake'] = max($base['maxRoundStake'], $base['minBet']);
-
-        return $base;
-    }
-
     public function auth(string $token, ?string $clientHint = null): array
     {
         $clientId = $this->resolveClient($clientHint);
@@ -496,7 +477,7 @@ final class Engine
         DB::table('game_sessions')->insert([
             'key' => self::skey($id), 'player_key' => $pk, 'raw_id' => (string) $info['playerId'], 'client_id' => $clientId, 'brand_id' => ! empty($info['brandId']) ? (string) $info['brandId'] : null,
             'currency' => $currency, 'decimals' => is_int($d) && $d >= 0 && $d <= 4 ? $d : 2, 'balance' => $info['balance'] ?? null, 'return_url' => $returnUrl,
-            'limits' => json_encode($this->limitsFor($currency, $info, $client)), 'reality_minutes' => $rm > 0 ? (int) $rm : 0, 's_staked' => 0, 's_paid' => 0,
+            'limits' => json_encode($this->limits->for($currency, $info, $client)), 'reality_minutes' => $rm > 0 ? (int) $rm : 0, 's_staked' => 0, 's_paid' => 0,
             'created_at' => $t, 'expires_at' => $t + $this->cfg['session_ttl_ms'], 'refreshed_at' => $t,
         ]);
         $s = DB::table('game_sessions')->where('key', self::skey($id))->first();
@@ -508,7 +489,7 @@ final class Engine
     {
         return ['currency' => $s->currency, 'decimals' => (int) $s->decimals, 'balance' => $s->balance === null ? null : (int) $s->balance, 'limits' => json_decode($s->limits, true), 'brandId' => $s->brand_id,
             'responsible' => ['realityCheckMinutes' => (int) $s->reality_minutes, 'startedAt' => (int) $s->created_at, 'staked' => (int) $s->s_staked, 'paid' => (int) $s->s_paid,
-                'dailyNetLoss' => max(0, $this->dayNet($s->player_key))]];
+                'dailyNetLoss' => max(0, $this->limits->dayNet($s->player_key))]];
     }
 
     public function session(string $id): ?object
@@ -527,23 +508,6 @@ final class Engine
         }
 
         return $s;
-    }
-
-    /** stake and payout of a player today (UTC), for the daily loss limit */
-    private function dayRec(string $playerKey): array
-    {
-        $day = gmdate('Y-m-d', intdiv($this->now(), 1000));
-        $from = strtotime($day.' 00:00:00 UTC') * 1000;
-        $q = DB::table('bets')->where('player_key', $playerKey)->where('placed_at', '>=', $from)->where('placed_at', '<', $from + 86400000)->where('status', '!=', 'refunded');
-
-        return ['staked' => (int) $q->sum('stake'), 'paid' => (int) (clone $q)->sum('payout')];
-    }
-
-    private function dayNet(string $playerKey): int
-    {
-        $d = $this->dayRec($playerKey);
-
-        return $d['staked'] - $d['paid'];
     }
 
     public function blockPlayer(string $playerKey, string $who = 'operator'): array
@@ -632,7 +596,7 @@ final class Engine
         if ($mineTotal + $total > $lim['maxRoundStake']) {
             throw new GameError(400, 'MAX_ROUND_STAKE_EXCEEDED');
         }
-        $day = $this->dayRec($s->player_key);
+        $day = $this->limits->today($s->player_key);
         if ($lim['dailyLossLimit'] > 0 && $day['staked'] - $day['paid'] + $total > $lim['dailyLossLimit']) {
             throw new GameError(400, 'DAILY_LOSS_LIMIT');
         }
@@ -918,7 +882,7 @@ final class Engine
         }
 
         return ['ok' => true, 'playerId' => $playerId, 'clientId' => $clientId, 'blocked' => DB::table('blocked_players')->where('player_key', $pk)->exists(), 'sessions' => $sessions,
-            'dailyNetLoss' => max(0, $this->dayNet($pk)), 'totals' => $totals, 'rounds' => $h['rounds']];
+            'dailyNetLoss' => max(0, $this->limits->dayNet($pk)), 'totals' => $totals, 'rounds' => $h['rounds']];
     }
 
     /** what the operator's overview and the controller show under "Health and alerts" */
