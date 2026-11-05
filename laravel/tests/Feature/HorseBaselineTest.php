@@ -136,7 +136,8 @@ class HorseBaselineTest extends TestCase
         $text = $this->get('/metrics', ['X-Controller-Key' => 'golden-controller-key'])->assertOk()->getContent();
         preg_match_all('/^# TYPE (\S+) (\S+)$/m', $text, $m, PREG_SET_ORDER);
 
-        return array_map(fn ($x) => $x[1].' '.$x[2], $m);
+        // the per-game family (horse_game_*, Phase 5) is new and labelled by game: it is tested on its own (GameReportsTest); every metric that existed before must still be here
+        return array_values(array_filter(array_map(fn ($x) => $x[1].' '.$x[2], $m), fn ($n) => ! str_starts_with($n, 'horse_game_')));
     }
 
     /** the requests the game sent to a platform: exact body, path, the headers that do not depend on the clock */

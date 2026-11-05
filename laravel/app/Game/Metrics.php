@@ -105,6 +105,35 @@ final class Metrics
             $out[] = self::line('horse_client_paid_total', (int) $c->p, ['client' => $c->client_id]);
             $out[] = self::line('horse_client_bets_total', (int) $c->n, ['client' => $c->client_id]);
         }
+        // one set per game (Phase 5): the names above are the horse race's and stay as they are
+        $reports = app(\App\Games\GameReports::class)->summary();
+        $help('horse_game_plays_total', 'settled plays (a bet of the horse race, a play of an instant game) per game', 'counter');
+        $help('horse_game_staked_total', 'amount staked (minor units) per game and currency', 'counter');
+        $help('horse_game_paid_total', 'amount paid out (minor units) per game and currency', 'counter');
+        $help('horse_game_rtp_actual', 'paid / staked since the start, per game');
+        $help('horse_game_rtp_theoretical', 'the return the maths predicts for the plays made, per game');
+        $help('horse_game_rtp_zscore', 'how many standard deviations the payouts are from what the maths predicts, per game');
+        $help('horse_game_hit_frequency', 'share of plays that won, per game (instant games)');
+        $help('horse_game_pending_credits', 'wins and refunds not yet confirmed by the wallet, per game');
+        $help('horse_game_pending_rollbacks', 'rollbacks not yet confirmed by the wallet, per game');
+        $help('horse_game_pending_oldest_seconds', 'age of the oldest unconfirmed credit or rollback, per game');
+        foreach ($reports as $g) {
+            $l = ['game' => $g['game']];
+            $out[] = self::line('horse_game_plays_total', $g['plays'], $l);
+            foreach ((array) $g['byCurrency'] as $c => $v) {
+                $out[] = self::line('horse_game_staked_total', $v['staked'], $l + ['currency' => $c]);
+                $out[] = self::line('horse_game_paid_total', $v['paid'], $l + ['currency' => $c]);
+            }
+            $out[] = self::line('horse_game_rtp_actual', $g['rtpActual'] ?? 0, $l);
+            $out[] = self::line('horse_game_rtp_theoretical', $g['rtpTheoretical'] ?? 0, $l);
+            $out[] = self::line('horse_game_rtp_zscore', $g['rtpZ'] ?? 0, $l);
+            if (isset($g['hitFrequency'])) {
+                $out[] = self::line('horse_game_hit_frequency', $g['hitFrequency'], $l);
+            }
+            $out[] = self::line('horse_game_pending_credits', $g['pending']['credits']['count'], $l);
+            $out[] = self::line('horse_game_pending_rollbacks', $g['pending']['rollbacks']['count'], $l);
+            $out[] = self::line('horse_game_pending_oldest_seconds', max($g['pending']['credits']['oldestSeconds'], $g['pending']['rollbacks']['oldestSeconds']), $l);
+        }
         $help('horse_alert_firing', '1 for every active alert');
         foreach ($alerts as $a) {
             $out[] = self::line('horse_alert_firing', 1, ['name' => $a['name'], 'severity' => $a['severity']]);

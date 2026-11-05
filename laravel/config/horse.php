@@ -68,6 +68,7 @@ return [
         'tickStallSeconds' => 5,                                            // the round loop has not run
         'rtpZ' => (float) env('HORSE_ALERT_RTP_Z', 4),                      // payouts this many standard deviations from what the odds predict ...
         'rtpMinRounds' => 300,                                              // ... after this many races
+        'bingoMinPlays' => (int) env('HORSE_ALERT_BINGO_MIN_PLAYS', 1000), // Bingo Pinball: the same check against its PAR sheet, after this many plays
         'diskFreeMb' => (int) env('HORSE_ALERT_DISK_FREE_MB', 500),         // free space where the database / logs are kept
         'repeatMinutes' => (int) env('HORSE_ALERT_REPEAT_MIN', 30),         // reminder while an alert stays active
     ],

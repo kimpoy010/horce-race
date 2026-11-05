@@ -83,6 +83,16 @@ final class AdminRoutes
                         'users' => $clientUsers->count($c['id']), 'lastApiUse' => self::lastApi($c), 'stats' => $engine->clientReport($c['id']), 'walletHealth' => $engine->walletWindow(300000, $c['id'])], $clients->list()),
                 ]);
             }
+            if ($sub === 'games' && $method === 'GET') {              // per game: stakes, payouts, actual vs theoretical RTP, hit frequency; in total and per client
+                $reports = app(\App\Games\GameReports::class);
+                $games = app(\App\Platform\Games\Games::class);
+                $per = [];
+                foreach ($clients->list() as $c) {
+                    $per[$c['id']] = ['name' => $c['name'], 'enabled' => $games->enabledFor($c), 'paytables' => array_map(fn ($s) => $s['paytable'] ?? null, (array) ($c['gameSettings'] ?? [])), 'games' => $reports->summary($c['id'])];
+                }
+
+                return $send(200, ['ok' => true, 'games' => $reports->summary(), 'clients' => (object) $per, 'available' => array_map(fn ($m) => ['id' => $m->id(), 'name' => $m->name(), 'kind' => $m->kind()], array_values($games->all()))]);
+            }
             if ($sub === 'rtp/preview' && $method === 'GET') {
                 try {
                     return $send(200, $engine->previewRtp($req->query('value')));

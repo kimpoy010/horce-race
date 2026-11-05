@@ -35,7 +35,9 @@ final class AlertManager
         }
         $dir = storage_path();
 
-        return ['snapshot' => $snap, 'wallet' => $this->engine->walletWindow(300000), 'walletClients' => $perClient, 'tickAge' => $tick === null ? null : max(0, ($this->engine->now() - $tick) / 1000),
+        $bingo = app(\App\Games\GameReports::class)->summary()[\App\Games\GameReports::BINGO];
+
+        return ['bingo' => $bingo, 'snapshot' => $snap, 'wallet' => $this->engine->walletWindow(300000), 'walletClients' => $perClient, 'tickAge' => $tick === null ? null : max(0, ($this->engine->now() - $tick) / 1000),
             'diskFreeMb' => ($f = @disk_free_space($dir)) === false ? null : $f / 1048576];
     }
 
@@ -73,6 +75,18 @@ final class AlertManager
         $z = (float) $snap['rtpZ'];
         $add('rtp_drift', 'warning', $snap['rounds'] >= $cfg['rtpMinRounds'] && abs($z) > $cfg['rtpZ'],
             'payouts are '.number_format($z, 1).' standard deviations '.($z > 0 ? 'above' : 'below').' what the odds predict for the bets placed ('.$snap['rounds'].' races)');
+        if (isset($ctx['bingo'])) {                      // Bingo Pinball: its own RTP check against its PAR sheet and its own queues
+            $b = $ctx['bingo'];
+            $bz = (float) $b['rtpZ'];
+            $add('rtp_drift:bingo-pinball', 'warning', $b['plays'] >= ($cfg['bingoMinPlays'] ?? 1000) && abs($bz) > $cfg['rtpZ'],
+                'Bingo Pinball payouts are '.number_format($bz, 1).' standard deviations '.($bz > 0 ? 'above' : 'below').' what its PAR sheet predicts ('.$b['plays'].' plays, actual '.round(($b['rtpActual'] ?? 0) * 100, 2).'%, expected '.round(($b['rtpTheoretical'] ?? 0) * 100, 2).'%)');
+            $bc = $b['pending']['credits'];
+            $add('bingo_credits_stuck', 'critical', $bc['count'] > 0 && $bc['oldestSeconds'] > $cfg['creditMinutes'] * 60,
+                $bc['count'].' Bingo Pinball win credit(s) not delivered to the wallet, the oldest for '.$min($bc['oldestSeconds']).' min');
+            $br = $b['pending']['rollbacks'];
+            $add('bingo_rollbacks_stuck', 'critical', $br['count'] > 0 && $br['oldestSeconds'] > $cfg['rollbackMinutes'] * 60,
+                $br['count'].' Bingo Pinball rollback(s) not confirmed by the wallet, the oldest for '.$min($br['oldestSeconds']).' min (a player may be charged for a play that did not happen)');
+        }
         if ($ctx['diskFreeMb'] !== null) {
             $add('disk_low', 'critical', $ctx['diskFreeMb'] < $cfg['diskFreeMb'], 'only '.round($ctx['diskFreeMb']).' MB free where the database and logs are kept');
         }

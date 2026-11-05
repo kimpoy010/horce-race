@@ -326,11 +326,27 @@ final class BackOffice
 
                 return $this->send(200, $rep + ['rounds' => $eng->rounds($c, 30)['rounds']]);
             }
+            $reports = app(\App\Games\GameReports::class);
+            $gameParam = $r->query('game');                  // without it everything below answers as it always did (the horse race)
             if ($isClient && $sub === 'rounds' && $method === 'GET') {
-                return $this->send(200, $eng->rounds($c, $r->query('limit')));
+                return $this->send(200, $gameParam === \App\Games\GameReports::BINGO ? $reports->bingoRounds($c, $r->query('limit'), $r->query('player')) : $eng->rounds($c, $r->query('limit')));
             }
             if ($isClient && $sub === 'players' && $method === 'GET') {
-                return $this->send(200, $eng->players($c, ['query' => $r->query('query'), 'limit' => $r->query('limit')]));
+                return $this->send(200, $gameParam === \App\Games\GameReports::BINGO ? $reports->bingoPlayers($c, $r->query('query'), $r->query('limit'))
+                    : $eng->players($c, ['query' => $r->query('query'), 'limit' => $r->query('limit')]));
+            }
+            if ($isClient && $sub === 'games' && $method === 'GET') {            // every game of this client: stakes, payouts, RTP, hit frequency
+                $enabled = app(\App\Platform\Games\Games::class)->enabledFor($this->clients->get($c) ?? ['id' => $c]);
+
+                return $this->send(200, ['ok' => true, 'enabled' => $enabled, 'games' => $reports->summary($c)]);
+            }
+            if ($isClient && preg_match('#^games/bingo-pinball/rounds/([0-9]{1,18})$#', $sub, $gm) && $method === 'GET') {
+                $res = $reports->bingoRound($c, (int) $gm[1]);
+                if (! $res) {
+                    throw self::err(404, 'NOT_FOUND');
+                }
+
+                return $this->send(200, $res);
             }
             $pm = $isClient && preg_match('#^players/([A-Za-z0-9_.@-]{1,64})(?:/(block|unblock|close-sessions))?$#', $sub, $m) ? $m : null;
             if ($pm && $method === 'GET' && empty($pm[2])) {
@@ -348,6 +364,21 @@ final class BackOffice
                 }
 
                 return $this->send(200, ['ok' => true, 'closed' => $eng->closeSessions($pk)]);
+            }
+            if ($isClient && in_array($sub, ['export/bingo-rounds.csv', 'export/games.csv'], true) && $method === 'GET') {
+                $audit(['action' => 'export', 'target' => $sub]);
+                if ($sub === 'export/games.csv') {
+                    $rows = [];
+                    foreach ($reports->summary($c) as $g) {
+                        $rows[] = [$g['game'], $g['plays'], $g['staked'], $g['paid'], $g['ggr'], $g['rtpActual'] === null ? '' : round($g['rtpActual'] * 100, 2), $g['rtpTheoretical'] === null ? '' : round($g['rtpTheoretical'] * 100, 2)];
+                    }
+                    $csv = self::csv(['game', 'plays', 'staked', 'paid', 'ggr', 'rtp_actual_percent', 'rtp_theoretical_percent'], $rows);
+                } else {
+                    $csv = self::csv(['round', 'time', 'player', 'status', 'stake', 'paid', 'holes', 'lit', 'line', 'multiple', 'paytable', 'nonce'], array_map(fn ($x) => [$x['ref'], gmdate('c', intdiv($x['at'], 1000)), $x['playerId'], $x['status'],
+                        $x['stake'], $x['payout'], $x['holes'] ? implode(' ', $x['holes']) : '', $x['bestLit'] ?? '', $x['line'] ?? '', $x['multiple'] ?? '', $x['paytable'], $x['nonce'] ?? ''], $reports->bingoRounds($c, 300)['rounds']));
+                }
+
+                return response($csv, 200, ['Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="'.substr($sub, 7).'"', 'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff']);
             }
             if ($isClient && in_array($sub, ['export/players.csv', 'export/rounds.csv'], true) && $method === 'GET') {
                 $audit(['action' => 'export', 'target' => $sub]);

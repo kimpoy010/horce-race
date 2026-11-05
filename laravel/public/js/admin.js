@@ -75,13 +75,48 @@
   function go(tab, clientId) { S.tab = tab; S.clientId = clientId || null; shell(); }
   function shell() {
     stopTimer(); clear(app);
-    var tabs = [['overview', 'Overview'], ['clients', 'Clients']]; if (can('support')) tabs.push(['cashier', 'Players & cashier']); if (can('admin')) tabs.push(['staff', 'Staff']); tabs.push(['security', 'Security']); if (can('admin')) tabs.push(['audit', 'Audit log']);
+    var tabs = [['overview', 'Overview'], ['clients', 'Clients'], ['games', 'Games']]; if (can('support')) tabs.push(['cashier', 'Players & cashier']); if (can('admin')) tabs.push(['staff', 'Staff']); tabs.push(['security', 'Security']); if (can('admin')) tabs.push(['audit', 'Audit log']);
     var nav = h('nav', { class: 'tabs' }), view = h('main');
     tabs.forEach(function (t) { nav.appendChild(h('button', { class: S.tab === t[0] ? 'on' : '', onclick: function () { go(t[0]); } }, t[1])); });
     app.appendChild(h('header', { class: 'top' }, h('span', { class: 'brand' }, 'HORSE RACE OPERATOR CONSOLE'), h('span', { class: 'who' }, S.me.username, h('span', { class: 'role' }, S.me.role), ' ', h('button', { onclick: logout }, 'Sign out'))));
     app.appendChild(nav); app.appendChild(view);
     if (S.tab === 'clients' && S.clientId) clientDetail(view, S.clientId);
-    else ({ overview: overview, clients: clients, cashier: cashier, staff: staff, security: security, audit: audit }[S.tab] || overview)(view);
+    else ({ overview: overview, clients: clients, games: games, cashier: cashier, staff: staff, security: security, audit: audit }[S.tab] || overview)(view);
+  }
+
+
+  /* ---------- games: per game, in total and per client ---------- */
+  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball' };
+  function z(v) { return v == null ? '-' : (v >= 0 ? '+' : '') + v.toFixed(1) + ' sd'; }
+  function games(view) {
+    function load() {
+      api('GET', 'games').then(function (r) {
+        if (handleAuth(r)) return; if (r.status !== 200) return clear(view), view.appendChild(msg('err', errText(r)));
+        var d = r.data; clear(view);
+        view.appendChild(h('div', { class: 'head2' }, h('h1', null, 'Games')));
+        view.appendChild(h('p', { class: 'mute' }, 'Return is paid / staked so far. Expected is what the game\'s maths predicts for the plays made (the PAR sheet for Bingo Pinball); "vs maths" is how many standard deviations apart they are. Beyond about 4 an alert is raised.'));
+        view.appendChild(table([['Game'], ['Plays', 'right'], ['Staked', 'right'], ['Paid', 'right'], ['GGR', 'right'], ['Return', 'right'], ['Expected', 'right'], ['vs maths', 'right'], ['Win rate', 'right'], ['Wins pending', 'right'], ['Rollbacks pending', 'right']], Object.keys(d.games).map(function (id) {
+          var g = d.games[id];
+          return h('tr', null, td(GAME_NAME[id] || id), td(g.plays.toLocaleString(), 'right'), td(money(g.staked), 'right'), td(money(g.paid), 'right'), td(money(g.ggr), 'right ' + (g.ggr >= 0 ? 'ok' : 'bad')), td(pct(g.rtpActual), 'right'), td(pct(g.rtpTheoretical), 'right'),
+            td(z(g.rtpZ), 'right ' + (g.rtpZ != null && Math.abs(g.rtpZ) > 4 ? 'bad' : '')), td(g.hitFrequency == null ? '-' : pct(g.hitFrequency), 'right'), td(g.pending.credits.count, 'right ' + (g.pending.credits.count ? 'bad' : '')), td(g.pending.rollbacks.count, 'right ' + (g.pending.rollbacks.count ? 'bad' : '')));
+        })));
+        var b = d.games['bingo-pinball'], lines = Object.keys(b.byLine);
+        if (lines.length) {
+          view.appendChild(h('h2', null, 'Bingo Pinball: winning plays by line'));
+          view.appendChild(table([['Line'], ['3 lit', 'right'], ['4 lit', 'right'], ['5 lit', 'right']], lines.map(function (l) { var c = b.byLine[l]; return h('tr', null, td(l), td(c[3] || 0, 'right'), td(c[4] || 0, 'right'), td(c[5] || 0, 'right')); })));
+        }
+        view.appendChild(h('h2', null, 'By client'));
+        var rows = []; Object.keys(d.clients).forEach(function (cid) {
+          var c = d.clients[cid]; Object.keys(c.games).forEach(function (id) {
+            var g = c.games[id], on = c.enabled.indexOf(id) >= 0;
+            rows.push(h('tr', { class: 'click', onclick: function () { go('clients', cid); } }, td(c.name || cid), td(GAME_NAME[id] || id), td(on ? 'on' : 'off', on ? 'ok' : 'mute'), td(id === 'bingo-pinball' ? (c.paytables['bingo-pinball'] ? c.paytables['bingo-pinball'] + '%' : 'not set') : '-', 'right'),
+              td(g.plays.toLocaleString(), 'right'), td(money(g.staked), 'right'), td(money(g.paid), 'right'), td(pct(g.rtpActual), 'right'), td(pct(g.rtpTheoretical), 'right')));
+          });
+        });
+        view.appendChild(table([['Client'], ['Game'], ['Status'], ['Paytable', 'right'], ['Plays', 'right'], ['Staked', 'right'], ['Paid', 'right'], ['Return', 'right'], ['Expected', 'right']], rows));
+      });
+    }
+    load(); S.timer = setInterval(load, 15000);
   }
 
   /* ---------- overview ---------- */
@@ -221,6 +256,36 @@
       if (can('admin')) hf.appendChild(h('div', { class: 'bar' }, h('button', { class: 'primary', type: 'submit' }, 'Save webhook'), c.webhook ? h('button', { type: 'button', class: 'danger', onclick: function () { if (confirm('Create a new webhook secret?')) act('/rotate-webhook-secret', {}, '', function (r) { out.replaceChildren(secretBox('New webhook secret for ' + id, [['Secret:', r.webhookSecret]])); }); } }, 'New secret') : null));
       hf.addEventListener('submit', function (ev) { ev.preventDefault(); act('', { webhook: hurl.value.trim() ? { url: hurl.value.trim(), events: hev.value.trim() || undefined } : null }, 'Webhook saved.'); });
       side.appendChild(hf);
+      api('GET', 'games').then(function (gr) {
+        if (gr.status !== 200) return;
+        var avail = gr.data.available, cur = (gr.data.clients[id] || {}), enabled = cur.enabled || ['horse-race'], gs = c.gameSettings || {}, bs = gs['bingo-pinball'] || {}, bl = bs.limits || {};
+        var gf = h('form', { class: 'panel' }), boxes = {};
+        gf.appendChild(h('h3', null, 'Games')); gf.appendChild(h('div', { class: 'sub' }, 'Which games this client may offer. A new game is off until it is switched on here.'));
+        avail.forEach(function (g) { boxes[g.id] = h('input', { type: 'checkbox', style: 'width:auto;flex:none;margin:0', checked: enabled.indexOf(g.id) >= 0, disabled: !can('admin') }); gf.appendChild(h('label', { style: 'display:flex;gap:8px;align-items:center;justify-content:flex-start;margin:6px 0;text-align:left' }, boxes[g.id], g.name)); });
+        var pt = h('select', { name: 'paytable', disabled: !can('admin') }, [h('option', { value: '' }, 'choose...')].concat([88, 90, 92, 94, 96].map(function (v) { return h('option', { value: v, selected: bs.paytable === v }, v + '%'); })));
+        var bmin = E('bmin', bl.minBet != null ? money(bl.minBet, dec).replace(/,/g, '') : '', { placeholder: 'default' }), bmax = E('bmax', bl.maxBet != null ? money(bl.maxBet, dec).replace(/,/g, '') : '', { placeholder: 'default' });
+        var rw = h('input', { type: 'checkbox', style: 'width:auto;flex:none;margin:0', checked: !!bs.roundWebhooks, disabled: !can('admin') });
+        gf.appendChild(h('h3', { style: 'margin-top:14px' }, 'Bingo Pinball')); gf.appendChild(h('div', { class: 'sub' }, 'The paytable is the return to player (RTP) of this client\'s Bingo Pinball. It is an operator\'s decision: there is no default.'));
+        gf.appendChild(h('div', { class: 'fgrid' }, field('Paytable (RTP)', pt), field('Min stake', bmin), field('Max stake', bmax)));
+        gf.appendChild(h('label', { style: 'display:flex;gap:8px;align-items:center;justify-content:flex-start;margin:6px 0;text-align:left' }, rw, 'Send a round.settled webhook for every play (big wins are always sent)'));
+        if (can('admin')) gf.appendChild(h('div', { class: 'bar' }, h('button', { class: 'primary', type: 'submit' }, 'Save games')));
+        gf.addEventListener('submit', function (ev) {
+          ev.preventDefault(); if (!can('admin')) return;
+          try {
+            var list = avail.map(function (g) { return g.id; }).filter(function (g) { return boxes[g].checked; });
+            if (!boxes['horse-race'].checked && !confirm('The horse race will be switched off for ' + id + '. Continue?')) return;
+            var patch = { games: list };
+            if (boxes['bingo-pinball'].checked || pt.value) {
+              if (boxes['bingo-pinball'].checked && !pt.value) throw new Error('Choose the paytable (RTP) before switching Bingo Pinball on.');
+              var set = { paytable: Number(pt.value) }, lim = {}, a = toMinor(bmin.value, dec), b2 = toMinor(bmax.value, dec); if (a) lim.minBet = a; if (b2) lim.maxBet = b2;
+              if (Object.keys(lim).length) set.limits = lim; if (rw.checked) set.roundWebhooks = true;
+              patch.gameSettings = Object.assign({}, gs, { 'bingo-pinball': set });
+            }
+            act('', patch, 'Games saved.');
+          } catch (e) { out.replaceChildren(msg('err', e.message)); }
+        });
+        side.appendChild(gf);
+      });
 
       /* API keys */
       body.appendChild(h('h2', null, 'API keys'));

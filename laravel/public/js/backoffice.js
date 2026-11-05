@@ -88,7 +88,7 @@
 
   function shell() {
     stopTimer(); clear(app);
-    var tabs = [['dashboard', 'Dashboard'], ['players', 'Players'], ['rounds', 'Rounds']];
+    var tabs = [['dashboard', 'Dashboard'], ['players', 'Players'], ['rounds', 'Rounds'], ['games', 'Games']];
     if (can('admin')) tabs.push(['users', 'Users']);
     tabs.push(['security', 'Security']); if (can('admin')) tabs.push(['audit', 'Audit log']);
     var nav = h('nav', { class: 'tabs' }), view = h('main');
@@ -96,7 +96,7 @@
     app.appendChild(h('header', { class: 'top' }, h('span', { class: 'brand' }, 'HORSE RACE BACK OFFICE'), h('strong', null, S.client.name || S.clientId),
       h('span', { class: 'who' }, S.me.username, h('span', { class: 'role' }, S.me.role), ' ', h('button', { onclick: logout }, 'Sign out'))));
     app.appendChild(nav); app.appendChild(view);
-    var views = { dashboard: dashboard, players: players, rounds: rounds, users: users, security: security, audit: audit };
+    var views = { dashboard: dashboard, players: players, rounds: rounds, games: games, users: users, security: security, audit: audit };
     (views[S.tab] || dashboard)(view);
   }
 
@@ -140,6 +140,61 @@
       view.appendChild(h('div', { class: 'bar' }, h('h2', { style: 'margin:0' }, 'Races'), h('a', { href: '/bo/api/export/rounds.csv', download: 'rounds.csv' }, 'Download CSV')));
       view.appendChild(r.data.rounds.length ? roundsTable(r.data.rounds, S.client.currency || '') : h('p', { class: 'mute' }, 'No races yet.'));
       view.appendChild(h('p', { class: 'mute' }, 'The draw proof of a race shows the commit made before betting closed and the seed revealed afterwards, so the result can be checked independently.'));
+    });
+  }
+
+
+  /* ---------- games: the figures of each game and the plays of Bingo Pinball ---------- */
+  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball' };
+  function gameRounds(box, cur, player) {
+    api('GET', 'rounds?game=bingo-pinball&limit=100' + (player ? '&player=' + encodeURIComponent(player) : '')).then(function (r) {
+      if (handleAuth(r)) return; clear(box);
+      var list = r.data.rounds || [];
+      if (!list.length) return box.appendChild(h('p', { class: 'mute' }, 'No plays yet.'));
+      box.appendChild(table([['Play'], ['Time'], ['Player'], ['Status'], ['Stake', 'right'], ['Paid', 'right'], ['Holes'], ['Best line']], list.map(function (x) {
+        return h('tr', { class: 'click', onclick: function () { gameRound(x.id, cur); } }, td(x.ref), td(when(x.at), 'nowrap'), td(x.playerId), td(x.status), td(money(x.stake, cur), 'right'), td(money(x.payout, cur), 'right ' + (x.payout > 0 ? 'ok' : '')),
+          td(x.holes ? x.holes.join(' ') : '-', 'nowrap'), td(x.payout > 0 ? x.line + ' (' + x.bestLit + ' lit, x' + x.multiple + ')' : (x.status === 'void' ? 'void' : 'no win')));
+      })));
+    });
+  }
+  function gameRound(id, cur) {
+    api('GET', 'games/bingo-pinball/rounds/' + id).then(function (r) {
+      if (handleAuth(r)) return;
+      var body = h('div');
+      if (r.status !== 200) { body.appendChild(msg('err', errText(r))); return modal('Play bp:' + id, body); }
+      var x = r.data.round, pr = r.data.proof;
+      body.appendChild(table([['Item'], ['Value']], [['Player', x.playerId], ['Time', when(x.at)], ['Status', x.status], ['Stake', money(x.stake, cur)], ['Paid', money(x.payout, cur)], ['Holes (in the order of the balls)', x.holes ? x.holes.join(', ') : '-'],
+        ['Best line', x.payout > 0 ? x.line + ', ' + x.bestLit + ' lit, x' + x.multiple : 'none'], ['Paytable', x.paytable], ['Nonce', x.nonce == null ? '-' : x.nonce]].map(function (a) { return h('tr', null, td(a[0]), td(String(a[1]))); })));
+      if (pr) {
+        body.appendChild(h('h3', null, 'Proof'));
+        body.appendChild(h('p', { class: 'mute' }, 'The server seed was revealed, so the play can be re-run. Run this on any computer with the game\'s source; it must print the same holes and payout.'));
+        body.appendChild(h('pre', { class: 'mono', style: 'white-space:pre-wrap;word-break:break-all' }, pr.verify));
+        body.appendChild(table([['Item'], ['Value']], [['Server seed', pr.serverSeed], ['Commit (sha256 of the server seed)', pr.commit], ['Player seed', pr.clientSeed], ['Nonce', pr.nonce]].map(function (a) { return h('tr', null, td(a[0]), td(h('span', { class: 'mono', style: 'word-break:break-all' }, String(a[1])))); })));
+      } else body.appendChild(msg('note', r.data.proofNote || 'No proof yet.'));
+      modal('Play ' + x.ref, body);
+    });
+  }
+  function games(view) {
+    api('GET', 'games').then(function (r) {
+      if (handleAuth(r)) return; clear(view);
+      var d = r.data, cur = S.client.currency || '', b = d.games['bingo-pinball'];
+      view.appendChild(h('div', { class: 'bar' }, h('h2', { style: 'margin:0' }, 'Games'), h('a', { href: '/bo/api/export/games.csv', download: 'games.csv' }, 'Download CSV')));
+      view.appendChild(table([['Game'], ['Status'], ['Plays', 'right'], ['Staked', 'right'], ['Paid', 'right'], ['GGR', 'right'], ['Return', 'right'], ['Expected', 'right'], ['Win rate', 'right']], Object.keys(d.games).map(function (id) {
+        var g = d.games[id], on = d.enabled.indexOf(id) >= 0;
+        return h('tr', null, td(GAME_NAME[id] || id), td(on ? 'on' : 'off', on ? 'ok' : 'mute'), td(g.plays.toLocaleString(), 'right'), td(money(g.staked, cur), 'right'), td(money(g.paid, cur), 'right'), td(money(g.ggr, cur), 'right ' + (g.ggr >= 0 ? 'ok' : 'bad')),
+          td(pct(g.rtpActual), 'right'), td(pct(g.rtpTheoretical), 'right'), td(g.hitFrequency == null ? '-' : pct(g.hitFrequency), 'right'));
+      })));
+      view.appendChild(h('p', { class: 'mute' }, 'Return = paid / staked so far; Expected is what the game\'s maths predicts for the plays made. With few plays they differ by chance; the gap closes as the number of plays grows.'));
+      if (d.enabled.indexOf('bingo-pinball') < 0 && !b.plays) return;
+      view.appendChild(h('h2', null, 'Bingo Pinball'));
+      var lines = Object.keys(b.byLine);
+      if (lines.length) view.appendChild(h('div', { class: 'panel' }, h('strong', null, 'Winning plays by line'), table([['Line'], ['3 lit', 'right'], ['4 lit', 'right'], ['5 lit', 'right']], lines.map(function (l) {
+        var c = b.byLine[l]; return h('tr', null, td(l), td(c[3] || 0, 'right'), td(c[4] || 0, 'right'), td(c[5] || 0, 'right'));
+      }))));
+      var q = h('input', { placeholder: 'player id (empty = everyone)', style: 'max-width:260px' }), box = h('div'), t;
+      view.appendChild(h('div', { class: 'bar' }, h('h3', { style: 'margin:0' }, 'Plays'), q, h('a', { href: '/bo/api/export/bingo-rounds.csv', download: 'bingo-rounds.csv' }, 'Download CSV')));
+      view.appendChild(box); gameRounds(box, cur, '');
+      q.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { gameRounds(box, cur, q.value.trim()); }, 250); });
     });
   }
 
