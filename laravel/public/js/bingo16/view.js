@@ -3,7 +3,7 @@
  * so a ball can only be where the physics put it); the card is a 4 x 4 grid; the five jackpot numbers are a row of boxes.
  * window.Bingo16View.create(parts) -> { draw(scene) }. draw() is cheap: it only touches what changed.
  *
- * scene: { paytable, lit:{cellIndex:true}, jpNums:[5 numbers], jpLit:{number:true}, lineCells:[cell...], winKey:'lines3'|..., slotCounts:[n per slot, index 1-16],
+ * scene: { baskets:[3 places 1-10], basketCounts:{place:n}, paytable, lit:{cellIndex:true}, jpNums:[5 numbers], jpLit:{number:true}, lineCells:[cell...], winKey:'lines3'|..., slotCounts:[n per slot, index 1-16],
  *          ball:{x,y}|null, pull:0..1, sparks:[{x,y,dx,dy,t}], pinFlash:{index:t}, caught:[{x,y,t}], time:ms }
  */
 (function () {
@@ -28,6 +28,15 @@
     for (i = 0; i < 6 + Math.round(D / 55); i++) svg('path', { d: 'M 556 ' + (110 + i * 55 + 8) + ' L 566 ' + (110 + i * 55) + ' L 576 ' + (110 + i * 55 + 8) }, arrows);
     var pegs = [];
     for (i = 0; i < T.pegs.length; i++) pegs.push(svg('circle', { cx: T.pegs[i].x, cy: T.pegs[i].y, r: 3, fill: C.peg }, board));
+    // the ten places of a basket: the three the server drew for this play show a cup (and the peg that stood there is hidden); a missed ball is counted above its cup
+    var cups = [];
+    T.baskets.forEach(function (b) {
+      var g = svg('g', { transform: 'translate(' + b.x + ' ' + (b.y + 2) + ')', visibility: 'hidden' }, board);
+      svg('path', { d: 'M-17 -13v18q0 12 12 12h10q12 0 12 -12v-18', fill: '#3A1713', stroke: '#FF6B5B', 'stroke-width': 4.5, 'stroke-linejoin': 'round' }, g);
+      var tx = svg('text', { x: 0, y: 9, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 7, fill: '#FF6B5B' }, g); tx.textContent = 'MISS';
+      var ct = svg('text', { x: 0, y: -18, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 9, fill: C.gold, visibility: 'hidden' }, g);
+      cups.push({ g: g, ct: ct });
+    });
     // the 16 slots, each with its number under it
     for (i = 0; i < 16; i++) {
       var s = T.slots[i];
@@ -88,6 +97,14 @@
           for (j = 0; j < 3; j++) rest[k - 1][j].setAttribute('visibility', n > j ? 'visible' : 'hidden');
           count[k - 1].setAttribute('visibility', n > 3 ? 'visible' : 'hidden'); count[k - 1].textContent = '×' + n;
           last['s' + k] = n;
+        }
+      }
+      var chosen = {}; (scene.baskets || []).forEach(function (n) { chosen[n] = true; });
+      for (k = 1; k <= T.baskets.length; k++) {
+        var on = chosen[k] ? 1 : 0, bc = (scene.basketCounts && scene.basketCounts[k]) || 0, bkey = on + ':' + bc;
+        if (last['k' + k] !== bkey) {
+          cups[k - 1].g.setAttribute('visibility', on ? 'visible' : 'hidden'); pegs[T.baskets[k - 1].peg].setAttribute('visibility', on ? 'hidden' : 'visible');
+          cups[k - 1].ct.setAttribute('visibility', bc ? 'visible' : 'hidden'); cups[k - 1].ct.textContent = '×' + bc; last['k' + k] = bkey;
         }
       }
       var pf = scene.pinFlash || {};

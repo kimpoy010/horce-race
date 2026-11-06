@@ -3,7 +3,7 @@
  * the path generator (bin/bingo16-paths.cjs) simulates balls on it, and the tests check it. UMD: window.BingoTable16, or require() in Node.
  *
  * The board: a rounded box with a plunger lane on the right (x 540..592) up which the ball is shot; at the top it turns left and falls through staggered rows of round
- * pegs towards 16 slots, side by side across the whole floor (33 wide): there are no gaps, so every ball ends in a slot.
+ * pegs towards 16 slots, side by side across the whole floor (33 wide). Three baskets stand among the pegs, in the place of three pegs; a ball that falls into one is a missed ball.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(); else root.BingoTable16 = factory();
@@ -24,6 +24,19 @@
     for (i = 0; i < n; i++) pegs.push({ x: x0 + 40 * i, y: y, r: PEG_R });
   }
 
+  // ten places where a basket can stand, each in the place of one peg (row, column of the peg grid); the server draws three of them for every play. A basket is a cup 34 wide and 28 high
+  var BK = { w: 17, top: -13, bottom: 13 };
+  var BASKET_AT = [[3, 2], [4, 8], [6, 5], [7, 10], [9, 1], [10, 7], [12, 4], [13, 9], [15, 2], [15, 10]];
+  var baskets = BASKET_AT.map(function (rc, k) {
+    var idx = -1, q;
+    for (q = 0; q < pegs.length; q++) { if (Math.abs(pegs[q].y - (70 + 32 * rc[0])) < 0.5 && Math.abs(pegs[q].x - ((rc[0] % 2 ? 60 : 40) + 40 * rc[1])) < 0.5) { idx = q; break; } }
+    return { n: k + 1, x: pegs[idx].x, y: pegs[idx].y, peg: idx };
+  });
+  /** the three walls of a basket's cup (the cup stands where a peg was) */
+  function basketWalls(b) {
+    return [[b.x - BK.w, b.y + BK.top, b.x - BK.w, b.y + BK.bottom], [b.x - BK.w, b.y + BK.bottom, b.x + BK.w, b.y + BK.bottom], [b.x + BK.w, b.y + BK.bottom, b.x + BK.w, b.y + BK.top]];
+  }
+
   var walls = [];                                     // line segments [x1, y1, x2, y2]
   function arc(cx, cy, r, a0, a1, n) {                // a quarter of a circle as short segments
     var prev = null, k;
@@ -42,5 +55,5 @@
   walls.push([540, 766, 592, 766]);                   // the lane's floor
   for (i = 0; i < 16; i++) { walls.push([slots[i].xl, RIM_Y, slots[i].xl, SLOT_BOTTOM]); walls.push([slots[i].xr, RIM_Y, slots[i].xr, SLOT_BOTTOM]); walls.push([slots[i].xl, SLOT_BOTTOM, slots[i].xr, SLOT_BOTTOM]); }
 
-  return { W: W, H: H, BALL_R: BALL_R, PEG_R: PEG_R, GRAVITY: GRAVITY, FPS: FPS, V_MIN: V_MIN, V_MAX: V_MAX, LANE: LANE, RIM_Y: RIM_Y, SLOT_BOTTOM: SLOT_BOTTOM, SLOT_W: SLOT_W, slots: slots, pegs: pegs, walls: walls };
+  return { W: W, H: H, BALL_R: BALL_R, PEG_R: PEG_R, GRAVITY: GRAVITY, FPS: FPS, V_MIN: V_MIN, V_MAX: V_MAX, LANE: LANE, RIM_Y: RIM_Y, SLOT_BOTTOM: SLOT_BOTTOM, SLOT_W: SLOT_W, slots: slots, pegs: pegs, walls: walls, baskets: baskets, BK: BK, basketWalls: basketWalls, BASKET_NEAR: 26 };
 });

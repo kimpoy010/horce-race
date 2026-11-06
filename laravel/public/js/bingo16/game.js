@@ -14,7 +14,7 @@
     BAD_CLIENT_SEED: 'Seed: 1 to 64 letters, digits, - or _.', ERROR: 'Something went wrong.'
   };
   var el = {};
-  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'btnRules', 'btnSound', 'btnMode', 'btnLobby',
+  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'missedCount', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'btnRules', 'btnSound', 'btnMode', 'btnLobby',
     'rulesPays', 'rulesLimits'].forEach(function (k) { el[k] = $(k); });
   var view = window.Bingo16View.create({ board: el.board, card: el.card, jpRow: el.jpRow, power: el.power, pays: [el.pays, el.pstrip] });
 
@@ -25,6 +25,7 @@
   function setBalance(v) { S.shownBalance = v; el.balance.textContent = fmt(v); }
   function setMsg(t) { el.msg.textContent = t; }
   function ballsUi(left, total, k) { el.ballsLeft.textContent = left; if (k) setMsg('Ball ' + k + ' of ' + total); }
+  function missedUi(n) { el.missedCount.textContent = n; }
   function jpUi(n) { el.jpCount.textContent = n + '/5'; }
 
   /* ---------- messages ---------- */
@@ -78,8 +79,8 @@
     requestAnimationFrame(render);
   }
   function resetBoard() {
-    scene.lit = {}; scene.jpNums = []; scene.jpLit = {}; scene.lineCells = []; scene.winKey = ''; scene.slotCounts = []; scene.ball = null; scene.pull = 0;
-    ballsUi(16, 16); jpUi(0);
+    scene.lit = {}; scene.jpNums = []; scene.jpLit = {}; scene.lineCells = []; scene.winKey = ''; scene.slotCounts = []; scene.baskets = []; scene.basketCounts = {}; scene.ball = null; scene.pull = 0;
+    ballsUi(16, 16); jpUi(0); missedUi(0);
   }
   function nearestPeg(p) {
     var best = -1, bd = 1e9, i, d;
@@ -121,9 +122,9 @@
   }
 
   /* ---------- one ball ---------- */
-  function flyBall(outcome, power, speed) {
+  function flyBall(outcome, power, speed, spot) {
     return new Promise(function (resolve) {
-      var pick = Paths.pick(outcome, power), frames = pick.frames, dur = Paths.duration(frames), bounces = Paths.bounces(frames), t0 = performance.now(), bi = 0;
+      var pick = Paths.pick(outcome, power, spot), frames = pick.frames, dur = Paths.duration(frames), bounces = Paths.bounces(frames), t0 = performance.now(), bi = 0;
       Snd.sfx.launch(power);
       (function step() {
         var t = ((performance.now() - t0) / 1000) * speed;
@@ -140,8 +141,14 @@
       })();
     });
   }
-  function landBall(outcome) {
-    if (outcome > 0) {
+  function landBall(outcome, spot) {
+    if (outcome === 0) {                                                  // a missed ball: it fell into a basket and counts for nothing
+      var b = T.baskets[spot - 1];
+      scene.basketCounts[spot] = (scene.basketCounts[spot] || 0) + 1;
+      S.missed = (S.missed || 0) + 1; missedUi(S.missed);
+      S.caught.push({ x: b.x, y: b.y, t: 0 });
+      Snd.sfx.lose();
+    } else {
       var slot = T.slots[outcome - 1];
       scene.slotCounts[outcome] = (scene.slotCounts[outcome] || 0) + 1;
       scene.lit[outcome - 1] = true;
@@ -161,12 +168,12 @@
   function showRound(round, opts) {
     opts = opts || {};
     var balls = round.balls, total = balls.length, i = 0;
-    resetBoard();
-    scene.jpNums = round.jackpotNumbers.slice();
+    resetBoard(); S.missed = 0;
+    scene.jpNums = round.jackpotNumbers.slice(); scene.baskets = (round.baskets || []).slice();
     el.banner.hidden = true;
     function next() {
       if (i >= total) return Promise.resolve();
-      var outcome = balls[i++], first = i === 1;
+      var outcome = balls[i++], first = i === 1, spot = outcome === 0 && scene.baskets.length ? scene.baskets[Math.floor(Math.random() * scene.baskets.length)] : null;        // a missed ball falls into one of the three baskets (which one is for show)
       ballsUi(total - i + 1, total);
       restOnPlunger(0);
       var pull = !opts.fast && (first || S.manual);
@@ -174,8 +181,8 @@
       // AUTO: the player pulls the plunger for the first ball, the rest of the 16 follow by themselves, a little quicker. MANUAL: every ball is pulled (a player who walks away after a minute has the ball launched, the play is already paid for)
       return (pull ? awaitLaunch(false, S.manual ? 60000 : 3500) : wait(opts.fast ? 60 : 150).then(function () { return 0.25 + Math.random() * 0.7; })).then(function (power) {
         ballsUi(total - i, total, i);
-        return flyBall(outcome, power, opts.fast ? 2.4 : (pull ? 1.15 : 1.6));
-      }).then(function () { landBall(outcome); return wait(opts.fast ? 40 : 90); }).then(next);
+        return flyBall(outcome, power, opts.fast ? 2.4 : (pull ? 1.15 : 1.6), spot);
+      }).then(function () { landBall(outcome, spot); return wait(opts.fast ? 40 : 90); }).then(next);
     }
     return next().then(function () {
       var e = Fair.evaluate(balls, round.jackpotNumbers);
@@ -195,7 +202,7 @@
       } else {
         Snd.sfx.lose();
         el.banner.className = 'banner lose';
-        el.banner.innerHTML = '<div class="t">NO WIN</div><div class="s">' + e.lit.length + ' slots lit · no pattern</div>';
+        el.banner.innerHTML = '<div class="t">NO WIN</div><div class="s">' + e.lit.length + ' slots lit' + (round.missed ? ' · ' + round.missed + ' missed' : '') + ' · no pattern</div>';
       }
       el.banner.hidden = false;
     });

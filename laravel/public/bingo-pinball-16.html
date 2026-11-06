@@ -43,6 +43,7 @@
       <div class="col"><span class="lbl" id="balLbl">BALANCE</span><span class="val" id="balance">-</span></div>
       <div class="col"><span class="lbl">STAKE</span><span class="val" id="stake">-</span></div>
       <div class="col"><span class="lbl">BALLS</span><span class="val" id="ballsLeft">16</span></div>
+      <div class="col"><span class="lbl">MISSED</span><span class="val" id="missedCount" style="color:#FF6B5B">0</span></div>
       <div class="col"><span class="lbl">LAST WIN</span><span class="val" id="lastWin">0.00</span></div>
       <div class="col jpc"><span class="lbl">JACKPOT NUMBERS</span><span class="val cy" id="jpCount">0/5</span></div>
     </div>
@@ -67,7 +68,7 @@
     <div class="sheetBox">
       <button class="close" type="button" data-close="rules">CLOSE</button>
       <h2>HOW TO PLAY</h2>
-      <p>Choose your stake and press PLAY. Sixteen balls are played, one after the other. Every ball ends in one of the 16 slots. A slot that gets a ball lights its number on your card.</p>
+      <p>Choose your stake and press PLAY. Sixteen balls are played, one after the other. Most balls end in one of the 16 slots, and a slot that gets a ball lights its number on your card. Three red baskets stand among the pegs, in new places for every play: a ball that falls into a basket is <b>missed</b> and lights nothing.</p>
       <p>Light the cells of a <b>winning pattern</b> on your card and it pays: ACROSS (any row), DOWN (any column), DIAGONAL, the 4 CORNERS, the SMALL BOX, LUCKY SEVEN, an L SHAPE, NUMBER ELEVEN, EQUAL, a Z SHAPE, the BIG BOX and the FULL CARD. The small drawings in the pay panel show each shape. <b>Only your best pattern pays</b>; patterns do not add up. The most common patterns pay half your stake.</p>
       <p><b>Jackpot:</b> five numbers, shown as JP NUMS, are drawn for every play. If each of the five has caught <b>at least two balls</b> you win the jackpot pool, on top of any pattern pay. A share of every stake is added to the pool, which is shared by all players of the game.</p>
       <div class="pays" id="pays" aria-label="Paytable"></div>

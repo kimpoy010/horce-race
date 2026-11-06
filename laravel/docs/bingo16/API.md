@@ -4,15 +4,15 @@ Same conventions as Bingo Pinball ([../bingo/API.md](../bingo/API.md)); the rule
 
 ## Switching it on
 
-The game ships **switched off**. A client plays it when it is in the client's games list (admin console, client, Games, or `POST /admin/api/clients/<id>` with `"games": ["horse-race", "bingo-pinball-16"]`), or for every client with `BINGO16_DEFAULT_ON=true`. There is no paytable to choose (one version, `b16-v90-2`). `gameSettings["bingo-pinball-16"]` takes `limits` and `roundWebhooks` like Bingo Pinball. Requirements: `HORSE_CLIENTS_KEY` set, the round loop running (`php artisan game:run`), `php artisan migrate` run.
+The game ships **switched off**. A client plays it when it is in the client's games list (admin console, client, Games, or `POST /admin/api/clients/<id>` with `"games": ["horse-race", "bingo-pinball-16"]`), or for every client with `BINGO16_DEFAULT_ON=true`. There is no paytable to choose (one version, `b16-v90-3`). `gameSettings["bingo-pinball-16"]` takes `limits` and `roundWebhooks` like Bingo Pinball. Requirements: `HORSE_CLIENTS_KEY` set, the round loop running (`php artisan game:run`), `php artisan migrate` run.
 
 ## Player API
 
 `POST /auth {token, client}`, `GET /state`, `POST /play {stake, requestId}`, `GET /round/{id}`, `GET /history`, `POST /round/{id}/seen`, `POST /seed/rotate`, `GET /proof/{id}`; errors as in Bingo Pinball.
 
-`/state`: balance, limits, `paytable` (`id b16-v90-2`, 16 balls, 16 slots, the twelve patterns and their multiples (a multiple can be 0.5)), `jackpot` (`{amount, currency, wins, contributionBp}`, null when the player's currency has no jackpot), the seed commit, and the latest round with `unseen` / `unfinished`.
+`/state`: balance, limits, `paytable` (`id b16-v90-3`, 16 balls, 16 slots, the twelve patterns and their multiples (a multiple can be 0.5)), `jackpot` (`{amount, currency, wins, contributionBp}`, null when the player's currency has no jackpot), the seed commit, and the latest round with `unseen` / `unfinished`.
 
-A play answers `{"ok": true, "round": {...}, "balance": n, "repeat": false}`. A round has `id`, `ref` (`b16:<id>`), `status`, `stake`, `balls` (16 numbers: the slot 1-16 each ball ended in, every ball lands in a slot), `jackpotNumbers` (5), `lit` (the lit cells), `pattern` / `patternName`, `multiple` (0.5 for the half-stake patterns), `jackpotLit` (0-5), `jackpot` (true when each of the five holds at least two balls), `patternPay`, `jackpotPaid`, `payout` (patternPay + jackpotPaid), `nonce`, `creditPending`, `seen`.
+A play answers `{"ok": true, "round": {...}, "balance": n, "repeat": false}`. A round has `id`, `ref` (`b16:<id>`), `status`, `stake`, `balls` (16 numbers: the slot 1-16 each ball ended in, 0 = a missed ball that fell into a basket), `jackpotNumbers` (5), `baskets` (the 3 places 1-10 where the baskets stand in this play), `missed` (balls that fell into a basket), `lit` (the lit cells), `pattern` / `patternName`, `multiple` (0.5 for the half-stake patterns), `jackpotLit` (0-5), `jackpot` (true when each of the five holds at least two balls), `patternPay`, `jackpotPaid`, `payout` (patternPay + jackpotPaid), `nonce`, `creditPending`, `seen`.
 
 ## Money
 

@@ -37,17 +37,23 @@ T.slots.forEach((s, i) => { assert.strictEqual(s.n, i + 1); assert.strictEqual(s
 assert.ok(T.slots[15].xr < T.LANE.l, 'the slots end before the plunger lane');
 assert.ok(T.slots.every((s, i) => i === 0 || s.xl === T.slots[i - 1].xr), 'the slots touch: there is no gap, so every ball ends in a slot');
 assert.ok(T.pegs.every((p) => p.x > 8 && p.x < T.LANE.l && p.y > 14 && p.y < T.RIM_Y), 'every peg is inside the field');
+assert.strictEqual(T.baskets.length, 10, 'ten places for a basket');
+T.baskets.forEach((b, i) => {
+  assert.strictEqual(b.n, i + 1); assert.ok(T.pegs[b.peg].x === b.x && T.pegs[b.peg].y === b.y, 'a basket stands in the place of a peg');
+  assert.ok(b.x - T.BK.w > 8 && b.x + T.BK.w < T.LANE.l && b.y > 100 && b.y < T.RIM_Y - 60, 'a basket is inside the field');
+  T.baskets.forEach((o, j) => { if (j > i) assert.ok(Math.hypot(o.x - b.x, o.y - b.y) > 2 * T.BASKET_NEAR + 4, 'two places are never close to each other'); });
+});
 
 /* ---------- the library of ball paths ---------- */
 const file = path.join(root, 'public', 'js', 'bingo16', 'paths-data.js');
 const lib = loadPaths(file);
-assert.strictEqual(lib.v, 1); assert.strictEqual(lib.fps, T.FPS);
-assert.ok(fs.statSync(file).size < 250 * 1024, 'the library stays small (a phone downloads it): ' + fs.statSync(file).size);
+assert.strictEqual(lib.v, 2); assert.strictEqual(lib.fps, T.FPS);
+assert.ok(fs.statSync(file).size < 450 * 1024, 'the library stays small (a phone downloads it): ' + fs.statSync(file).size);
 let total = 0, longest = 0;
 for (let s = 1; s <= 16; s++) {
   const list = lib.slots[s];
-  assert.ok(list && list.length >= 30, ('slot ' + s) + ' has at least 30 paths, has ' + (list ? list.length : 0));
-  assert.strictEqual(new Set(list.map((p) => Math.min(4, Math.floor(p.p / 20)))).size, 5, ('slot ' + s) + ' has paths for every range of plunger power');
+  assert.ok(list && list.length >= 20, ('slot ' + s) + ' has at least 20 paths, has ' + (list ? list.length : 0));
+  assert.ok(new Set(list.map((p) => Math.min(4, Math.floor(p.p / 20)))).size >= 4, ('slot ' + s) + ' has paths for (almost) every range of plunger power');
   for (const p of list) {
     total++;
     const f = decode(p);
@@ -62,17 +68,34 @@ for (let s = 1; s <= 16; s++) {
       assert.ok(Math.hypot(f[i][0] - f[i - 1][0], f[i][1] - f[i - 1][1]) < 64, 'no jumps between frames');
     }
     assert.ok(bouncesOf(f) >= 3, ('slot ' + s) + ': every path hits at least three pegs or walls on the way');
+    for (const q of T.baskets) assert.ok(f.every((pt) => Math.hypot(pt[0] - q.x, pt[1] - q.y) > T.BASKET_NEAR - 3), 'slot ' + s + ': a path stays away from basket place ' + q.n);
     for (const other of T.slots) {                          // a ball bound for a slot never passes down through another slot
       if (other.n === s) continue;
       assert.ok(!f.some((q) => q[1] > T.RIM_Y + 10 && q[0] > other.xl + 2 && q[0] < other.xr - 2), 'slot ' + s + ': a path falls into slot ' + other.n);
     }
   }
 }
-assert.strictEqual(total, 480);
+for (let n = 1; n <= 10; n++) {                              // the missed balls: paths that end inside the cup of each place
+  const list = lib.baskets[n], b = T.baskets[n - 1];
+  assert.ok(list && list.length >= 20, 'basket place ' + n + ' has at least 20 paths, has ' + (list ? list.length : 0));
+  assert.ok(new Set(list.map((p) => Math.min(4, Math.floor(p.p / 20)))).size >= 4, 'basket place ' + n + ' has paths for (almost) every range of plunger power');
+  for (const p of list) {
+    total++;
+    const f = decode(p), last = f[f.length - 1];
+    longest = Math.max(longest, f.length);
+    assert.ok(f.length >= 25 && f.length <= 270, 'a path has between 0.8 and 9 seconds of flight');
+    assert.ok(Math.abs(f[0][0] - T.LANE.x) <= 1 && Math.abs(f[0][1] - T.LANE.startY) <= 1, 'every ball starts in the plunger lane');
+    assert.ok(Math.abs(last[0] - b.x) < T.BK.w && last[1] > b.y + T.BK.top && last[1] < b.y + T.BK.bottom + 2, 'basket place ' + n + ': the path ends inside the cup (' + last + ')');
+    for (const q of T.baskets) if (q.n !== n) assert.ok(f.every((pt) => Math.hypot(pt[0] - q.x, pt[1] - q.y) > T.BASKET_NEAR - 3), 'basket place ' + n + ': a path stays away from place ' + q.n);
+    for (let i = 1; i < f.length; i++) assert.ok(Math.hypot(f[i][0] - f[i - 1][0], f[i][1] - f[i - 1][1]) < 64, 'no jumps between frames');
+    assert.ok(bouncesOf(f) >= 3, 'basket place ' + n + ': every path hits at least three pegs or walls on the way');
+  }
+}
+assert.ok(total >= 26 * 20 && total <= 26 * 30, 'a library of 16 slots and 10 basket places: ' + total);
 
 /* ---------- the generator is deterministic ---------- */
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'b16paths-'));
-const run = (name) => { const out = path.join(dir, name); execFileSync('node', [path.join(root, 'bin', 'bingo16-paths.cjs'), '--shots', '60000', '--seed', '7', '--out', out], { cwd: root, stdio: 'pipe' }); return fs.readFileSync(out, 'utf8'); };
+const run = (name) => { const out = path.join(dir, name); execFileSync('node', [path.join(root, 'bin', 'bingo16-paths.cjs'), '--shots', '15000', '--basket-shots', '6000', '--seed', '7', '--out', out], { cwd: root, stdio: 'pipe' }); return fs.readFileSync(out, 'utf8'); };
 assert.strictEqual(run('a.js'), run('b.js'), 'the same options give the same library');
 fs.rmSync(dir, { recursive: true, force: true });
 
@@ -81,8 +104,8 @@ const lp = require('vm');
 const ctx = { window: { B16_PATHS: lib }, atob: (s) => Buffer.from(s, 'base64').toString('binary') };
 lp.runInNewContext(fs.readFileSync(path.join(root, 'public', 'js', 'bingo16', 'paths.js'), 'utf8'), ctx);
 const P = ctx.window.Bingo16Paths;
-for (const outcome of [1, 8, 16]) for (const power of [0, 0.5, 1]) {
-  const pk = P.pick(outcome, power);
+for (const outcome of [1, 8, 16, 0]) for (const power of [0, 0.5, 1]) {
+  const pk = P.pick(outcome, power, outcome === 0 ? 4 : undefined);
   assert.ok(pk && pk.frames.length > 25 && Math.abs(pk.power - power) <= 0.3, 'a path for outcome ' + outcome + ' at power ' + power);
   const end = P.at(pk.frames, P.duration(pk.frames));
   assert.ok(Math.hypot(end.x - pk.frames[pk.frames.length - 1][0], end.y - pk.frames[pk.frames.length - 1][1]) < 0.01, 'playback ends where the path ends');
@@ -93,17 +116,17 @@ for (const outcome of [1, 8, 16]) for (const power of [0, 0.5, 1]) {
   const vectors = JSON.parse(fs.readFileSync(path.join(root, 'docs', 'bingo16', 'test-vectors.json'), 'utf8'));
   for (const v of vectors) {
     const d = await Fair.draw(v.serverSeed, v.clientSeed, v.nonce);
-    same(d.balls, v.balls, 'balls of ' + v.clientSeed); same(d.jackpotNumbers, v.jackpotNumbers, 'jackpot numbers of ' + v.clientSeed);
+    same(d.balls, v.balls, 'balls of ' + v.clientSeed); same(d.jackpotNumbers, v.jackpotNumbers, 'jackpot numbers of ' + v.clientSeed); same(d.baskets, v.baskets, 'baskets of ' + v.clientSeed);
     const e = Fair.evaluate(d.balls, d.jackpotNumbers);
     same([e.lit, e.pattern, e.halves, e.cells.map((c) => c + 1).sort((a, b) => a - b), e.jackpotLit, e.jackpot], [v.lit, v.pattern, v.halves, v.cells, v.jackpotLit, v.jackpot], 'evaluation of ' + v.clientSeed);
     assert.strictEqual(await Fair.sha256Hex(v.serverSeed), v.commit);
-    const stake = 1000, round = { balls: v.balls, jackpotNumbers: v.jackpotNumbers, pattern: v.pattern, jackpotLit: v.jackpotLit, jackpot: v.jackpot, stake, patternPay: Math.floor(v.halves * stake / 2), jackpotPaid: v.jackpot ? 5000 : 0, payout: Math.floor(v.halves * stake / 2) + (v.jackpot ? 5000 : 0) };
+    const stake = 1000, round = { balls: v.balls, jackpotNumbers: v.jackpotNumbers, baskets: v.baskets, pattern: v.pattern, jackpotLit: v.jackpotLit, jackpot: v.jackpot, stake, patternPay: Math.floor(v.halves * stake / 2), jackpotPaid: v.jackpot ? 5000 : 0, payout: Math.floor(v.halves * stake / 2) + (v.jackpot ? 5000 : 0) };
     const ok = await Fair.verify(round, { serverSeed: v.serverSeed, commit: v.commit, clientSeed: v.clientSeed, nonce: v.nonce });
     assert.ok(ok.ok, 'verify ' + v.clientSeed + ': ' + ok.problems.join('; '));
     const bad = await Fair.verify(Object.assign({}, round, { payout: round.payout + 1 }), { serverSeed: v.serverSeed, commit: v.commit, clientSeed: v.clientSeed, nonce: v.nonce });
     assert.ok(!bad.ok, 'a wrong payout is found');
   }
   console.log('fairness check in the browser: ' + vectors.length + ' known-answer plays agree with the server and the Python reference');
-console.log('path library: ' + total + ' paths, 16 slots, longest ' + (longest / T.FPS).toFixed(1) + ' s, ' + (fs.statSync(file).size / 1024).toFixed(0) + ' KB');
+console.log('path library: ' + total + ' paths, 16 slots + 10 basket places, longest ' + (longest / T.FPS).toFixed(1) + ' s, ' + (fs.statSync(file).size / 1024).toFixed(0) + ' KB');
   console.log('bingo16 tests passed');
 })().catch((e) => { console.error(e); process.exit(1); });

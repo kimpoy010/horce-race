@@ -13,14 +13,14 @@
   /** the twelve patterns, best first: [key, name, pay in half stakes, the ways to make it] */
   var PATTERNS = [
     ['full', 'FULL CARD', 10000, [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]]],
-    ['bigbox', 'BIG BOX', 300, [[0, 1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15]]],
-    ['zshape', 'Z SHAPE', 30, [[0, 1, 2, 3, 6, 9, 12, 13, 14, 15]]],
-    ['equal', 'EQUAL', 10, [[0, 1, 2, 3, 12, 13, 14, 15]]],
-    ['eleven', 'NUMBER ELEVEN', 10, [[0, 4, 8, 12, 3, 7, 11, 15]]],
-    ['lucky7', 'LUCKY SEVEN', 4, [[0, 1, 2, 3, 6, 9, 12]]],
-    ['lshape', 'L SHAPE', 4, [[0, 4, 8, 12, 13, 14, 15]]],
-    ['corners', '4 CORNERS', 2, [[0, 3, 12, 15]]],
-    ['smallbox', 'SMALL BOX', 2, [[5, 6, 9, 10]]],
+    ['bigbox', 'BIG BOX', 1000, [[0, 1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15]]],
+    ['zshape', 'Z SHAPE', 160, [[0, 1, 2, 3, 6, 9, 12, 13, 14, 15]]],
+    ['equal', 'EQUAL', 20, [[0, 1, 2, 3, 12, 13, 14, 15]]],
+    ['eleven', 'NUMBER ELEVEN', 20, [[0, 4, 8, 12, 3, 7, 11, 15]]],
+    ['lucky7', 'LUCKY SEVEN', 8, [[0, 1, 2, 3, 6, 9, 12]]],
+    ['lshape', 'L SHAPE', 8, [[0, 4, 8, 12, 13, 14, 15]]],
+    ['corners', '4 CORNERS', 4, [[0, 3, 12, 15]]],
+    ['smallbox', 'SMALL BOX', 4, [[5, 6, 9, 10]]],
     ['diagonal', 'DIAGONAL', 2, [[0, 5, 10, 15], [3, 6, 9, 12]]],
     ['across', 'ACROSS', 1, ROWS],
     ['down', 'DOWN', 1, COLS]
@@ -33,7 +33,7 @@
   function toHex(buf) { var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i++) s += (b[i] < 16 ? '0' : '') + b[i].toString(16); return s; }
   function sha256Hex(text) { return subtle().digest('SHA-256', utf8(text)).then(toHex); }
 
-  /** the 16 balls (slot 1-16) and the five jackpot numbers of a play */
+  /** the 16 balls (slot 1-16, or 0 = missed: it fell into a basket), the five jackpot numbers and the three basket places of a play */
   function draw(serverSeedHex, clientSeed, nonce) {
     var label = 'bingo-pinball-16:' + clientSeed + ':' + nonce, counter = 0, block = null, pos = 32, key = null;
     function nextByte() {
@@ -52,17 +52,19 @@
     return subtle().importKey('raw', hexToBytes(serverSeedHex), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']).then(function (k) {
       key = k;
       var balls = [], step = Promise.resolve(), i;
-      for (i = 0; i < 16; i++) step = step.then(function () { return nextInt(10000); }).then(function (r) { balls.push(Math.floor(r / 625) + 1); });
+      for (i = 0; i < 16; i++) step = step.then(function () { return nextInt(10000); }).then(function (r) { balls.push(r < 1600 ? 0 : Math.floor((r - 1600) / 525) + 1); });
       var a = []; for (i = 1; i <= 16; i++) a.push(i);
       for (i = 0; i < 5; i++) (function (n) { step = step.then(function () { return nextInt(16 - n); }).then(function (r) { var j = n + r, t = a[n]; a[n] = a[j]; a[j] = t; }); })(i);
-      return step.then(function () { return { balls: balls, jackpotNumbers: a.slice(0, 5) }; });
+      var bk = []; for (i = 1; i <= 10; i++) bk.push(i);
+      for (i = 0; i < 3; i++) (function (n) { step = step.then(function () { return nextInt(10 - n); }).then(function (r) { var j = n + r, t = bk[n]; bk[n] = bk[j]; bk[j] = t; }); })(i);
+      return step.then(function () { return { balls: balls, jackpotNumbers: a.slice(0, 5), baskets: bk.slice(0, 3) }; });
     });
   }
 
   /** the lit cells, the pattern (by complete lines, and the cells that make it), and how many jackpot numbers hold two balls */
   function evaluate(balls, jackpotNumbers) {
     var lit = {}, i, k;
-    balls.forEach(function (b) { lit[b - 1] = true; });
+    balls.forEach(function (b) { if (b > 0) lit[b - 1] = true; });
     var has = function (cells) { return cells.every(function (c) { return lit[c]; }); };
     var full = []; LINES.forEach(function (l, n) { if (has(l)) full.push(n); });
     var pattern = null, cells = [], halves = 0;
@@ -86,6 +88,7 @@
     }).then(function (d) {
       if (d.balls.join(',') !== round.balls.join(',')) problems.push('the balls are not what the seeds give');
       if (d.jackpotNumbers.join(',') !== round.jackpotNumbers.join(',')) problems.push('the jackpot numbers are not what the seeds give');
+      if (round.baskets && d.baskets.join(',') !== round.baskets.join(',')) problems.push('the baskets are not where the seeds put them');
       var e = evaluate(d.balls, d.jackpotNumbers);
       if (e.pattern !== round.pattern) problems.push('the pattern is not what the balls give (' + (e.pattern || 'none') + ')');
       if (e.jackpot !== !!round.jackpot || e.jackpotLit !== round.jackpotLit) problems.push('the jackpot numbers lit are not what the balls give');

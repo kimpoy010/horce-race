@@ -20,8 +20,11 @@ function mulberry32(a) {
 }
 
 const CELL = 24;
-function prepare(T) {
-  if (T._sim) return T._sim;
+/** the board for one kind of shot: target null = the plain board (every one of the ten basket places is a peg), target n = the cup n stands in place of its peg */
+function prepare(T, target) {
+  T._sims = T._sims || {};
+  const tk = target || 0;
+  if (T._sims[tk]) return T._sims[tk];
   const buckets = (list, box, reach) => {
     const m = new Map();
     for (const it of list) {
@@ -34,12 +37,15 @@ function prepare(T) {
     }
     return m;
   };
-  T._sim = {
-    pegs: buckets(T.pegs, (p) => [p.x, p.y, p.x, p.y], T.BALL_R + T.PEG_R + 1),
-    walls: buckets(T.walls, (w) => [Math.min(w[0], w[2]), Math.min(w[1], w[3]), Math.max(w[0], w[2]), Math.max(w[1], w[3])], T.BALL_R + 1),
+  const gone = target ? T.baskets[target - 1].peg : -1;
+  const pegs = T.pegs.filter((p, i) => i !== gone);
+  const walls = target ? T.walls.concat(T.basketWalls(T.baskets[target - 1])) : T.walls;
+  T._sims[tk] = {
+    pegs: buckets(pegs, (p) => [p.x, p.y, p.x, p.y], T.BALL_R + T.PEG_R + 1),
+    walls: buckets(walls, (w) => [Math.min(w[0], w[2]), Math.min(w[1], w[3]), Math.max(w[0], w[2]), Math.max(w[1], w[3])], T.BALL_R + 1),
     key: (x, y) => Math.floor(x / CELL) * 1000 + Math.floor(y / CELL)
   };
-  return T._sim;
+  return T._sims[tk];
 }
 
 function hitSegment(b, s, r, e) {
@@ -73,11 +79,13 @@ function hitPeg(b, p, r, e) {
 
 /**
  * One ball. power 0..1 is how hard the plunger was pulled; `jitter` a small random sideways speed in the lane.
- * @return {{ok:boolean, slot?:number, frames?:number[][], reason?:string}} slot 1..16 (the slots fill the floor: every ball ends in one); frames are [x, y] at FPS per second
+ * target null: a ball for a slot (1..16); target n (1..10): a ball that falls into the cup of place n (slot 0, spot n). A ball for a slot must never come near any of the ten places (a cup may stand there);
+ * a ball for a cup must not come near the nine others. @return {{ok:boolean, slot?:number, spot?:number, frames?:number[][], reason?:string}} frames are [x, y] at FPS per second
  */
-function simulate(T, power, jitter) {
+function simulate(T, power, jitter, target) {
   const b = { x: T.LANE.x, y: T.LANE.startY, vx: jitter, vy: -(T.V_MIN + power * (T.V_MAX - T.V_MIN)) };
-  const r = T.BALL_R, S = prepare(T), frames = [[b.x, b.y]];
+  const r = T.BALL_R, S = prepare(T, target), frames = [[b.x, b.y]];
+  const NEAR = T.BASKET_NEAR, own = target ? T.baskets[target - 1] : null, bw = T.BK.w - 5;
   let outcome = null;
   for (let step = 1; step <= MAX_STEPS; step++) {
     b.vy += T.GRAVITY * DT;
@@ -87,7 +95,16 @@ function simulate(T, power, jitter) {
     if (ws) for (const w of ws) hitSegment(b, w, r, E_WALL);
     const ps = S.pegs.get(k);
     if (ps) for (const p of ps) hitPeg(b, p, r, E_PEG);
-    if (outcome === null && b.y > T.RIM_Y + 8 && b.x < T.LANE.l - 4) {            // below the rim: inside a slot
+    for (const q of T.baskets) {                                                     // contact with a place that is not the target: the shot is dropped
+      if (Math.abs(b.y - q.y) > NEAR + 14 || Math.abs(b.x - q.x) > NEAR + 14) continue;
+      if (q === own) {
+        if (b.y > q.y + T.BK.top + 8 && b.y < q.y + T.BK.bottom - 4 && Math.abs(b.x - q.x) < bw) {         // inside the cup: caught
+          for (let f = 1; f <= 3; f++) frames.push([b.x + (q.x - b.x) * f / 3, b.y + (q.y + 8 - b.y) * f / 3]);
+          return { ok: true, slot: 0, spot: q.n, frames };
+        }
+      } else if (Math.hypot(b.x - q.x, b.y - q.y) < NEAR) return { ok: false, reason: 'near a basket place' };
+    }
+    if (!target && outcome === null && b.y > T.RIM_Y + 8 && b.x < T.LANE.l - 4) {            // below the rim: inside a slot
       const s = T.slots.find((q) => b.x > q.xl + 2 && b.x < q.xr - 2);
       outcome = s ? s.n : null;
       if (s) {                                                                    // the ball settles in the slot

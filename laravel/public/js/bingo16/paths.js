@@ -1,4 +1,4 @@
-/* Bingo Pinball 16: playback of the stored ball paths (paths-data.js, made by bin/bingo16-paths.cjs). The server decides where each of the 16 balls ends (a slot 1-16); this picks, for an
+/* Bingo Pinball 16: playback of the stored ball paths (paths-data.js, made by bin/bingo16-paths.cjs). The server decides where each of the 16 balls ends (a slot 1-16, or 0 = a missed ball that falls into one of the three baskets); this picks, for an
    outcome, a stored path that ends there at about the power the plunger was pulled, and says where the ball is at any moment. Nothing here decides a result. */
 (function () {
   'use strict';
@@ -16,8 +16,8 @@
   }
 
   /** a stored path for the hole, at about this power (0..1); among equally good ones a random one, so repeated plays do not look the same */
-  function pick(outcome, power) {
-    var list = lib.slots[outcome];
+  function pick(outcome, power, spot) {
+    var list = outcome === 0 ? lib.baskets[spot] : lib.slots[outcome];             // a missed ball: the paths into the basket of that place (1-10)
     if (!list || !list.length) return null;
     var best = 9, i;
     for (i = 0; i < list.length; i++) best = Math.min(best, Math.abs(list[i].p / 100 - power));
