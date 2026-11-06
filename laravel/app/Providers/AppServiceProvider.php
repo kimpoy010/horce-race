@@ -95,7 +95,7 @@ class AppServiceProvider extends ServiceProvider
             return new Bingo16Service($e->sessions(), $e->gateway(), $e->limits(), $e->directory(), $e->journal(), $e->webhooks(), $app->make('bingo16.seeds'), $app->make(JackpotPool::class),
                 $app->make(Games::class), fn () => $e->now(), (array) config('games.settings.bingo-pinball-16'), (int) $e->cfg('big_win_min'));
         });
-        // Fruit Ring: its own seed pairs (game id) and the play service
+        // Fruit Game: its own seed pairs (game id) and the play service
         $this->app->singleton('fruit.seeds', fn ($app) => new SeedService($app->make(Engine::class)->journal(), fn () => $app->make(Engine::class)->now(), (string) config('horse.clients_key'),
             (int) config('games.settings.fruit-ring.rotate_every', 1000), FruitRules::ID));
         $this->app->singleton(FruitService::class, function ($app) {

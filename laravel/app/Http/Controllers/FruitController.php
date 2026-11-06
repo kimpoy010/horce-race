@@ -6,7 +6,7 @@ use App\Games\FruitRing\FruitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/** Fruit Ring HTTP API, under /api/games/fruit-ring. Same conventions as the other games: JSON, {"ok": true, ...} or {"ok": false, "error": CODE}, the session id as a bearer token. */
+/** Fruit Game HTTP API, under /api/games/fruit-ring. Same conventions as the other games: JSON, {"ok": true, ...} or {"ok": false, "error": CODE}, the session id as a bearer token. */
 class FruitController extends Controller
 {
     public function __construct(private FruitService $game) {}

@@ -9,7 +9,7 @@ use App\Games\Reconcile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-/** Phase E of Fruit Ring: the figures, the consoles, /metrics, the alerts and the ledger reconciliation (held wins and double-ups included) */
+/** Phase E of Fruit Game: the figures, the consoles, /metrics, the alerts and the ledger reconciliation (held wins and double-ups included) */
 class FruitReportsTest extends StaffTestCase
 {
     private const BASE = '/api/games/fruit-ring';

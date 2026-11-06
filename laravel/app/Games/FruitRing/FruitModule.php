@@ -4,7 +4,7 @@ namespace App\Games\FruitRing;
 
 use App\Platform\Games\GameModule;
 
-/** Fruit Ring as a module of the platform: an instant game (one spin per request, settled inside the player's request), with an optional Small/Big double-up of a win. */
+/** Fruit Game as a module of the platform: an instant game (one spin per request, settled inside the player's request), with an optional Small/Big double-up of a win. */
 final class FruitModule implements GameModule
 {
     public function id(): string
@@ -19,7 +19,7 @@ final class FruitModule implements GameModule
 
     public function name(): string
     {
-        return 'Fruit Ring';
+        return 'Fruit Game';
     }
 
     public function launchPath(): string
@@ -69,7 +69,7 @@ final class FruitModule implements GameModule
                     $out['roundWebhooks'] = $v;
                     break;
                 default:
-                    throw new \InvalidArgumentException('unknown setting "'.$k.'" for Fruit Ring');
+                    throw new \InvalidArgumentException('unknown setting "'.$k.'" for Fruit Game');
             }
         }
 

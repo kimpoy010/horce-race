@@ -351,7 +351,7 @@ final class GameReports
     }
 
     /**
-     * Fruit Ring: stakes and payouts, the return, how far the SPINS are from the maths (the win of each spin before any double-up against what its bets are expected to win, with an
+     * Fruit Game: stakes and payouts, the return, how far the SPINS are from the maths (the win of each spin before any double-up against what its bets are expected to win, with an
      * upper bound of the variance, so it never raises a false alarm; the double-up is an even chance and is judged on its own), the double-ups against 50%, and wins still held.
      */
     private function fruit(?string $client): array
@@ -431,7 +431,7 @@ final class GameReports
         return $out;
     }
 
-    /** the players of a client who played Fruit Ring, latest first */
+    /** the players of a client who played Fruit Game, latest first */
     public function fruitPlayers(string $client, ?string $query = null, mixed $limit = 100): array
     {
         $by = DB::table('instant_rounds')->where('game_id', self::FRUIT)->where('client_id', $client)->where('status', 'settled')->groupBy('player_key')

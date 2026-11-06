@@ -1,4 +1,4 @@
-# Fruit Ring - the maths
+# Fruit Game - the maths
 
 Paytable id `fr-v90-2`. Everything here is frozen (a hash of the rules is checked by `tests/Unit/FruitMathTest.php`); a change is a new version with a new id.
 

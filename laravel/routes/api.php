@@ -43,7 +43,7 @@ Route::prefix('games/bingo-pinball-16')->group(function () {
     Route::get('/proof/{id}', [Bingo16Controller::class, 'proof'])->whereNumber('id');
 });
 
-// Fruit Ring (a ring of 24 cells, 8 symbols, free spins, a Small/Big double-up; an instant game with its own games-list entry)
+// Fruit Game (a ring of 24 cells, 8 symbols, free spins, a Small/Big double-up; an instant game with its own games-list entry)
 Route::prefix('games/fruit-ring')->group(function () {
     Route::post('/auth', [FruitController::class, 'auth']);
     Route::get('/state', [FruitController::class, 'state']);

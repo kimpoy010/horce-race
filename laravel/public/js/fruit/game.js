@@ -1,4 +1,4 @@
-/* Fruit Ring: the page's logic. The server decides the result (POST /play: the rounds of the spin; POST /round/{id}/double: the double-up number); this shows it: a light runs round
+/* Fruit Game: the page's logic. The server decides the result (POST /play: the rounds of the spin; POST /round/{id}/double: the double-up number); this shows it: a light runs round
    the ring and stops on the cells the server chose. Nothing here decides a result. */
 (function () {
   'use strict';
@@ -368,7 +368,7 @@
       first = viaAccount();
     }
     first.then(function () { return Api.state(); }).then(function (st) { applyState(st); return recover(st); }).catch(function (e) {
-      if (e && e.noAccount) gate('FRUIT RING', 'Sign in to play.', true);
+      if (e && e.noAccount) gate('FRUIT GAME', 'Sign in to play.', true);
       else if (e && e.status) {
         if (e.error === 'SESSION_EXPIRED' || e.error === 'INVALID_TOKEN') { Api.clearSession(); gate('SESSION ENDED', e.error === 'INVALID_TOKEN' ? 'This link was already used or has expired. Open the game again from your account.' : ERR.SESSION_EXPIRED, true); }
         else gate('NOT AVAILABLE', errText(e), false);

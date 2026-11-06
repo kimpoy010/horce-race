@@ -1,5 +1,5 @@
 /*
- * Fruit Ring: the picture of the ring. An SVG of 24 tiles round a 5 x 5 centre; draw(scene) only touches what changed.
+ * Fruit Game: the picture of the ring. An SVG of 24 tiles round a 5 x 5 centre; draw(scene) only touches what changed.
  * window.FruitView.create(svgElement) -> { draw(scene), centerBox }
  *   scene: { lights: [cell...]        the running light(s), bright
  *            lit: {cell: true}         cells that stay lit (the stops of this spin)

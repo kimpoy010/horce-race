@@ -1,4 +1,4 @@
-/* Fruit Ring: the client of the server's API (/api/games/fruit-ring, see docs/fruit/API.md). Every call answers with the data or throws {status, error} (a refusal of the server) or
+/* Fruit Game: the client of the server's API (/api/games/fruit-ring, see docs/fruit/API.md). Every call answers with the data or throws {status, error} (a refusal of the server) or
    {network: true} (no answer in time). The session id is kept for the tab only. */
 (function () {
   'use strict';

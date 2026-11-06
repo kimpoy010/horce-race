@@ -10,14 +10,14 @@ use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../../bin/fruit-verify.php';
 
-/** Fruit Ring, the maths package: frozen rules, the evaluator, the PAR figures against the independent Python figures, the draw and the standalone verifier. Pure code. */
+/** Fruit Game, the maths package: frozen rules, the evaluator, the PAR figures against the independent Python figures, the draw and the standalone verifier. Pure code. */
 class FruitMathTest extends TestCase
 {
     private const FROZEN = '2e3b9cd540de12c8451f4f42c0069faa83bc8af6b920a40fc0f1e85200c1c50e';
 
     public function test_the_rules_are_frozen(): void
     {
-        $this->assertSame(self::FROZEN, hash('sha256', Rules::canonical()), 'the rules of Fruit Ring changed: a certified game is never edited, add a new version instead');
+        $this->assertSame(self::FROZEN, hash('sha256', Rules::canonical()), 'the rules of Fruit Game changed: a certified game is never edited, add a new version instead');
         $this->assertCount(24, Rules::RING);
         $this->assertSame(Rules::TOTAL_WEIGHT, array_sum(array_column(Rules::RING, 2)));
         $this->assertSame([9, 21], Rules::luckyCells());

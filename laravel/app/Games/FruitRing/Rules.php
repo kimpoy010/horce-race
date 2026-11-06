@@ -3,7 +3,7 @@
 namespace App\Games\FruitRing;
 
 /**
- * Fruit Ring: the fixed rules (docs/fruit/MATH.md). A ring of 24 cells; the player puts credits on any of 8 symbols; a light stops on one cell, drawn by the server by weight;
+ * Fruit Game: the fixed rules (docs/fruit/MATH.md). A ring of 24 cells; the player puts credits on any of 8 symbols; a light stops on one cell, drawn by the server by weight;
  * a Lucky stop gives free spins (3 of them, or one with 3 lit cells); every lit cell pays the bets on its symbol; a x3 cell pays three times. After a win the player may double it (Small 1-7 / Big 8-14, a fair
  * 50/50), up to three times in a row. Nothing here is ever changed once the game is certified: other pays or weights are a new version with a new id.
  */

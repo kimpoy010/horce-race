@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fruit Ring - an independent implementation of the draw, the paytable and the double-up, written only from the specification in docs/fruit/MATH.md (not translated from the
+Fruit Game - an independent implementation of the draw, the paytable and the double-up, written only from the specification in docs/fruit/MATH.md (not translated from the
 PHP code). The PHP implementation is checked against it (tests/Unit/FruitMathTest.php, on docs/fruit/test-vectors.json) and a testing lab can run it. It also computes the exact
 PAR figures with big integers (fractions, no rounding until the figures are printed).
 
@@ -131,7 +131,7 @@ def par_report(as_json):
         out = {'luckyShare': float(p['luckyShare']), 'allEightRtp': float(p['allEight']['ev']), 'symbols': {s: {'pay': v['pay'], 'rtp': float(v['ev']), 'rtpFraction': str(v['ev']), 'hit': float(v['hit']), 'stop': float(v['stop']),
                'standardDeviation': float(v['variance']) ** 0.5} for s, v in p['symbols'].items()}}
         return json.dumps(out, indent=2)
-    lines = ['Fruit Ring - paytable fr-v90-2: exact PAR sheet', '', f"24 cells, stop weights out of {W:,}; Lucky cells (share {float(p['luckyShare']) * 100:.3f}%) pay nothing themselves: one gives 3 free spins, the other a free spin with 3 lit cells.",
+    lines = ['Fruit Game - paytable fr-v90-2: exact PAR sheet', '', f"24 cells, stop weights out of {W:,}; Lucky cells (share {float(p['luckyShare']) * 100:.3f}%) pay nothing themselves: one gives 3 free spins, the other a free spin with 3 lit cells.",
              'A credit on one symbol:', '', 'symbol       pay    light stops on it    wins (incl. Lucky)    returns      standard deviation']
     for s in SYMBOLS:
         v = p['symbols'][s]

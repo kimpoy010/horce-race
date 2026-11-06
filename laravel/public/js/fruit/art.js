@@ -1,5 +1,5 @@
 /*
- * Fruit Ring: the pictures, drawn for this project as flat vector shapes (no outside artwork). Every symbol is an SVG fragment on a 48 x 48 grid; art(kind, mult) gives the
+ * Fruit Game: the pictures, drawn for this project as flat vector shapes (no outside artwork). Every symbol is an SVG fragment on a 48 x 48 grid; art(kind, mult) gives the
  * fragment for a ring cell, and defs() the <defs> to put in the ring's <svg>. window.FruitArt, or require() in Node.
  */
 (function (root, factory) {

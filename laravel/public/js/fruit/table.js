@@ -1,5 +1,5 @@
 /*
- * Fruit Ring: the ring of 24 cells, in the units of the page's 366 x 366 ring drawing (7 x 7 cells, only the border is used). One file for three users: the page draws the ring from it, the
+ * Fruit Game: the ring of 24 cells, in the units of the page's 366 x 366 ring drawing (7 x 7 cells, only the border is used). One file for three users: the page draws the ring from it, the
  * animation plan walks it, the tests check it against the maths (docs/fruit/verify_play.py). UMD: window.FruitTable, or require() in Node.
  * Cell k (0-23) is the k-th cell clockwise from the top left: 0-6 along the top, 7-11 down the right side, 12-18 along the bottom (right to left), 19-23 up the left side.
  */

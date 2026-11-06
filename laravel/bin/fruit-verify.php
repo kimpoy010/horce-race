@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /*
- * Fruit Ring - verify one spin (or one double-up) on your own. Needs nothing but PHP 8 (no framework, no database, no network).
+ * Fruit Game - verify one spin (or one double-up) on your own. Needs nothing but PHP 8 (no framework, no database, no network).
  *
  *   php fruit-verify.php --server-seed <64 hex> --client-seed <text> --nonce <n> [--bets 1,1,1,1,1,1,1,1] [--commit <64 hex>] [--json]
  *   php fruit-verify.php --double --server-seed <64 hex> --client-seed <text> --nonce <n>

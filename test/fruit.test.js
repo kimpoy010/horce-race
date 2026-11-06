@@ -1,5 +1,5 @@
 'use strict';
-/* Fruit Ring, the browser side that does not need a browser: the ring (public/js/fruit/table.js) against the maths, the pictures, and the plan of the light (anim.js). */
+/* Fruit Game, the browser side that does not need a browser: the ring (public/js/fruit/table.js) against the maths, the pictures, and the plan of the light (anim.js). */
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -100,5 +100,5 @@ assert.strictEqual(JSON.stringify(Fair.WEIGHTS), JSON.stringify(pyWeights), 'the
     assert.strictEqual(r.ok, false, 'a wrong round fails: ' + JSON.stringify(bad));
   }
   assert.strictEqual((await Fair.verify(round, Object.assign({}, proof, { commit: '0'.repeat(64) }))).ok, false, 'a wrong commit fails');
-  console.log('fruit ring: ring, pictures, light plan and the browser fairness check agree with the maths');
+  console.log('fruit game: ring, pictures, light plan and the browser fairness check agree with the maths');
 })();

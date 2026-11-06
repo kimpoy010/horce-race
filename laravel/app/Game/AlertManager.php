@@ -110,22 +110,22 @@ final class AlertManager
             $add('bingo16_rollbacks_stuck', 'critical', $br['count'] > 0 && $br['oldestSeconds'] > $cfg['rollbackMinutes'] * 60,
                 $br['count'].' Bingo Pinball 16 rollback(s) not confirmed by the wallet, the oldest for '.$min($br['oldestSeconds']).' min (a player may be charged for a play that did not happen)');
         }
-        if (isset($ctx['fruit'])) {                      // Fruit Ring: its spins against the maths, its double-ups against 50%, held wins, and its queues
+        if (isset($ctx['fruit'])) {                      // Fruit Game: its spins against the maths, its double-ups against 50%, held wins, and its queues
             $f = $ctx['fruit'];
             $fz = (float) $f['rtpZ'];
             $add('rtp_drift:fruit-ring', 'warning', $f['plays'] >= ($cfg['bingoMinPlays'] ?? 1000) && abs($fz) > $cfg['rtpZ'],
-                'Fruit Ring spin wins are '.number_format($fz, 1).' standard deviations '.($fz > 0 ? 'above' : 'below').' what the maths predicts for the bets made ('.$f['plays'].' plays)');
+                'Fruit Game spin wins are '.number_format($fz, 1).' standard deviations '.($fz > 0 ? 'above' : 'below').' what the maths predicts for the bets made ('.$f['plays'].' plays)');
             $dz = (float) $f['doubles']['z'];
             $add('double_drift:fruit-ring', 'warning', $f['doubles']['count'] >= ($cfg['doubleMinCount'] ?? 400) && abs($dz) > $cfg['rtpZ'],
-                'Fruit Ring double-ups: '.$f['doubles']['won'].' of '.$f['doubles']['count'].' were right ('.number_format($dz, 1).' standard deviations from 50%)');
+                'Fruit Game double-ups: '.$f['doubles']['won'].' of '.$f['doubles']['count'].' were right ('.number_format($dz, 1).' standard deviations from 50%)');
             $add('fruit_open_stuck', 'warning', $f['open']['count'] > 0 && $f['open']['oldestSeconds'] > (int) config('games.settings.fruit-ring.open_after_ms', 120000) / 1000 + 600,
-                $f['open']['count'].' Fruit Ring win(s) held for '.$min($f['open']['oldestSeconds']).' min: the round loop should have collected them');
+                $f['open']['count'].' Fruit Game win(s) held for '.$min($f['open']['oldestSeconds']).' min: the round loop should have collected them');
             $fc = $f['pending']['credits'];
             $add('fruit_credits_stuck', 'critical', $fc['count'] > 0 && $fc['oldestSeconds'] > $cfg['creditMinutes'] * 60,
-                $fc['count'].' Fruit Ring win credit(s) not delivered to the wallet, the oldest for '.$min($fc['oldestSeconds']).' min');
+                $fc['count'].' Fruit Game win credit(s) not delivered to the wallet, the oldest for '.$min($fc['oldestSeconds']).' min');
             $fr = $f['pending']['rollbacks'];
             $add('fruit_rollbacks_stuck', 'critical', $fr['count'] > 0 && $fr['oldestSeconds'] > $cfg['rollbackMinutes'] * 60,
-                $fr['count'].' Fruit Ring rollback(s) not confirmed by the wallet, the oldest for '.$min($fr['oldestSeconds']).' min (a player may be charged for a spin that did not happen)');
+                $fr['count'].' Fruit Game rollback(s) not confirmed by the wallet, the oldest for '.$min($fr['oldestSeconds']).' min (a player may be charged for a spin that did not happen)');
         }
         if ($ctx['diskFreeMb'] !== null) {
             $add('disk_low', 'critical', $ctx['diskFreeMb'] < $cfg['diskFreeMb'], 'only '.round($ctx['diskFreeMb']).' MB free where the database and logs are kept');

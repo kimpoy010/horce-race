@@ -1,4 +1,4 @@
-# Fruit Ring - the ring and the light (Phase C)
+# Fruit Game - the ring and the light (Phase C)
 
 The page draws and animates; **it never decides anything**. The server returns the rounds of a spin (`rounds`: `[[stop]]`, or `[[stop],[a],[b],[c]]` for 3 free spins, or `[[stop],[a,b,c]]` for a free spin with 3 lit cells) before anything is shown; the page then makes a light run round the ring and stop on exactly those cells.
 

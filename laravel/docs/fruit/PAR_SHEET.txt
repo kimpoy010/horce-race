@@ -1,4 +1,4 @@
-Fruit Ring - paytable fr-v90-2: exact PAR sheet
+Fruit Game - paytable fr-v90-2: exact PAR sheet
 
 24 cells, stop weights out of 100,000; Lucky cells (share 3.817%) pay nothing themselves: one gives 3 free spins, the other a free spin with 3 lit cells.
 A credit on one symbol:

@@ -1,4 +1,4 @@
-/* Fruit Ring: what differs from the other games' pages (bingo.css): the ring with its centre display, the eight bet buttons, the credit row. Portrait, 390 px wide, scaled to the window. */
+/* Fruit Game: what differs from the other games' pages (bingo.css): the ring with its centre display, the eight bet buttons, the credit row. Portrait, 390 px wide, scaled to the window. */
 .frame { gap: 6px; padding: 8px; }
 .head { display: flex; align-items: center; gap: 8px; }
 .head h1 { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; }

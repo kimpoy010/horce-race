@@ -1,4 +1,4 @@
-/* Fruit Ring: a few short original sounds (WebAudio). Nothing plays before the first tap. window.FruitSound */
+/* Fruit Game: a few short original sounds (WebAudio). Nothing plays before the first tap. window.FruitSound */
 (function () {
   'use strict';
   var ctx = null, on = true;

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Fruit Ring: the play flow of an instant game with a double-up.
+ * Fruit Game: the play flow of an instant game with a double-up.
  *
  *   SPIN    Requested -> the wallet takes the stake, credits x credit value (fr:<id>:bet) -> Debited -> the spin is drawn from the player's seed pair (one nonce) and paid:
  *           no win -> Settled; a win -> status "open": the win is HELD, the player may double it (Small/Big, a fair 50/50, up to 3 times in a row) or collect it

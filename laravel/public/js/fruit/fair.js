@@ -1,5 +1,5 @@
 /*
- * Fruit Ring, the fairness check in the browser: re-draws a spin and its double-ups from (server seed, client seed, nonce) exactly as docs/fruit/MATH.md says and compares them with what
+ * Fruit Game, the fairness check in the browser: re-draws a spin and its double-ups from (server seed, client seed, nonce) exactly as docs/fruit/MATH.md says and compares them with what
  * the server reported. Written from that text (like docs/fruit/verify_play.py), not from the server's code; test/fruit.test.js runs it against docs/fruit/test-vectors.json.
  * Uses only WebCrypto (HMAC-SHA-256, SHA-256): window.FruitFair / require.
  */

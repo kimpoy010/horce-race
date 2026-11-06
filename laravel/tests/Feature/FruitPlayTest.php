@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * Fruit Ring, the play flow (Phase B): a spin, the double-up, the collect, every way it can fail, and what is left behind each time. The platform is a fake HTTP wallet that can
+ * Fruit Game, the play flow (Phase B): a spin, the double-up, the collect, every way it can fail, and what is left behind each time. The platform is a fake HTTP wallet that can
  * refuse, lose answers and fail credits.
  */
 class FruitPlayTest extends TestCase

@@ -145,7 +145,7 @@
 
 
   /* ---------- games: the figures of each game and the plays of Bingo Pinball ---------- */
-  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball', 'bingo-pinball-16': 'Bingo Pinball 16', 'fruit-ring': 'Fruit Ring' };
+  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball', 'bingo-pinball-16': 'Bingo Pinball 16', 'fruit-ring': 'Fruit Game' };
   function gameRounds(box, cur, player) {
     api('GET', 'rounds?game=bingo-pinball&limit=100' + (player ? '&player=' + encodeURIComponent(player) : '')).then(function (r) {
       if (handleAuth(r)) return; clear(box);
@@ -235,7 +235,7 @@
   function sectionFruit(view, d, cur) {
     var g = d.games['fruit-ring'], on = d.enabled.indexOf('fruit-ring') >= 0;
     if (!g || (!on && !g.plays)) return;
-    view.appendChild(h('h2', null, 'Fruit Ring'));
+    view.appendChild(h('h2', null, 'Fruit Game'));
     view.appendChild(h('div', { class: 'cards' }, card('Return', pct(g.rtpActual) + ' (maths ' + pct(g.rtpTheoretical) + ')'), card('Spins vs maths', (g.rtpZ >= 0 ? '+' : '') + g.rtpZ.toFixed(1) + ' sd'),
       card('Double-ups right', g.doubles.count ? g.doubles.won + ' of ' + g.doubles.count + ' (' + pct(g.doubles.won / g.doubles.count) + ')' : '-'), card('Wins held now', g.open.count)));
     var q = h('input', { placeholder: 'player id (empty = everyone)', style: 'max-width:260px' }), box = h('div'), t;

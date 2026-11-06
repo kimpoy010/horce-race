@@ -1,4 +1,4 @@
-# Fruit Ring - HTTP API (Phase B)
+# Fruit Game - HTTP API (Phase B)
 
 Under `/api/games/fruit-ring`, the same conventions as the other games: JSON, `{"ok": true, ...}` or `{"ok": false, "error": CODE}`, the session id from `/auth` as a bearer token. The game is reachable only for clients whose games list has `fruit-ring` (`FRUIT_DEFAULT_ON=true` gives it to every client). The page (`/games/fruit-ring`) comes in Phase D.
 
@@ -23,4 +23,4 @@ Errors: `BAD_REQUEST`, `BAD_BET` (unknown symbol, a symbol above the cap, too ma
 
 ## The page (Phase D)
 
-`/games/fruit-ring` (portrait, 390 px wide, scaled to the window; `public/fruit-ring.html`, `css/fruit.css`, `js/fruit/*`). Players signed in on the operator's own site are launched from the account page (**Play Fruit Ring**, shown when the game is on) with no token typed; a platform's launch link carries its own token. Tap a fruit to add a credit, hold it to clear it; the credit value, CLEAR, REPEAT, PAYS, FAIR and SND sit under the bets; START spins (and first collects a win still held). After a win the centre of the ring offers SMALL, BIG and COLLECT; a win left alone is restored (and can still be doubled) after a reload. The ◀ button goes back to the lobby. The FAIR sheet checks any settled play in the browser against its revealed seed (`js/fruit/fair.js`, tested against `docs/fruit/test-vectors.json`).
+`/games/fruit-ring` (portrait, 390 px wide, scaled to the window; `public/fruit-ring.html`, `css/fruit.css`, `js/fruit/*`). Players signed in on the operator's own site are launched from the account page (**Play Fruit Game**, shown when the game is on) with no token typed; a platform's launch link carries its own token. Tap a fruit to add a credit, hold it to clear it; the credit value, CLEAR, REPEAT, PAYS, FAIR and SND sit under the bets; START spins (and first collects a win still held). After a win the centre of the ring offers SMALL, BIG and COLLECT; a win left alone is restored (and can still be doubled) after a reload. The ◀ button goes back to the lobby. The FAIR sheet checks any settled play in the browser against its revealed seed (`js/fruit/fair.js`, tested against `docs/fruit/test-vectors.json`).

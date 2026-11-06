@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Fruit Ring: figures the consoles and alerts need without reading every round again. ADDITIVE ONLY: new nullable columns, nothing existing is changed.
+ * Fruit Game: figures the consoles and alerts need without reading every round again. ADDITIVE ONLY: new nullable columns, nothing existing is changed.
  *   spin_win     the win of the spin itself, before any double-up (minor units)
  *   exp_win      what the maths expects that spin to win, for the bets of that spin (minor units, double precision)
  *   var_win      an upper bound of the variance of that win (minor units squared)

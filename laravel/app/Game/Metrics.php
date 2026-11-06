@@ -134,9 +134,9 @@ final class Metrics
             $out[] = self::line('horse_game_pending_rollbacks', $g['pending']['rollbacks']['count'], $l);
             $out[] = self::line('horse_game_pending_oldest_seconds', max($g['pending']['credits']['oldestSeconds'], $g['pending']['rollbacks']['oldestSeconds']), $l);
         }
-        // Fruit Ring: its double-ups (an even chance) and the wins still held
+        // Fruit Game: its double-ups (an even chance) and the wins still held
         $fr = $reports[\App\Games\GameReports::FRUIT];
-        $help('horse_fruit_doubles_total', 'double-ups played in Fruit Ring');
+        $help('horse_fruit_doubles_total', 'double-ups played in Fruit Game');
         $help('horse_fruit_doubles_won_total', 'double-ups that were right');
         $help('horse_fruit_double_zscore', 'how many standard deviations the double-ups won are from 50%');
         $help('horse_fruit_open_rounds', 'wins held and not yet collected');

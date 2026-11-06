@@ -1,5 +1,5 @@
 /*
- * Fruit Ring: the plan of the light. The server has already decided where every spin ends (a list of rounds, each a list of cells: [[stop]], or [[stop],[a],[b],[c]] for 3 free spins,
+ * Fruit Game: the plan of the light. The server has already decided where every spin ends (a list of rounds, each a list of cells: [[stop]], or [[stop],[a],[b],[c]] for 3 free spins,
  * or [[stop],[a,b,c]] for a free spin with 3 lit cells). This turns that into a timed list of events the page plays: a light runs round the ring, slows down, and stops exactly on the cell
  * the server chose. Nothing here decides a result; the number of laps and the speeds are only for show. window.FruitAnim, or require() in Node.
  *
