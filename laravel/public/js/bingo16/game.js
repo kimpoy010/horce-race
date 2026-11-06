@@ -181,7 +181,7 @@
       // AUTO: the player pulls the plunger for the first ball, the rest of the 16 follow by themselves, a little quicker. MANUAL: every ball is pulled (a player who walks away after a minute has the ball launched, the play is already paid for)
       return (pull ? awaitLaunch(false, S.manual ? 60000 : 3500) : wait(opts.fast ? 60 : 150).then(function () { return 0.25 + Math.random() * 0.7; })).then(function (power) {
         ballsUi(total - i, total, i);
-        return flyBall(outcome, power, opts.fast ? 2.4 : (pull ? 1.15 : 1.6), spot);
+        return flyBall(outcome, power, opts.fast ? 2.4 : (pull ? 1.15 * (0.8 + 0.5 * power) : 1.6), spot);     // a ball the player pulled plays faster the harder it was pulled (the stored path itself is already faster: a harder launch means a faster climb)
       }).then(function () { landBall(outcome, spot); return wait(opts.fast ? 40 : 90); }).then(next);
     }
     return next().then(function () {

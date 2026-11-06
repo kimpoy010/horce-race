@@ -11,7 +11,7 @@
   'use strict';
   var W = 600, H = 776;
   var BALL_R = 4.5, PEG_R = 3, GRAVITY = 700, FPS = 30;
-  var V_MIN = 1000, V_MAX = 1250;                     // launch speed up the lane (units/s) for the weakest and the strongest pull of the plunger
+  var V_MIN = 1000, V_MAX = 1900;                     // launch speed up the lane (units/s) for the weakest and the strongest pull: a hard pull reaches the top in 0.4 s, a weak one in 0.9 s of the plunger
   var LANE = { l: 540, r: 592, x: 566, startY: 704, floorY: 766 };
   var RIM_Y = 676, SLOT_BOTTOM = 728, SLOT_W = 33, SLOT_STEP = 33, SLOT_X0 = 10;
 
