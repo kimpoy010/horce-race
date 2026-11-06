@@ -56,6 +56,8 @@
   // every fruit has its own amount (minor units): a tap adds the CHIP value to that fruit, hold clears it, the small minus takes one chip off
   function credits() { var n = 0; T.SYMBOLS.forEach(function (s) { n += S.bets[s] || 0; }); return n; }
   function stake() { return credits(); }
+  /** the game is over: the bets are cleared (REPEAT brings the last ones back) */
+  function resetBets() { S.bets = {}; betsUi(); }
   /** an amount in few characters for the small badges on the ring: 5, 0.5, 12.25, 1.5K */
   function short(minor) { var v = minor / Math.pow(10, dec()); return v >= 1000 ? (Math.round(v / 100) / 10) + 'K' : String(Math.round(v * 100) / 100); }
   function betsUi() {
@@ -178,7 +180,7 @@
 
   function start() {
     if (S.busy || !S.state) return;
-    if (S.round) return collect().then(function () { if (credits()) start(); });          // a win is still held: it is collected before the next spin
+    if (S.round) { var keep = JSON.parse(JSON.stringify(S.bets)); return collect().then(function () { S.bets = keep; betsUi(); if (credits()) start(); }); }          // a win is still held: it is collected before the next spin (the new bets are kept)
     var lim = S.state.limits, st = stake();
     if (!credits()) { note('Bet on at least one fruit.', false, 2500); return; }
     if (st < lim.minBet) { note('The smallest bet is ' + money(lim.minBet) + '. Add credits or raise the credit value.', false, 4000); return; }
@@ -202,7 +204,7 @@
   function afterSpin(round, res) {
     markWinners(round);
     if (round.status === 'open') { S.round = round; showOpen(round); return Promise.resolve(); }
-    Snd.lose(); setCenter('NO WIN', '', 'Try again', 'bad');
+    Snd.lose(); resetBets(); setCenter('NO WIN', '', 'Try again', 'bad');
     return Api.seen(round.id).catch(function () { /* shown again later, harmless */ });
   }
 
@@ -223,7 +225,7 @@
     if (S.busy || !S.round) return Promise.resolve();
     var round = S.round; S.take = 0; lockControls(true); Snd.click();
     return Api.collect(round.id).then(function (res) {
-      settleBalance(res); el.lastWin.textContent = fmt(res.round.payout); hideOpen();
+      settleBalance(res); el.lastWin.textContent = fmt(res.round.payout); hideOpen(); resetBets();
       setCenter('COLLECTED', fmt(res.round.payout), 'added to your balance', 'good'); Snd.win(false);
       return Api.seen(res.round.id).catch(function () {});
     }).catch(function (e) { note(errText(e), false, 5000); Snd.error(); return refresh().then(function (st) { return recover(st); }); }).then(function () { lockControls(false); });
@@ -243,7 +245,7 @@
       setCenter(d.won ? 'RIGHT!' : 'WRONG', String(d.number), (d.side === 'small' ? 'Small' : 'Big') + (d.won ? ' · your win doubles' : ' · the win is lost'), d.won ? 'good' : 'bad');
       if (d.won) Snd.land(); else Snd.lose();
       if (r.status === 'open') return wait(900).then(function () { S.round = r; showOpen(r); });
-      el.lastWin.textContent = fmt(r.payout); el.cBtns.hidden = true; S.round = null; betsUi(); controlsUi();
+      el.lastWin.textContent = fmt(r.payout); el.cBtns.hidden = true; S.round = null; resetBets(); controlsUi();
       return wait(900).then(function () {
         if (r.payout > 0) { setCenter('COLLECTED', fmt(r.payout), '3 in a row, paid to your balance', 'good'); Snd.win(true); } else setCenter('NO WIN', '', 'Try again', 'bad');
         return Api.seen(r.id).catch(function () {});
