@@ -4,7 +4,7 @@ For the game's own page (Phase 4) and for platforms. The maths and the draw are 
 
 ## Switching it on for a client
 
-Every client plays Bingo Pinball by default, with the server's default paytable (`BINGO_DEFAULT_PAYTABLE`, 90). `BINGO_DEFAULT_ON=false` takes it out of the defaults again, so that only clients with it in their own games list play it. An operator can give a client its own games list and paytable in the admin console (client settings, Games) or with `POST /admin/api/clients/<id>`:
+The 5-ball Bingo Pinball is hidden by default (`BINGO_DEFAULT_ON=true` brings it back for every client; or give a client the game in its own games list). When on, it plays the server's default paytable (`BINGO_DEFAULT_PAYTABLE`, 90). `BINGO_DEFAULT_ON=false` takes it out of the defaults again, so that only clients with it in their own games list play it. An operator can give a client its own games list and paytable in the admin console (client settings, Games) or with `POST /admin/api/clients/<id>`:
 
 ```json
 { "client": { "games": ["horse-race", "bingo-pinball"],

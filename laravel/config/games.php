@@ -2,12 +2,12 @@
 
 /*
  * The games this server can run. Every game is a module (App\Platform\Games\GameModule). A client plays only the games in its own "games" list;
- * a client that has none plays the games in "default". Bingo Pinball is in the defaults (BINGO_DEFAULT_ON=false takes it out again) and plays the paytable of
+ * a client that has none plays the games in "default". Bingo Pinball (the 5-ball game) is NOT in the defaults (BINGO_DEFAULT_ON=true puts it back for every client; it ships hidden since Bingo Pinball 16 replaces it) and plays the paytable of
  * "default_paytable" unless the client has its own; an operator can still give a client its own games list and paytable.
  */
 return [
     // the games every client has unless its own list says otherwise
-    'default' => array_values(array_filter(['horse-race', filter_var(env('BINGO_DEFAULT_ON', true), FILTER_VALIDATE_BOOLEAN) ? 'bingo-pinball' : null,
+    'default' => array_values(array_filter(['horse-race', filter_var(env('BINGO_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'bingo-pinball' : null,
         filter_var(env('BINGO16_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'bingo-pinball-16' : null])),
 
     // game id => the class of its module
