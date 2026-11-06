@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fruit Ring">
+<meta name="robots" content="noindex">
+<title>Fruit Ring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="/css/bingo.css">
+<link rel="stylesheet" href="/css/fruit.css">
+</head>
+<body>
+<div class="layout" id="layout">
+<div class="stage" id="stage">
+<div class="outer"><div class="frame" id="frame">
+
+  <div class="head">
+    <a id="btnLobby" class="lobby" href="/account" hidden aria-label="Back to the lobby">&#9664;</a>
+    <h1>FRUIT RING</h1>
+    <div class="top"><span>BALANCE</span><b id="balance">-</b></div>
+  </div>
+
+  <div class="ringbox" id="ringbox">
+    <svg id="ring" role="img" aria-label="The ring of 24 cells"></svg>
+    <div class="center" id="center">
+      <div class="clabel" id="cLabel">BET</div>
+      <div class="cvalue" id="cValue">0.00</div>
+      <div class="csub vt" id="cSub">Choose your fruits and press START</div>
+      <div class="cbtns" id="cBtns" hidden>
+        <button type="button" id="btnSmall" class="dbl">SMALL<br><i>1-7</i></button>
+        <button type="button" id="btnBig" class="dbl">BIG<br><i>8-14</i></button>
+        <button type="button" id="btnCollect" class="col">COLLECT</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bets" id="bets" aria-label="Your bets"></div>
+
+  <div class="stat"><span>TOTAL BET <b id="total">0.00</b></span><span>LAST WIN <b id="lastWin">0.00</b></span></div>
+
+  <div class="btns">
+    <button id="creditDown" type="button" class="sq" aria-label="Lower the credit value">-</button>
+    <div class="credit"><span class="lbl">CREDIT</span><span class="val" id="creditVal">-</span></div>
+    <button id="creditUp" type="button" class="sq" aria-label="Raise the credit value">+</button>
+    <button id="btnClear" type="button" class="small">CLEAR</button>
+    <button id="btnRepeat" type="button" class="small">REPEAT</button>
+  </div>
+  <div class="btns">
+    <button id="btnRules" type="button" class="small">PAYS</button>
+    <button id="btnFair" type="button" class="small">FAIR</button>
+    <button id="btnSound" type="button" class="small" aria-label="Sound">SND</button>
+    <button id="play" class="play" type="button" disabled>START</button>
+  </div>
+
+  <div class="banner" id="banner" hidden></div>
+  <div class="note" id="note" hidden></div>
+
+  <div class="gate" id="gate" hidden>
+    <div class="box"><p class="gtitle" id="gateTitle">FRUIT RING</p><p id="gateText"></p><p><a id="gateLink" href="/account" hidden>SIGN IN OR REGISTER</a></p></div>
+  </div>
+
+  <section class="sheet" id="rules" hidden>
+    <div class="sheetBox">
+      <button class="close" type="button" data-close="rules">CLOSE</button>
+      <h2>HOW TO PLAY</h2>
+      <p>Put credits on the fruits you like (tap a fruit to add one credit, hold it to take its credits off). Choose what one credit is worth, then press START. A light runs round the ring and stops on one of its 24 cells. <b>Every cell that lights pays the credits you put on its fruit</b>, as the table below shows (your credits times the number, your stake included). A cell marked ×3 pays three times.</p>
+      <p><b>Lucky cells</b> pay nothing themselves but start free spins on the same bets: the purple one gives <b>3 free spins</b>, the cyan one <b>one free spin with 3 lit cells</b>. Free spins never give more free spins.</p>
+      <p><b>Double up:</b> after a win you can try to double it. Pick <b>SMALL</b> (1-7) or <b>BIG</b> (8-14): a number from 1 to 14 is drawn, the odds are exactly even. Right: the win doubles. Wrong: it is lost. You can double up to 3 times in a row, then the win is collected. Press <b>COLLECT</b> at any time to take it; a win you leave alone is collected for you after a couple of minutes, or when you start the next spin.</p>
+      <table class="paytab" id="rulesPays"></table>
+      <p class="warn"><b>The result is decided by the server</b> before the light starts running. The animation is only for show.</p>
+      <p id="rulesLimits"></p>
+      <p>The balance shown is the one of your account. A win is added to your balance when you collect it.</p>
+      <p>Every spin and every double-up is provably fair: press FAIR to see the commitment to the next draws and to check past plays yourself.</p>
+      <p class="small">18+. Gambling can be addictive. Play only what you can afford to lose.</p>
+    </div>
+  </section>
+
+  <section class="sheet" id="fair" hidden>
+    <div class="sheetBox">
+      <button class="close" type="button" data-close="fair">CLOSE</button>
+      <h2>FAIR PLAY</h2>
+      <p>Before your first spin the server committed to a secret number (the <b>server seed</b>) by showing you its fingerprint. Every spin and every double-up comes from that seed, your own <b>client seed</b> and a counter, so the server cannot change a result after seeing your bet. When you start a new seed the old server seed is shown and you can check every play made with it. The check below runs in your browser.</p>
+      <div class="kv"><span>COMMITMENT</span><code id="fairCommit">-</code></div>
+      <div class="kv"><span>YOUR CLIENT SEED</span><code id="fairClient">-</code></div>
+      <div class="kv"><span>DRAWS WITH THIS PAIR</span><code id="fairPlays">-</code></div>
+      <div class="row"><input id="fairNewSeed" maxlength="64" placeholder="your own seed (optional)" autocomplete="off" autocapitalize="off" spellcheck="false"><button id="fairRotate" type="button">NEW SEED</button></div>
+      <p class="small">Starting a new seed shows the old server seed. Letters, digits, - and _ only. Not possible while a win is waiting to be collected.</p>
+      <div id="fairOut"></div>
+      <h3>YOUR LAST PLAYS</h3>
+      <div id="fairList" class="list"></div>
+    </div>
+  </section>
+
+</div></div>
+</div>
+</div>
+
+<div class="start" id="start" role="button" tabindex="0" aria-label="Tap to play" hidden>
+  <div class="box">
+    <p class="stitle">FRUIT<br>RING</p>
+    <p class="go blink">TAP TO PLAY</p>
+    <p class="sub">SOUND ON</p>
+  </div>
+</div>
+
+<script src="/js/fruit/table.js"></script>
+<script src="/js/fruit/art.js"></script>
+<script src="/js/fruit/anim.js"></script>
+<script src="/js/fruit/view.js"></script>
+<script src="/js/fruit/fair.js"></script>
+<script src="/js/fruit/api.js"></script>
+<script src="/js/fruit/sound.js"></script>
+<script src="/js/fruit/game.js"></script>
+<script src="/js/orient.js"></script>
+</body>
+</html>

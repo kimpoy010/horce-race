@@ -99,9 +99,16 @@
         else { bingo16.disabled = false; if (r.status === 401) signedOut(text(r)); else show(out, 'err', text(r)); }
       }).catch(function () { bingo16.disabled = false; show(out, 'err', 'Cannot reach the server.'); });
     } }, 'Play Bingo Pinball 16');
-    api('GET', 'games').then(function (r) { if (r.status === 200) { if (r.data.games.indexOf('bingo-pinball-16') >= 0) bingo16.style.display = ''; } });          // only when the operator switched the game on (the 5-ball Bingo Pinball has no button any more)
+    var fruit = h('button', { class: 'primary play', style: 'display:none;background:#c4582a', onclick: function () {
+      fruit.disabled = true;
+      api('POST', 'launch', {}).then(function (r) {
+        if (r.status === 200 && r.data.token) location.href = '/games/fruit-ring?token=' + encodeURIComponent(r.data.token) + '&client=' + encodeURIComponent(r.data.client);
+        else { fruit.disabled = false; if (r.status === 401) signedOut(text(r)); else show(out, 'err', text(r)); }
+      }).catch(function () { fruit.disabled = false; show(out, 'err', 'Cannot reach the server.'); });
+    } }, 'Play Fruit Ring');
+    api('GET', 'games').then(function (r) { if (r.status === 200) { if (r.data.games.indexOf('bingo-pinball-16') >= 0) bingo16.style.display = ''; if (r.data.games.indexOf('fruit-ring') >= 0) fruit.style.display = ''; } });          // only when the operator switched the game on (the 5-ball Bingo Pinball has no button any more)
     var head = h('div', { class: 'box' }, h('div', { class: 'bal' }, h('div', null, h('div', { class: 'who' }, 'Balance'), h('div', { class: 'amt' }, (S.pay ? S.pay.currency : 'PHP') + ' ' + money(S.me.balance))),
-      h('div', { class: 'who' }, S.me.username, ' ', h('button', { style: 'margin-left:8px;padding:3px 10px', onclick: function () { api('POST', 'logout', {}).then(function () { S.mode = 'login'; signedOut(); }); } }, 'Sign out'))), play, bingo16, out);
+      h('div', { class: 'who' }, S.me.username, ' ', h('button', { style: 'margin-left:8px;padding:3px 10px', onclick: function () { api('POST', 'logout', {}).then(function () { S.mode = 'login'; signedOut(); }); } }, 'Sign out'))), play, bingo16, fruit, out);
     var seg = h('div', { class: 'seg' }, [['wallet', 'Deposit / Withdraw'], ['history', 'History'], ['account', 'Account']].map(function (t) {
       return h('button', { class: S.tab === t[0] ? 'on' : '', onclick: function () { S.tab = t[0]; signedIn(); } }, t[1]);
     }));

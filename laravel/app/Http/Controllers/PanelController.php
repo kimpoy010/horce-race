@@ -49,6 +49,12 @@ class PanelController extends Controller
         return $this->page('bingo-pinball-16.html', ['X-Content-Type-Options' => 'nosniff']);
     }
 
+    /** Fruit Ring: like the other games it may be embedded by a platform */
+    public function fruit(): Response
+    {
+        return $this->page('fruit-ring.html', ['X-Content-Type-Options' => 'nosniff']);
+    }
+
     public function show(string $file): Response
     {
         abort_unless(in_array($file, self::PAGES, true), 404);

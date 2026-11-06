@@ -20,3 +20,7 @@ Under `/api/games/fruit-ring`, the same conventions as the other games: JSON, `{
 **Fairness**: every spin and every double-up takes the next nonce of the player's seed pair for `fruit-ring` (docs/fruit/MATH.md). `php bin/fruit-verify.php` re-runs both.
 
 Errors: `BAD_REQUEST`, `BAD_BET` (unknown symbol, a symbol above the cap, too many credits, a stake outside the limits), `TOO_FAST`, `NOT_OPEN`, `NO_DOUBLE`, `ROUND_OPEN`, `SEED_NOT_REVEALED`, plus the shared ones (`GAME_NOT_ENABLED`, `SESSION_EXPIRED`, `INSUFFICIENT_FUNDS`, `WALLET_UNAVAILABLE`, ...).
+
+## The page (Phase D)
+
+`/games/fruit-ring` (portrait, 390 px wide, scaled to the window; `public/fruit-ring.html`, `css/fruit.css`, `js/fruit/*`). Players signed in on the operator's own site are launched from the account page (**Play Fruit Ring**, shown when the game is on) with no token typed; a platform's launch link carries its own token. Tap a fruit to add a credit, hold it to clear it; the credit value, CLEAR, REPEAT, PAYS, FAIR and SND sit under the bets; START spins (and first collects a win still held). After a win the centre of the ring offers SMALL, BIG and COLLECT; a win left alone is restored (and can still be doubled) after a reload. The ◀ button goes back to the lobby. The FAIR sheet checks any settled play in the browser against its revealed seed (`js/fruit/fair.js`, tested against `docs/fruit/test-vectors.json`).

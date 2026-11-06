@@ -1,0 +1,46 @@
+/* Fruit Ring: what differs from the other games' pages (bingo.css): the ring with its centre display, the eight bet buttons, the credit row. Portrait, 390 px wide, scaled to the window. */
+.frame { gap: 6px; padding: 8px; }
+.head { display: flex; align-items: center; gap: 8px; }
+.head h1 { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; }
+.head .lobby { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid var(--line); border-radius: 6px; color: var(--mute); font-size: 11px; text-decoration: none; }
+.top { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; padding: 4px 8px; border: 2px solid var(--cyan); border-radius: 8px; color: var(--cyan); }
+.top span { font-size: 7px; } .top b { font-size: 11px; font-weight: 400; }
+
+.ringbox { position: relative; flex: none; width: 100%; aspect-ratio: 1; background: #0E1533; border: 3px solid var(--line); border-radius: 8px; padding: 2px; }
+.ringbox svg { width: 100%; height: 100%; display: block; }
+/* the 5 x 5 centre of the ring (the ring is drawn on 366 x 366 units: the centre starts at 60 and is 246 wide) */
+.center { position: absolute; left: calc(2px + 16.4% * .985); top: calc(2px + 16.4% * .985); width: 66.2%; height: 66.2%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 6px; }
+.clabel { font-size: 8px; color: var(--cyan); letter-spacing: 1px; }
+.cvalue { font-size: 26px; color: var(--gold); line-height: 1; min-height: 28px; }
+.csub { font-size: 20px; color: var(--mute); line-height: 1; min-height: 20px; }
+.cbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; margin-top: 4px; }
+.cbtns button { height: 44px; border-radius: 8px; font-size: 8px; line-height: 1.5; padding: 0; border: 2px solid var(--line); background: var(--cell); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.cbtns button i { font-style: normal; color: var(--mute); font-size: 7px; }
+.cbtns .dbl { border-color: var(--cyan); }
+.cbtns .col { grid-column: 1 / -1; background: var(--gold); color: var(--navy); border: none; height: 38px; font-size: 10px; }
+.center.roll .cvalue { color: var(--cyan); }
+.center.good .cvalue { color: var(--green); } .center.bad .cvalue { color: var(--red); }
+
+.bets { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 6px; flex: 1; min-height: 124px; max-height: 240px; }
+.bet { position: relative; min-height: 58px; padding: 0; background: var(--cell); border: 2px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; touch-action: manipulation; }
+.bet svg { width: 40px; height: 40px; display: block; pointer-events: none; }
+.bet .pay { font-size: 6px; color: var(--mute); pointer-events: none; }
+.bet .n { position: absolute; top: 2px; right: 4px; font-size: 9px; color: var(--gold); pointer-events: none; }
+.bet.on { border-color: var(--gold); background: #2A2F60; }
+.bet.won { background: var(--gold); } .bet.won .pay, .bet.won .n { color: var(--navy); }
+.bet:disabled { opacity: .6; }
+
+.stat { display: flex; justify-content: space-between; font-size: 7px; color: var(--mute); padding: 0 2px; }
+.stat b { color: var(--text); font-weight: 400; margin-left: 4px; }
+.btns { display: flex; gap: 5px; align-items: center; }
+.btns .small { height: 40px; padding: 0 6px; font-size: 8px; }
+.btns .sq { width: 38px; height: 40px; flex: none; background: var(--cell); border: 2px solid var(--line); border-radius: 6px; font-size: 13px; padding: 0; }
+.credit { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 56px; }
+.credit .lbl { font-size: 7px; color: var(--mute); } .credit .val { font-size: 10px; }
+.btns .play { height: 44px; }
+.banner { top: 36%; }
+.note { top: 40px; }
+.stage { touch-action: manipulation; }
+.rtab { width: 100%; }
+.paytab img { vertical-align: middle; }
+.paytab svg { width: 28px; height: 28px; vertical-align: middle; margin-right: 8px; }

@@ -9,6 +9,8 @@ const load = require(path.join(root, 'bin', 'lib-browser-script.cjs'));
 const T = load('public/js/fruit/table.js');
 const A = load('public/js/fruit/art.js');
 const P = load('public/js/fruit/anim.js');
+const { webcrypto } = require('crypto');
+const Fair = load('public/js/fruit/fair.js', { crypto: webcrypto, TextEncoder });
 
 /* ---------- the ring is the ring of the maths ---------- */
 const py = fs.readFileSync(path.join(root, 'docs', 'fruit', 'verify_play.py'), 'utf8');
@@ -69,4 +71,34 @@ assert.strictEqual(P.at(p, -1), null);
 assert.strictEqual(P.at(p, p.duration + 1000).type, 'land');
 assert.strictEqual(JSON.stringify(P.at(p, p.duration + 1000).lights), '[20]');
 assert.ok(P.plan([[5]], { random: rnd, speed: 2 }).duration < P.plan([[5]], { random: rnd, speed: 1 }).duration, 'a faster speed is shorter');
-console.log('fruit ring: ring, pictures and light plan agree with the maths');
+
+/* ---------- the fairness check in the browser agrees with the Python reference ---------- */
+const pyWeights = [...ringText.matchAll(/\('([a-z0-9]+)',\s*(\d),\s*(\d+)\)/g)].map((m) => +m[3]);
+assert.strictEqual(JSON.stringify(Fair.WEIGHTS), JSON.stringify(pyWeights), 'the browser check uses the weights of the maths');
+(async () => {
+  const vectors = JSON.parse(fs.readFileSync(path.join(root, 'docs', 'fruit', 'test-vectors.json'), 'utf8'));
+  for (const v of vectors) {
+    const rounds = await Fair.spin(v.serverSeed, v.clientSeed, v.nonce);
+    assert.strictEqual(JSON.stringify(rounds), JSON.stringify(v.rounds), 'spin of ' + v.clientSeed);
+    assert.strictEqual(JSON.stringify(Fair.payouts(rounds)), JSON.stringify(v.payouts), 'payouts of ' + v.clientSeed);
+    assert.strictEqual(await Fair.doubleNumber(v.serverSeed, v.clientSeed, v.nonce), v.double, 'double-up number of ' + v.clientSeed);
+    assert.strictEqual(await Fair.sha256Hex(v.serverSeed), v.commit);
+  }
+  // a whole round: a spin and two double-ups, settled
+  const v = vectors.find((x) => x.rounds.length === 1 && Object.values(x.payouts).some((p) => p > 0));
+  const sym = Object.keys(v.payouts).find((k) => v.payouts[k] > 0);
+  const win = v.payouts[sym] * 100 * 2;
+  const n1 = await Fair.doubleNumber(v.serverSeed, v.clientSeed, v.nonce + 1), n2 = await Fair.doubleNumber(v.serverSeed, v.clientSeed, v.nonce + 2);
+  const side1 = n1 <= 7 ? 'small' : 'big', side2 = n2 <= 7 ? 'big' : 'small';          // the first right, the second wrong
+  const round = { status: 'settled', rounds: v.rounds, bets: { [sym]: 2 }, credit: 100, spinWin: win, payout: 0, stake: 200,
+    doubles: [{ nonce: v.nonce + 1, side: side1, number: n1, won: true }, { nonce: v.nonce + 2, side: side2, number: n2, won: false }] };
+  const proof = { serverSeed: v.serverSeed, commit: v.commit, clientSeed: v.clientSeed, nonce: v.nonce };
+  const ok = await Fair.verify(round, proof);
+  assert.deepStrictEqual([ok.ok, ok.problems.length], [true, 0], 'a right round passes: ' + ok.problems);
+  for (const bad of [{ payout: 1 }, { spinWin: win + 100 }, { rounds: [[(v.rounds[0][0] + 1) % 24]] }, { doubles: [Object.assign({}, round.doubles[0], { number: n1 === 1 ? 2 : 1 }), round.doubles[1]] }]) {
+    const r = await Fair.verify(Object.assign({}, round, bad), proof);
+    assert.strictEqual(r.ok, false, 'a wrong round fails: ' + JSON.stringify(bad));
+  }
+  assert.strictEqual((await Fair.verify(round, Object.assign({}, proof, { commit: '0'.repeat(64) }))).ok, false, 'a wrong commit fails');
+  console.log('fruit ring: ring, pictures, light plan and the browser fairness check agree with the maths');
+})();
