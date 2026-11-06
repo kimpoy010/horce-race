@@ -8,13 +8,15 @@
 return [
     // the games every client has unless its own list says otherwise
     'default' => array_values(array_filter(['horse-race', filter_var(env('BINGO_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'bingo-pinball' : null,
-        filter_var(env('BINGO16_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'bingo-pinball-16' : null])),
+        filter_var(env('BINGO16_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'bingo-pinball-16' : null,
+        filter_var(env('FRUIT_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'fruit-ring' : null])),
 
     // game id => the class of its module
     'modules' => [
         'horse-race' => App\Games\HorseRace\HorseRaceModule::class,
         'bingo-pinball' => App\Games\BingoPinball\BingoPinballModule::class,
         'bingo-pinball-16' => App\Games\BingoPinball16\Bingo16Module::class,          // ships switched off (BINGO16_DEFAULT_ON=true switches it on for every client)
+        'fruit-ring' => App\Games\FruitRing\FruitModule::class,                    // ships switched off (FRUIT_DEFAULT_ON=true switches it on for every client)
     ],
 
     // settings of the games themselves
@@ -35,6 +37,15 @@ return [
             'contribution_bp' => (int) env('BINGO16_JACKPOT_CONTRIBUTION_BP', 148),
             'seed' => (int) env('BINGO16_JACKPOT_SEED', 10000),
             'currencies' => array_values(array_filter(array_map('trim', explode(',', (string) env('BINGO16_JACKPOT_CURRENCIES', 'PHP'))))),
+        ],
+        'fruit-ring' => [
+            'min_interval_ms' => (int) env('FRUIT_MIN_INTERVAL_MS', 1500),
+            'rotate_every' => (int) env('FRUIT_ROTATE_EVERY', 1000),             // nonces (spins and double-ups) per seed pair
+            'lock_wait_seconds' => 5,
+            'stuck_after_ms' => 30000,
+            'open_after_ms' => (int) env('FRUIT_OPEN_AFTER_MS', 120000),         // a win held this long without a double-up or a collect is collected for the player
+            'max_credits_per_symbol' => (int) env('FRUIT_MAX_CREDITS_PER_SYMBOL', 20),
+            'max_credits' => (int) env('FRUIT_MAX_CREDITS', 100),                // credits on all eight symbols together
         ],
     ],
 ];

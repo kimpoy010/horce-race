@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Bingo16Controller;
+use App\Http\Controllers\FruitController;
 use App\Http\Controllers\BingoPinballController;
 use App\Http\Controllers\ClientAdminController;
 use App\Http\Controllers\ClientApiController;
@@ -40,6 +41,20 @@ Route::prefix('games/bingo-pinball-16')->group(function () {
     Route::get('/history', [Bingo16Controller::class, 'history']);
     Route::post('/seed/rotate', [Bingo16Controller::class, 'rotate']);
     Route::get('/proof/{id}', [Bingo16Controller::class, 'proof'])->whereNumber('id');
+});
+
+// Fruit Ring (a ring of 24 cells, 8 symbols, free spins, a Small/Big double-up; an instant game with its own games-list entry)
+Route::prefix('games/fruit-ring')->group(function () {
+    Route::post('/auth', [FruitController::class, 'auth']);
+    Route::get('/state', [FruitController::class, 'state']);
+    Route::post('/play', [FruitController::class, 'play']);
+    Route::post('/round/{id}/double', [FruitController::class, 'double'])->whereNumber('id');
+    Route::post('/round/{id}/collect', [FruitController::class, 'collect'])->whereNumber('id');
+    Route::get('/round/{id}', [FruitController::class, 'round'])->whereNumber('id');
+    Route::post('/round/{id}/seen', [FruitController::class, 'seen'])->whereNumber('id');
+    Route::get('/history', [FruitController::class, 'history']);
+    Route::post('/seed/rotate', [FruitController::class, 'rotate']);
+    Route::get('/proof/{id}', [FruitController::class, 'proof'])->whereNumber('id');
 });
 
 // the client API: a platform with its own API key, limited to its own players (docs/CLIENT_API.md)

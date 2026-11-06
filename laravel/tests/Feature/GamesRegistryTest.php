@@ -34,7 +34,7 @@ class GamesRegistryTest extends StaffTestCase
     public function test_the_horse_race_and_bingo_pinball_are_the_default_games(): void
     {
         $g = $this->games();
-        $this->assertSame(['horse-race', 'bingo-pinball', 'bingo-pinball-16'], $g->ids());
+        $this->assertSame(['horse-race', 'bingo-pinball', 'bingo-pinball-16', 'fruit-ring'], $g->ids());
         $this->assertSame(['horse-race', 'bingo-pinball'], $g->defaults(), 'every client plays both games unless its own list says otherwise');
         $this->assertTrue($g->isEnabled($this->reg->get('acme'), 'bingo-pinball'));
         $off = new Games(app(), ['default' => ['horse-race'], 'modules' => config('games.modules')]);          // BINGO_DEFAULT_ON=false
@@ -46,7 +46,7 @@ class GamesRegistryTest extends StaffTestCase
         $this->assertSame(['horse-race', 'shared', 'Horse Race', '/'], [$m->id(), $m->kind(), $m->name(), $m->launchPath()]);
         $this->assertSame($this->engine->rules(), $m->rules());
         $this->assertSame([], $m->clientSettings());
-        $this->assertSame(['horse-race', 'bingo-pinball', 'bingo-pinball-16'], array_keys($g->all()));
+        $this->assertSame(['horse-race', 'bingo-pinball', 'bingo-pinball-16', 'fruit-ring'], array_keys($g->all()));
         $this->assertSame(['instant', 'Bingo Pinball 16', '/games/bingo-pinball-16'], [$g->get('bingo-pinball-16')->kind(), $g->get('bingo-pinball-16')->name(), $g->get('bingo-pinball-16')->launchPath()]);
         $this->assertFalse($g->isEnabled($this->reg->get('acme'), 'bingo-pinball-16'), 'Bingo Pinball 16 ships switched off (BINGO16_DEFAULT_ON)');
         $this->expectException(\InvalidArgumentException::class);
