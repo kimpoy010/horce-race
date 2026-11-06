@@ -10,3 +10,7 @@
 .hcell.lit { background: var(--cyan); color: var(--navy); }
 .pays { width: 142px; }
 .pays .prow { font-size: 8px; padding: 7px 5px; }
+
+/* the status row keeps one fixed height (the hint wraps to two lines, "Ball 3 of 16" to one): otherwise the pin board, which takes the spare height, changes size when PLAY is pressed */
+.status { height: 44px; min-height: 44px; overflow: hidden; align-items: center; }
+.status .vt { text-align: right; line-height: 1.1; }
