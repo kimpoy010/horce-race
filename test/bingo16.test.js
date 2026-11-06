@@ -32,7 +32,7 @@ const bouncesOf = (frames) => { let n = 0, prev = null; for (let i = 1; i < fram
 
 /* ---------- the board ---------- */
 assert.strictEqual(T.slots.length, 16);
-assert.strictEqual(T.pegs.length, 5 * 13 + 5 * 12, '10 staggered rows of 13 and 12 pegs');
+assert.strictEqual(T.pegs.length, 9 * 13 + 9 * 12, '18 staggered rows of 13 and 12 pegs');
 T.slots.forEach((s, i) => { assert.strictEqual(s.n, i + 1); assert.strictEqual(s.xr - s.xl, 33); assert.strictEqual(s.xl, 10 + 33 * i); });
 assert.ok(T.slots[15].xr < T.LANE.l, 'the slots end before the plunger lane');
 assert.ok(T.slots.every((s, i) => i === 0 || s.xl === T.slots[i - 1].xr), 'the slots touch: there is no gap, so every ball ends in a slot');

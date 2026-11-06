@@ -20,30 +20,31 @@
 
   function create(parts) {
     var board = parts.board, card = parts.card, jpRow = parts.jpRow, power = parts.power, pays = parts.pays, i, j;
-    board.setAttribute('viewBox', '0 0 600 520'); board.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    svg('path', { d: 'M 592 510 V 60 Q 592 14 546 14 H 54 Q 8 14 8 60 V 510', fill: 'none', stroke: C.wall, 'stroke-width': 4 }, board);
-    svg('line', { x1: 540, y1: 70, x2: 540, y2: 510, stroke: C.wall, 'stroke-width': 4 }, board);
+    var D = T.H - 520;                                              // the board is taller than the first design: everything near the floor moves down by D
+    board.setAttribute('viewBox', '0 0 600 ' + T.H); board.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg('path', { d: 'M 592 ' + (510 + D) + ' V 60 Q 592 14 546 14 H 54 Q 8 14 8 60 V ' + (510 + D), fill: 'none', stroke: C.wall, 'stroke-width': 4 }, board);
+    svg('line', { x1: 540, y1: 70, x2: 540, y2: 510 + D, stroke: C.wall, 'stroke-width': 4 }, board);
     var arrows = svg('g', { fill: 'none', stroke: '#1E2A5E', 'stroke-width': 3, 'stroke-linecap': 'round' }, board);            // chevrons up the plunger lane
-    for (i = 0; i < 6; i++) svg('path', { d: 'M 556 ' + (110 + i * 55 + 8) + ' L 566 ' + (110 + i * 55) + ' L 576 ' + (110 + i * 55 + 8) }, arrows);
+    for (i = 0; i < 6 + Math.round(D / 55); i++) svg('path', { d: 'M 556 ' + (110 + i * 55 + 8) + ' L 566 ' + (110 + i * 55) + ' L 576 ' + (110 + i * 55 + 8) }, arrows);
     var pegs = [];
     for (i = 0; i < T.pegs.length; i++) pegs.push(svg('circle', { cx: T.pegs[i].x, cy: T.pegs[i].y, r: 3, fill: C.peg }, board));
     // the 16 slots, each with its number under it
     for (i = 0; i < 16; i++) {
       var s = T.slots[i];
       svg('rect', { x: s.xl, y: T.RIM_Y, width: T.SLOT_W, height: 52, rx: 2, fill: C.slot, stroke: C.slotLine, 'stroke-width': 2 }, board);
-      var tx = svg('text', { x: s.x, y: 496, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 9, fill: C.slotLine }, board); tx.textContent = s.n;
+      var tx = svg('text', { x: s.x, y: 496 + D, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 9, fill: C.slotLine }, board); tx.textContent = s.n;
     }
     // balls resting in the slots (up to three show, stacked), and how many when there are more
     var rest = [], count = [];
     for (i = 0; i < 16; i++) {
       rest.push([]);
-      for (j = 0; j < 3; j++) rest[i].push(svg('circle', { cx: T.slots[i].x, cy: 462 - 15 * j, r: 7, fill: C.ball, stroke: C.ballLine, 'stroke-width': 1.5, visibility: 'hidden' }, board));
-      count.push(svg('text', { x: T.slots[i].x, y: 410, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 8, fill: C.gold, visibility: 'hidden' }, board));
+      for (j = 0; j < 3; j++) rest[i].push(svg('circle', { cx: T.slots[i].x, cy: 462 + D - 15 * j, r: 7, fill: C.ball, stroke: C.ballLine, 'stroke-width': 1.5, visibility: 'hidden' }, board));
+      count.push(svg('text', { x: T.slots[i].x, y: 410 + D, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 8, fill: C.gold, visibility: 'hidden' }, board));
     }
     // the plunger: a gold block on its spring in the lane
     var spring = svg('g', { stroke: C.peg, 'stroke-width': 2 }, board), springLines = [];
     for (i = 0; i < 4; i++) springLines.push(svg('line', { x1: 556, y1: 0, x2: 576, y2: 3 }, spring));
-    var knob = svg('rect', { x: 554, y: 462, width: 24, height: 10, rx: 2, fill: C.gold }, board);
+    var knob = svg('rect', { x: 554, y: 462 + D, width: 24, height: 10, rx: 2, fill: C.gold }, board);
     // effects and the ball with its short trail
     var rings = [], sparks = [], trail = [];
     for (i = 0; i < 3; i++) rings.push(svg('circle', { r: 0, fill: 'none', stroke: C.gold, 'stroke-width': 2, opacity: 0 }, board));
@@ -90,9 +91,9 @@
         var hot = pf[k] > 0;
         if (last['p' + k] !== hot) { pegs[k].setAttribute('fill', hot ? '#fff' : C.peg); pegs[k].setAttribute('r', hot ? 5 : 3); last['p' + k] = hot; }
       }
-      var pull = scene.pull || 0, kneeY = 462 + pull * 28;
+      var pull = scene.pull || 0, kneeY = 462 + D + pull * 28;
       knob.setAttribute('y', kneeY);
-      for (k = 0; k < springLines.length; k++) { var sy = kneeY + 14 + k * 8 - pull * k * 2; springLines[k].setAttribute('y1', Math.min(sy, 506)); springLines[k].setAttribute('y2', Math.min(sy, 506) + 3); }
+      for (k = 0; k < springLines.length; k++) { var sy = kneeY + 14 + k * 8 - pull * k * 2; springLines[k].setAttribute('y1', Math.min(sy, 506 + D)); springLines[k].setAttribute('y2', Math.min(sy, 506 + D) + 3); }
       if (power) power.style.width = Math.round(pull * 100) + '%';
       if (scene.ball) {
         ball.setAttribute('cx', scene.ball.x); ball.setAttribute('cy', scene.ball.y - (scene.pull ? 0 : 0)); ball.setAttribute('visibility', 'visible');
