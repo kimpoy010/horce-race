@@ -8,17 +8,31 @@
 .hcell { border-color: var(--line); color: var(--line); }
 .hcell.on { border-color: var(--cyan); color: var(--cyan); }
 .hcell.lit { background: var(--cyan); color: var(--navy); }
-.pays { width: 142px; }
-.pays { gap: 0; padding: 5px 4px; }
-.pays .pt { padding: 0 3px 3px; }
-.pays .prow { font-size: 7px; padding: 1px 3px; align-items: center; gap: 4px; line-height: 13px; }
-.pays .pn { flex: 1; text-align: left; font-size: 6px; }
-.pays .note2 { display: none; }
-.pays .mini { display: grid; grid-template-columns: repeat(4, 3px); gap: 1px; flex: none; }
-.pays .mini b { width: 3px; height: 3px; background: #2A3670; }
+.pays { width: 100%; align-self: stretch; padding: 8px 6px; gap: 3px; }
+.pays .prow { font-size: 8px; padding: 4px 6px; align-items: center; gap: 8px; line-height: 14px; }
+.pays .pn { flex: 1; text-align: left; font-size: 8px; }
+.pays .mini { display: grid; grid-template-columns: repeat(4, 4px); gap: 1px; flex: none; }
+.pays .mini b { width: 4px; height: 4px; background: #2A3670; }
 .pays .mini b.on { background: var(--gold); }
 .pays .prow.won .mini b.on { background: var(--navy); }
+.pays .note2 { display: none; }
 
-/* the status row keeps one fixed height (the hint wraps to two lines, "Ball 3 of 16" to one): otherwise the pin board, which takes the spare height, changes size when PLAY is pressed */
-.status { height: 44px; min-height: 44px; overflow: hidden; align-items: center; }
-.status .vt { text-align: right; line-height: 1.1; }
+/* Layout C: the pin board takes the height; the card, the counters and the buttons share one dock under it */
+.frame { gap: 6px; padding: 8px; }
+.head h1 { font-size: 12px; }
+.top { flex-direction: row; align-items: center; gap: 8px; padding: 5px 8px; border-width: 2px; }
+.top span { font-size: 7px; }
+.hcell { height: 26px; border-width: 2px; font-size: 10px; }
+.status { height: 22px; min-height: 22px; justify-content: center; overflow: hidden; }
+.status .vt { font-size: 19px; white-space: nowrap; line-height: 1; }
+.boardbox { min-height: 260px; padding: 2px; }
+.dock { display: flex; gap: 10px; align-items: center; }
+.card.g4 { width: 108px; flex: none; gap: 3px; }
+.card.g4 .cell { height: 24px; font-size: 8px; border-width: 2px; border-radius: 4px; }
+.stats { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 6px; }
+.stats .jpc { grid-column: 1 / -1; }
+.stats .val { font-size: 9px; }
+.btns { gap: 5px; border-top: 3px solid var(--wood); padding-top: 8px; }
+.btns .small { height: 42px; padding: 0 6px; font-size: 8px; }
+.btns .sq { width: 38px; height: 42px; flex: none; background: var(--cell); border: 2px solid var(--line); border-radius: 6px; font-size: 13px; padding: 0; }
+.btns .play { height: 42px; }

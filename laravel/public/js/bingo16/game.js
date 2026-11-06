@@ -24,8 +24,8 @@
   function money(minor) { return (S.state && S.state.currency ? S.state.currency + ' ' : '') + fmt(minor); }
   function setBalance(v) { S.shownBalance = v; el.balance.textContent = fmt(v); }
   function setMsg(t) { el.msg.textContent = t; }
-  function ballsUi(left, total, k) { el.ballsLeft.textContent = 'BALLS ' + left; if (k) setMsg('Ball ' + k + ' of ' + total); }
-  function jpUi(n) { el.jpCount.textContent = 'JACKPOT ' + n + '/5'; }
+  function ballsUi(left, total, k) { el.ballsLeft.textContent = left; if (k) setMsg('Ball ' + k + ' of ' + total); }
+  function jpUi(n) { el.jpCount.textContent = n + '/5'; }
 
   /* ---------- messages ---------- */
   var noteTimer = null;

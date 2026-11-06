@@ -21,16 +21,11 @@
 <div class="outer"><div class="frame" id="frame">
 
   <div class="head">
-    <div class="titles"><h1>BINGO PINBALL</h1><p class="vt" id="sub">16 balls · 16 slots</p></div>
+    <h1>BINGO PINBALL</h1><p id="sub" hidden></p>
     <div class="top"><span>JACKPOT</span><b id="jackpot">-</b></div>
   </div>
 
   <div class="holes"><span>JP NUMS</span><div class="hrow" id="jpRow"></div></div>
-
-  <div class="mid">
-    <div class="card g4" id="card" aria-label="Your card"></div>
-    <div class="pays" id="pays" aria-label="Paytable"><div class="pt">PAYS × STAKE</div></div>
-  </div>
 
   <div class="boardbox">
     <svg id="board" role="img" aria-label="Pin board with 16 numbered slots and a plunger lane"></svg>
@@ -38,22 +33,25 @@
     <div class="power" id="powerBox"><i id="power"></i></div>
   </div>
 
-  <div class="status"><span id="ballsLeft">BALLS 16</span><span class="cy" id="jpCount">JACKPOT 0/5</span><span class="vt gold" id="msg">Press PLAY</span></div>
+  <div class="status"><span class="vt gold" id="msg">Press PLAY</span></div>
 
-  <div class="bar">
-    <div class="col"><span class="lbl" id="balLbl">BALANCE</span><span class="val" id="balance">-</span></div>
-    <div class="stakeRow">
-      <button id="stakeDown" type="button" aria-label="Lower stake">-</button>
-      <div class="col mid"><span class="lbl">STAKE</span><span class="val" id="stake">-</span></div>
-      <button id="stakeUp" type="button" aria-label="Raise stake">+</button>
+  <div class="dock">
+    <div class="card g4" id="card" aria-label="Your card"></div>
+    <div class="stats">
+      <div class="col"><span class="lbl" id="balLbl">BALANCE</span><span class="val" id="balance">-</span></div>
+      <div class="col"><span class="lbl">STAKE</span><span class="val" id="stake">-</span></div>
+      <div class="col"><span class="lbl">BALLS</span><span class="val" id="ballsLeft">16</span></div>
+      <div class="col"><span class="lbl">LAST WIN</span><span class="val" id="lastWin">0.00</span></div>
+      <div class="col jpc"><span class="lbl">JACKPOT NUMBERS</span><span class="val cy" id="jpCount">0/5</span></div>
     </div>
-    <div class="col right"><span class="lbl">LAST WIN</span><span class="val" id="lastWin">0.00</span></div>
   </div>
 
   <div class="btns">
-    <button id="btnRules" type="button" class="small">RULES</button>
+    <button id="stakeDown" type="button" class="sq" aria-label="Lower stake">-</button>
+    <button id="stakeUp" type="button" class="sq" aria-label="Raise stake">+</button>
+    <button id="btnRules" type="button" class="small">PAYS</button>
     <button id="btnFair" type="button" class="small">FAIR</button>
-    <button id="btnSound" type="button" class="small" aria-label="Sound">SOUND</button>
+    <button id="btnSound" type="button" class="small" aria-label="Sound">SND</button>
     <button id="play" class="play" type="button" disabled>PLAY</button>
   </div>
 
@@ -71,7 +69,8 @@
       <p>Choose your stake and press PLAY. Sixteen balls are played, one after the other. Every ball ends in one of the 16 slots. A slot that gets a ball lights its number on your card.</p>
       <p>Light the cells of a <b>winning pattern</b> on your card and it pays: ACROSS (any row), DOWN (any column), DIAGONAL, the 4 CORNERS, the SMALL BOX, LUCKY SEVEN, an L SHAPE, NUMBER ELEVEN, EQUAL, a Z SHAPE, the BIG BOX and the FULL CARD. The small drawings in the pay panel show each shape. <b>Only your best pattern pays</b>; patterns do not add up. The most common patterns pay half your stake.</p>
       <p><b>Jackpot:</b> five numbers, shown as JP NUMS, are drawn for every play. If each of the five has caught <b>at least two balls</b> you win the jackpot pool, on top of any pattern pay. A share of every stake is added to the pool, which is shared by all players of the game.</p>
-      <table class="paytab" id="rulesPays"></table>
+      <div class="pays" id="pays" aria-label="Paytable"></div>
+      <table id="rulesPays" hidden></table>
       <p class="warn"><b>The plunger is for show.</b> The result of every play is decided by the server before the first ball is launched. How hard or how long you pull the plunger never changes where the balls go or what you win.</p>
       <p id="rulesLimits"></p>
       <p>There are at least 3 seconds between two plays. The balance shown is the one of your account. Win paid is added to your balance as soon as the platform confirms it.</p>
