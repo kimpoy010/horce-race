@@ -14,15 +14,17 @@
     BAD_CLIENT_SEED: 'Seed: 1 to 64 letters, digits, - or _.', ERROR: 'Something went wrong.'
   };
   var el = {};
-  ['screen', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound',
-    'rulesPays', 'rulesLimits', 'fairCommit', 'fairClient', 'fairPlays', 'fairNewSeed', 'fairRotate', 'fairOut', 'fairList', 'ctl'].forEach(function (k) { el[k] = $(k); });
-  var art = window.BingoArt.create(el.screen);
+  ['board', 'card', 'holeRow', 'power', 'pays', 'topPrize', 'sub', 'ballsLeft', 'lineInfo', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound',
+    'rulesPays', 'rulesLimits', 'fairCommit', 'fairClient', 'fairPlays', 'fairNewSeed', 'fairRotate', 'fairOut', 'fairList'].forEach(function (k) { el[k] = $(k); });
+  var view = window.BingoView.create({ board: el.board, card: el.card, holeRow: el.holeRow, power: el.power, pays: el.pays });
 
   /* ---------- money ---------- */
   function dec() { return S.state ? S.state.decimals : 2; }
   function fmt(minor) { var d = dec(); return (minor / Math.pow(10, d)).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function money(minor) { return (S.state && S.state.currency ? S.state.currency + ' ' : '') + fmt(minor); }
-  function setBalance(v) { S.shownBalance = v; el.balance.textContent = money(v); }
+  function setBalance(v) { S.shownBalance = v; el.balance.textContent = fmt(v); }
+  function setMsg(t) { el.msg.textContent = t; }
+  function ballsUi(left, total, k) { el.ballsLeft.textContent = 'BALLS ' + left; if (k) setMsg('Ball ' + k + ' of ' + total); }
 
   /* ---------- messages ---------- */
   var noteTimer = null;
@@ -51,10 +53,10 @@
   function lockControls(b) { S.busy = b; el.play.disabled = b || !S.state; setStake(S.stakeIdx || 0); }
 
   /* ---------- the scene ---------- */
-  var scene = { paytable: null, filled: {}, lit: {}, lineCells: [], ball: null, balls: { left: 5, total: 5 }, pull: 0, hint: false, time: 0 };
+  var scene = { paytable: null, filled: {}, lit: {}, lineCells: [], landed: [], winLit: 0, ball: null, balls: { left: 5, total: 5 }, pull: 0, hint: false, time: 0 };
   function render(now) {
     scene.time = now; scene.sparks = S.sparks; scene.pinFlash = S.pinFlash; scene.caught = S.caught;
-    art.draw(scene);
+    view.draw(scene);
     var dt = 1 / 60, i;
     S.sparks = S.sparks.filter(function (s) { s.t += dt * 3; return s.t < 1; });
     S.caught = S.caught.filter(function (c) { c.t += dt * 2; return c.t < 1; });
@@ -62,7 +64,8 @@
     requestAnimationFrame(render);
   }
   function resetBoard(keepLit) {
-    scene.filled = {}; scene.ball = null; scene.balls = { left: 5, total: 5 }; scene.pull = 0; scene.hint = false;
+    scene.filled = {}; scene.landed = []; scene.winLit = 0; scene.ball = null; scene.balls = { left: 5, total: 5 }; scene.pull = 0; scene.hint = false;
+    ballsUi(5, 5); el.lineInfo.innerHTML = '&nbsp;';
     if (!keepLit) { scene.lit = {}; scene.lineCells = []; }
   }
   function nearestPin(p) {
@@ -125,7 +128,7 @@
   }
   function catchBall(n, card) {
     var h = T.holes[n - 1], idx = card.indexOf(n);
-    scene.filled[n] = true; S.caught.push({ x: h.x, y: h.y, t: 0 });
+    scene.filled[n] = true; scene.landed.push(n); S.caught.push({ x: h.x, y: h.y, t: 0 });
     if (idx >= 0) scene.lit[idx] = true;
     Snd.sfx.drop(); setTimeout(function () { Snd.sfx.lit(Object.keys(scene.filled).length); }, 220);
   }
@@ -141,23 +144,31 @@
       if (i >= holes.length) return Promise.resolve();
       scene.balls = { left: holes.length - i, total: holes.length };
       var n = holes[i++];
+      ballsUi(holes.length - i + 1, holes.length); setMsg(opts.fast ? 'Ball ' + i + ' of ' + holes.length : 'Hold anywhere to pull, release to fire');
       return (opts.fast ? Promise.resolve(0.3 + Math.random() * 0.6) : awaitLaunch(false)).then(function (power) {
         scene.balls = { left: holes.length - i, total: holes.length };
+        ballsUi(holes.length - i, holes.length, i);
         return flyBall(n, power, opts.fast);
       }).then(function () { catchBall(n, card); return wait(opts.fast ? 250 : 550); }).then(next);
     }
     return next().then(function () {
       var e = Fair.evaluate(card, holes);
       scene.lineCells = round.payout > 0 ? e.lineCells : [];
+      scene.winLit = round.payout > 0 ? round.bestLit : 0;
+      ballsUi(0, holes.length); setMsg('Round over');
+      el.lastWin.textContent = fmt(round.payout);
       if (round.payout > 0) {
         Snd.sfx.win(round.bestLit);
-        el.banner.className = 'banner';
-        el.banner.innerHTML = '<div class="mid">BINGO!</div><div class="big">+' + fmt(round.payout) + '</div><div class="sm">' + (round.bestLineName || 'LINE') + ' - ' + round.bestLit + ' LIT - x' + round.multiple + '</div>' +
-          (round.creditPending ? '<div class="sm">THE WIN IS BEING SENT TO YOUR ACCOUNT</div>' : '');
+        var top = round.bestLit >= 5;
+        el.banner.className = 'banner' + (top ? ' top' : '');
+        el.banner.innerHTML = '<div class="t">' + (top ? 'TOP PRIZE!' : (round.bestLit + ' IN A LINE')) + '</div><div class="s">' + (round.bestLineName || 'Line') + ' · ' + round.bestLit + ' lit · win ' + fmt(round.payout) + '</div>' +
+          (round.creditPending ? '<div class="s">The win is being sent to your account</div>' : '');
+        el.lineInfo.textContent = (round.bestLineName || 'LINE').toUpperCase() + ' ' + round.bestLit + '/5';
       } else {
         Snd.sfx.lose();
         el.banner.className = 'banner lose';
-        el.banner.innerHTML = '<div class="big">NO WIN</div><div class="sm">' + e.lit + ' LIT IN YOUR BEST LINE. 3 ARE NEEDED.</div>';
+        el.banner.innerHTML = '<div class="t">NO WIN</div><div class="s">' + e.lit + ' lit in your best line · 3 are needed</div>';
+        el.lineInfo.textContent = 'BEST LINE ' + e.lit + '/5';
       }
       el.banner.hidden = false;
     });
@@ -180,7 +191,7 @@
   }
   function play() {
     if (S.busy || !S.state) return;
-    Snd.sfx.click(); lockControls(true); note(null); el.banner.hidden = true;
+    Snd.sfx.click(); lockControls(true); note(null); el.banner.hidden = true; setMsg('Placing your stake');
     var before = S.balance;
     S.requestId = S.requestId || newRequestId();
     var rid = S.requestId;
@@ -207,6 +218,10 @@
     S.state = st; S.balance = st.balance;
     if (!S.busy) setBalance(st.balance);
     scene.paytable = st.paytable;
+    el.balLbl.textContent = 'BALANCE' + (st.currency ? ' ' + st.currency : '');
+    el.topPrize.textContent = (st.paytable.pays[5] || 0) + '×';
+    el.sub.textContent = '5 balls · 25 holes';
+    fillPays(st.paytable);
     var lim = st.limits || {}, min = lim.minBet || 1, max = lim.maxBet || min;
     S.steps = buildSteps(min, max);
     var want = 0; try { want = parseInt(localStorage.getItem('bp.stake'), 10) || 0; } catch (e) { /* ignore */ }
@@ -239,6 +254,12 @@
   }
 
   /* ---------- rules and fairness screens ---------- */
+  function fillPays(pt) {
+    var h = '<div class="pt">PAYS × STAKE</div>';
+    [5, 4, 3].forEach(function (k) { h += '<div class="prow" data-lit="' + k + '"><span>' + k + ' IN LINE</span><span>' + (pt.pays[k] || 0) + '×</span></div>'; });
+    h += '<div class="note2">BEST LINE PAYS. 12 LINES: 5 ROWS, 5 COLUMNS, 2 DIAGONALS</div>';
+    el.pays.innerHTML = h; el.pays.removeAttribute('data-win');
+  }
   function fillRules() {
     var st = S.state; if (!st) return;
     var rows = [], p = st.paytable.pays, k;
@@ -333,11 +354,12 @@
       } else gate('NO CONNECTION', errText(e), false);
     });
   }
-  // the screen is 180 x 320 pixel-art pixels: shown at a whole multiple (crisp pixels) when that uses at least 85% of the space, otherwise stretched to fit
+  // the design is 390 px wide (a phone): the whole stage is scaled to the window, and it is as tall as the window allows (the pin board takes the spare height)
   function fit() {
-    var w = el.stage.parentNode.clientWidth, h = el.stage.parentNode.clientHeight, k = Math.min(w / 180, h / 320);
-    if (!(k > 0)) return;
-    el.stage.style.setProperty('--sw', (k >= 2 && Math.floor(k) >= 0.85 * k ? Math.floor(k) * 180 : Math.floor(k * 180)) + 'px');
+    var w = window.innerWidth, h = (window.visualViewport && window.visualViewport.height) || window.innerHeight, sc = Math.min(w / 390, h / 800);
+    if (!(sc > 0)) return;
+    el.stage.style.setProperty('--s', sc);
+    el.stage.style.height = Math.round(h / sc) + 'px';
   }
   var fitSoon = function () { requestAnimationFrame(fit); setTimeout(fit, 300); };
   window.addEventListener('resize', fitSoon); window.addEventListener('orientationchange', fitSoon); if (window.visualViewport) window.visualViewport.addEventListener('resize', fitSoon);

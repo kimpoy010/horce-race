@@ -41,7 +41,7 @@ class PagesTest extends TestCase
         $this->assertSame(0, preg_match('#(?:src|href)="/(?:js|css)/[^"?]+"#', $html), 'every script and style address carries a version');
         $this->assertMatchesRegularExpression('#src="/js/bingo/game\.js\?v=[0-9a-f]+"#', $html);
         $this->assertMatchesRegularExpression('#href="/css/bingo\.css\?v=[0-9a-f]+"#', $html);
-        foreach (['table', 'paths-data', 'fair', 'api', 'paths', 'art', 'sound', 'game'] as $f) {
+        foreach (['table', 'paths-data', 'fair', 'api', 'paths', 'view', 'sound', 'game'] as $f) {
             $this->assertFileExists(public_path("js/bingo/$f.js"));
         }
     }
