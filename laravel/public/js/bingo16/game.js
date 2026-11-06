@@ -14,7 +14,7 @@
     BAD_CLIENT_SEED: 'Seed: 1 to 64 letters, digits, - or _.', ERROR: 'Something went wrong.'
   };
   var el = {};
-  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound', 'btnMode',
+  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound', 'btnMode', 'btnLobby',
     'rulesPays', 'rulesLimits', 'fairCommit', 'fairClient', 'fairPlays', 'fairNewSeed', 'fairRotate', 'fairOut', 'fairList'].forEach(function (k) { el[k] = $(k); });
   var view = window.Bingo16View.create({ board: el.board, card: el.card, jpRow: el.jpRow, power: el.power, pays: [el.pays, el.pstrip] });
 
@@ -53,6 +53,12 @@
   }
   function lockControls(b) { S.busy = b; el.play.disabled = b || !S.state; el.btnMode.disabled = b; setStake(S.stakeIdx || 0); }
   // AUTO: the player pulls the plunger for the first ball and the other fifteen follow by themselves. MANUAL: the player pulls for every ball.
+  // the way back to the lobby: the operator's own return address (given when the game was launched), or the account page for a player of this site; hidden when there is none
+  function lobbyUi() {
+    var u = S.lobby || '';
+    if (u && !/^(https?:\/\/|\/(?!\/))/i.test(u)) u = '';
+    el.btnLobby.hidden = !u; if (u) el.btnLobby.setAttribute('href', u);
+  }
   function modeUi() { el.btnMode.textContent = S.manual ? 'MANUAL' : 'AUTO'; el.btnMode.classList.toggle('manual', S.manual); }
   try { S.manual = localStorage.getItem('bp16.mode') === 'manual'; } catch (e) { /* ignore */ }
 
@@ -96,7 +102,7 @@
         raf = requestAnimationFrame(tick);
       }
       function down(ev) {
-        if (ev.target.closest && ev.target.closest('button,input,.sheet,.pstrip')) return;
+        if (ev.target.closest && ev.target.closest('a,button,input,.sheet,.pstrip')) return;
         holding = true; t0 = performance.now(); clearTimeout(idleTimer); ev.preventDefault();
       }
       function up() { if (holding) finish(Math.max(0.12, pull)); }
@@ -356,14 +362,14 @@
   /* ---------- start ---------- */
   // a signed-in player of the operator's own site needs no token: the account gives the page a one-time launch token (a platform's launch link still carries its own)
   function viaAccount() {
-    return Api.accountLaunch().then(function (l) { return Api.auth(l.token, l.client); }).then(function (res) { Api.setSession(res.session); applyState(res); return res; });
+    return Api.accountLaunch().then(function (l) { return Api.auth(l.token, l.client); }).then(function (res) { S.lobby = res.returnUrl || '/account'; lobbyUi(); Api.setSession(res.session); applyState(res); return res; });
   }
   function signInGate() { gate('BINGO PINBALL 16', 'Sign in to play.', true); }
   function begin() {
     var token = qs.get('token'), first;
     if (token) {
       history.replaceState(null, '', location.pathname + (qs.get('start') === '0' ? '?start=0' : ''));      // never leave the launch token in the address bar
-      first = Api.auth(token, qs.get('client')).then(function (res) { Api.setSession(res.session); applyState(res); return res; });
+      first = Api.auth(token, qs.get('client')).then(function (res) { S.lobby = res.returnUrl || ''; lobbyUi(); Api.setSession(res.session); applyState(res); return res; });
     } else if (Api.hasSession()) {
       first = refresh(true).catch(function (e) { if (e && e.error === 'SESSION_EXPIRED') { Api.clearSession(); return viaAccount(); } throw e; });      // the saved session ended: a signed-in account starts a new one
     } else {

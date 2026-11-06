@@ -51,3 +51,9 @@
 .pchip.won b { color: var(--navy); }
 .pchip.won .mini b.on { background: var(--navy); }
 .stage { touch-action: pan-x; }              /* so the pattern strip can be swiped sideways */
+
+/* the way back to the lobby */
+.head { gap: 8px; }
+.head .lobby { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid var(--line); border-radius: 6px; color: var(--mute); font-size: 11px; text-decoration: none; }
+.head h1 { flex: 1; min-width: 0; font-size: 10px; white-space: nowrap; }
+.head .top { flex-direction: column; align-items: flex-end; gap: 3px; padding: 4px 8px; }
