@@ -1,0 +1,10 @@
+# Bingo Pinball 16 - the board and the ball paths
+
+The page draws the board and animates balls; **it never decides anything**. The server draws every ball's outcome (a slot 1-16, or OUT) before the first ball is launched (`MATH.md`); the page then plays, for each ball, a stored path that ends there. The plunger changes only which stored path is picked (by its power) and how the launch looks.
+
+* **Board** (`public/js/bingo16/table.js`, units of the design's 600 x 520 pin-board drawing): a rounded box, a plunger lane on the right (x 540-592), 10 staggered rows of round pegs (13 and 12 pegs, 40 apart, rows 32 apart) and 16 slots (22 wide, 32 apart) at the bottom. The gaps between slots are open: a ball that falls through one drains OUT.
+* **Simulation** (`bin/lib-bingo16-sim.cjs`): a small deterministic physics (gravity, elastic hits on pegs and walls, a little friction), 480 steps a second, a keyframe every 1/30 s. Launch speed up the lane (835-1,150 units/s) comes from the pull; a ball that does not clear the top falls back and is dropped from the library.
+* **Library** (`public/js/bingo16/paths-data.js`, made by `node bin/bingo16-paths.cjs`, deterministic): for each of the 17 outcomes, 30 paths (6 for each of 5 ranges of plunger power), kept short first (about 2.5 s a ball), 110 KB in all. The generator fires 300,000 shots (edge slots are the rarest: slot 2 got 3,115 of them) and keeps paths that look different from each other. `test/bingo16.test.js` checks every stored path: it starts in the lane, ends inside its slot (or below the board, between two slots, for OUT), never falls through another slot, never jumps, and that the generator gives the same file for the same options.
+* **Playback** (`public/js/bingo16/paths.js`): picks a path for an outcome at about the pulled power (a random one among equally good ones), interpolates between keyframes and reports pegs and walls the ball hit (for sounds and flashes).
+
+Regenerate: `node bin/bingo16-paths.cjs [--shots 300000] [--seed 20261101]`. Changing the board or the simulation means regenerating the library and re-running `npm test`; it does not change any result or any payout.
