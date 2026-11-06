@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [PanelController::class, 'game']);
 Route::get('/play', [PanelController::class, 'game']);
 Route::get('/games/bingo-pinball', [PanelController::class, 'bingo']);
+Route::get('/games/bingo-pinball-16', [PanelController::class, 'bingo16']);
 Route::get('/healthz', [GameController::class, 'healthz']);
 Route::get('/metrics', [GameController::class, 'metrics']);
 

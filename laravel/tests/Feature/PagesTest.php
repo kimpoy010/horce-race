@@ -45,4 +45,18 @@ class PagesTest extends TestCase
             $this->assertFileExists(public_path("js/bingo/$f.js"));
         }
     }
+
+    public function test_the_bingo_16_page_is_served_with_versioned_assets_and_can_be_embedded(): void
+    {
+        $r = $this->get('/games/bingo-pinball-16')->assertOk();
+        $html = $r->getContent();
+        $this->assertNull($r->headers->get('X-Frame-Options'), 'platforms embed the game');
+        $this->assertSame(0, preg_match('#(?:src|href)="/(?:js|css)/[^"?]+"#', $html), 'every script and style address carries a version');
+        foreach (['/js/bingo16/game.js', '/js/bingo16/view.js', '/js/bingo16/paths-data.js', '/css/bingo16.css'] as $f) {
+            $this->assertMatchesRegularExpression('#(?:src|href)="'.preg_quote($f, '#').'\?v=[0-9a-f]+"#', $html, $f);
+        }
+        foreach (['table', 'paths-data', 'fair', 'api', 'paths', 'view', 'game'] as $f) {
+            $this->assertFileExists(public_path("js/bingo16/$f.js"));
+        }
+    }
 }

@@ -12,6 +12,8 @@ const { execFileSync } = require('child_process');
 const root = path.join(__dirname, '..', 'laravel');
 const load = require(path.join(root, 'bin', 'lib-browser-script.cjs'));
 const T = load('public/js/bingo16/table.js');
+const { webcrypto } = require('crypto');
+const Fair = load('public/js/bingo16/fair.js', { crypto: webcrypto, TextEncoder });
 const same = (a, b, msg) => assert.strictEqual(JSON.stringify(a), JSON.stringify(b), msg);
 
 function loadPaths(file) {
@@ -92,5 +94,22 @@ for (const outcome of [0, 1, 8, 16]) for (const power of [0, 0.5, 1]) {
   assert.ok(Math.hypot(end.x - pk.frames[pk.frames.length - 1][0], end.y - pk.frames[pk.frames.length - 1][1]) < 0.01, 'playback ends where the path ends');
   assert.ok(P.bounces(pk.frames).length >= 3, 'the ball hits pegs on the way');
 }
+(async () => {
+  /* ---------- the fairness check in the browser agrees with the server and the Python reference ---------- */
+  const vectors = JSON.parse(fs.readFileSync(path.join(root, 'docs', 'bingo16', 'test-vectors.json'), 'utf8'));
+  for (const v of vectors) {
+    const d = await Fair.draw(v.serverSeed, v.clientSeed, v.nonce);
+    same(d.balls, v.balls, 'balls of ' + v.clientSeed); same(d.jackpotNumbers, v.jackpotNumbers, 'jackpot numbers of ' + v.clientSeed);
+    const e = Fair.evaluate(d.balls, d.jackpotNumbers);
+    same([e.lit, e.pattern, e.multiple, e.jackpotLit, e.jackpot], [v.lit, v.pattern, v.multiple, v.jackpotLit, v.jackpot], 'evaluation of ' + v.clientSeed);
+    assert.strictEqual(await Fair.sha256Hex(v.serverSeed), v.commit);
+    const stake = 1000, round = { balls: v.balls, jackpotNumbers: v.jackpotNumbers, pattern: v.pattern, jackpotLit: v.jackpotLit, jackpot: v.jackpot, stake, patternPay: v.multiple * stake, jackpotPaid: v.jackpot ? 5000 : 0, payout: v.multiple * stake + (v.jackpot ? 5000 : 0) };
+    const ok = await Fair.verify(round, { serverSeed: v.serverSeed, commit: v.commit, clientSeed: v.clientSeed, nonce: v.nonce });
+    assert.ok(ok.ok, 'verify ' + v.clientSeed + ': ' + ok.problems.join('; '));
+    const bad = await Fair.verify(Object.assign({}, round, { payout: round.payout + 1 }), { serverSeed: v.serverSeed, commit: v.commit, clientSeed: v.clientSeed, nonce: v.nonce });
+    assert.ok(!bad.ok, 'a wrong payout is found');
+  }
+  console.log('fairness check in the browser: ' + vectors.length + ' known-answer plays agree with the server and the Python reference');
 console.log('path library: ' + total + ' paths, 16 slots + OUT, longest ' + (longest / T.FPS).toFixed(1) + ' s, ' + (fs.statSync(file).size / 1024).toFixed(0) + ' KB');
-console.log('bingo16 tests passed');
+  console.log('bingo16 tests passed');
+})().catch((e) => { console.error(e); process.exit(1); });

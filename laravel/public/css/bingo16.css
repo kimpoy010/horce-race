@@ -1,0 +1,12 @@
+/* Bingo Pinball 16: what differs from the 5-ball game's page (bingo.css): a 4 x 4 card, the jackpot box, the row of jackpot numbers, the pattern paytable. */
+.card.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.card.g4 .cell { height: 42px; font-size: 12px; }
+.cell.jp { border-color: var(--cyan); color: var(--cyan); }
+.cell.on.jp, .cell.win.jp { color: var(--navy); border-color: var(--cyan); }
+.top b { font-size: 12px; }
+.holes > span { color: var(--cyan); }
+.hcell { border-color: var(--line); color: var(--line); }
+.hcell.on { border-color: var(--cyan); color: var(--cyan); }
+.hcell.lit { background: var(--cyan); color: var(--navy); }
+.pays { width: 142px; }
+.pays .prow { font-size: 8px; padding: 7px 5px; }

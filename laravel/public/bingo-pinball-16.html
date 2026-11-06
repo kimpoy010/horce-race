@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bingo Pinball 16">
+<meta name="robots" content="noindex">
+<title>Bingo Pinball 16</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<link rel="stylesheet" href="/css/bingo.css">
+<link rel="stylesheet" href="/css/bingo16.css">
+</head>
+<body>
+<div class="layout" id="layout">
+<div class="stage" id="stage">
+<div class="outer"><div class="frame" id="frame">
+
+  <div class="head">
+    <div class="titles"><h1>BINGO PINBALL</h1><p class="vt" id="sub">16 balls · 16 slots</p></div>
+    <div class="top"><span>JACKPOT</span><b id="jackpot">-</b></div>
+  </div>
+
+  <div class="holes"><span>JP NUMS</span><div class="hrow" id="jpRow"></div></div>
+
+  <div class="mid">
+    <div class="card g4" id="card" aria-label="Your card"></div>
+    <div class="pays" id="pays" aria-label="Paytable"><div class="pt">PAYS × STAKE</div></div>
+  </div>
+
+  <div class="boardbox">
+    <svg id="board" role="img" aria-label="Pin board with 16 numbered slots and a plunger lane"></svg>
+    <div class="hint" id="hint" hidden>HOLD ANYWHERE TO PULL THE PLUNGER, LET GO TO LAUNCH</div>
+    <div class="power" id="powerBox"><i id="power"></i></div>
+  </div>
+
+  <div class="status"><span id="ballsLeft">BALLS 16</span><span class="cy" id="jpCount">JACKPOT 0/5</span><span class="vt gold" id="msg">Press PLAY</span></div>
+
+  <div class="bar">
+    <div class="col"><span class="lbl" id="balLbl">BALANCE</span><span class="val" id="balance">-</span></div>
+    <div class="stakeRow">
+      <button id="stakeDown" type="button" aria-label="Lower stake">-</button>
+      <div class="col mid"><span class="lbl">STAKE</span><span class="val" id="stake">-</span></div>
+      <button id="stakeUp" type="button" aria-label="Raise stake">+</button>
+    </div>
+    <div class="col right"><span class="lbl">LAST WIN</span><span class="val" id="lastWin">0.00</span></div>
+  </div>
+
+  <div class="btns">
+    <button id="btnRules" type="button" class="small">RULES</button>
+    <button id="btnFair" type="button" class="small">FAIR</button>
+    <button id="btnSound" type="button" class="small" aria-label="Sound">SOUND</button>
+    <button id="play" class="play" type="button" disabled>PLAY</button>
+  </div>
+
+  <div class="banner" id="banner" hidden></div>
+  <div class="note" id="note" hidden></div>
+
+  <div class="gate" id="gate" hidden>
+    <div class="box"><p class="gtitle" id="gateTitle">BINGO PINBALL</p><p id="gateText"></p><p><a id="gateLink" href="/account" hidden>SIGN IN OR REGISTER</a></p></div>
+  </div>
+
+  <section class="sheet" id="rules" hidden>
+    <div class="sheetBox">
+      <button class="close" type="button" data-close="rules">CLOSE</button>
+      <h2>HOW TO PLAY</h2>
+      <p>Choose your stake and press PLAY. Sixteen balls are played, one after the other. Each ball ends in one of the 16 slots, or falls through a gap and drains OUT. A slot that gets a ball lights its number on your card.</p>
+      <p>The best <b>pattern</b> on the card pays: two or more full lines, the four corners, one full line, a 2×2 square, or three lit cells on a line. <b>Only your best pattern pays</b>; patterns do not add up.</p>
+      <p><b>Jackpot:</b> five numbers, shown as JP NUMS, are drawn for every play. If all five are lit you win the jackpot pool, on top of any pattern pay. A share of every stake is added to the pool, which is shared by all players of the game.</p>
+      <table class="paytab" id="rulesPays"></table>
+      <p class="warn"><b>The plunger is for show.</b> The result of every play is decided by the server before the first ball is launched. How hard or how long you pull the plunger never changes where the balls go or what you win.</p>
+      <p id="rulesLimits"></p>
+      <p>There are at least 3 seconds between two plays. The balance shown is the one of your account. Win paid is added to your balance as soon as the platform confirms it.</p>
+      <p>Every play is provably fair: press FAIR to see the commitment to the next draws and to check past plays yourself.</p>
+      <p class="small">18+. Gambling can be addictive. Play only what you can afford to lose.</p>
+    </div>
+  </section>
+
+  <section class="sheet" id="fair" hidden>
+    <div class="sheetBox">
+      <button class="close" type="button" data-close="fair">CLOSE</button>
+      <h2>FAIR PLAY</h2>
+      <p>Before your first play the server committed to a secret number (the <b>server seed</b>) by showing you its fingerprint. Every result comes from that secret, your own <b>client seed</b> and a play counter, so the server cannot change a result after seeing your stake. When you start a new seed, the old secret is shown and you can check every play made with it, here in your browser.</p>
+      <div class="kv"><span>COMMITMENT</span><code id="fairCommit">-</code></div>
+      <div class="kv"><span>YOUR CLIENT SEED</span><code id="fairClient">-</code></div>
+      <div class="kv"><span>PLAYS WITH THIS PAIR</span><code id="fairPlays">-</code></div>
+      <div class="row"><input id="fairNewSeed" maxlength="64" placeholder="your own seed (optional)" autocomplete="off" autocapitalize="off" spellcheck="false"><button id="fairRotate" type="button">NEW SEED</button></div>
+      <p class="small">Starting a new seed shows the old server seed. Letters, digits, - and _ only.</p>
+      <div id="fairOut"></div>
+      <h3>YOUR LAST PLAYS</h3>
+      <div id="fairList" class="list"></div>
+    </div>
+  </section>
+
+</div></div>
+</div>
+</div>
+
+<div class="start" id="start" role="button" tabindex="0" aria-label="Tap to play" hidden>
+  <div class="box">
+    <p class="stitle">BINGO<br>PINBALL</p>
+    <p class="go blink">TAP TO PLAY</p>
+    <p class="sub">SOUND ON</p>
+  </div>
+</div>
+
+<script src="/js/bingo16/table.js"></script>
+<script src="/js/bingo16/paths-data.js"></script>
+<script src="/js/bingo16/fair.js"></script>
+<script src="/js/bingo16/api.js"></script>
+<script src="/js/bingo16/paths.js"></script>
+<script src="/js/bingo16/view.js"></script>
+<script src="/js/bingo/sound.js"></script>
+<script src="/js/bingo16/game.js"></script>
+<script src="/js/orient.js"></script>
+</body>
+</html>
