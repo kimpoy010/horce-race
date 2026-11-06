@@ -14,9 +14,9 @@
     BAD_CLIENT_SEED: 'Seed: 1 to 64 letters, digits, - or _.', ERROR: 'Something went wrong.'
   };
   var el = {};
-  ['board', 'card', 'jpRow', 'power', 'pays', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound',
+  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound',
     'rulesPays', 'rulesLimits', 'fairCommit', 'fairClient', 'fairPlays', 'fairNewSeed', 'fairRotate', 'fairOut', 'fairList'].forEach(function (k) { el[k] = $(k); });
-  var view = window.Bingo16View.create({ board: el.board, card: el.card, jpRow: el.jpRow, power: el.power, pays: el.pays });
+  var view = window.Bingo16View.create({ board: el.board, card: el.card, jpRow: el.jpRow, power: el.power, pays: [el.pays, el.pstrip] });
 
   /* ---------- money ---------- */
   function dec() { return S.state ? S.state.decimals : 2; }
@@ -93,7 +93,7 @@
         raf = requestAnimationFrame(tick);
       }
       function down(ev) {
-        if (ev.target.closest && ev.target.closest('button,input,.sheet')) return;
+        if (ev.target.closest && ev.target.closest('button,input,.sheet,.pstrip')) return;
         holding = true; t0 = performance.now(); clearTimeout(idleTimer); ev.preventDefault();
       }
       function up() { if (holding) finish(Math.max(0.12, pull)); }
@@ -268,12 +268,14 @@
 
   /* ---------- rules and fairness screens ---------- */
   function fillPays(pt) {
-    var h = '<div class="pt">PAYS × STAKE</div>';
+    var h = '<div class="pt">PAYS × STAKE</div>', strip = '';
     pt.pays.forEach(function (p) {
       var on = {}, mini = '', c; (p.cells || []).forEach(function (x) { on[x - 1] = true; });
       for (c = 0; c < 16; c++) mini += '<b' + (on[c] ? ' class="on"' : '') + '></b>';
       h += '<div class="prow" data-key="' + p.key + '"><i class="mini">' + mini + '</i><span class="pn">' + p.name + '</span><span>' + p.multiple + '×</span></div>';
+      strip += '<span class="pchip" data-key="' + p.key + '"><i class="mini">' + mini + '</i><span class="pn">' + p.name + '</span><b>' + p.multiple + '×</b></span>';
     });
+    el.pstrip.innerHTML = strip; el.pstrip.removeAttribute('data-win');
     h += '<div class="note2">BEST PATTERN PAYS. 2 BALLS ON ALL 5 JP NUMBERS WIN THE JACKPOT</div>';
     el.pays.innerHTML = h; el.pays.removeAttribute('data-win');
   }

@@ -36,3 +36,16 @@
 .btns .small { height: 42px; padding: 0 6px; font-size: 8px; }
 .btns .sq { width: 38px; height: 42px; flex: none; background: var(--cell); border: 2px solid var(--line); border-radius: 6px; font-size: 13px; padding: 0; }
 .btns .play { height: 42px; }
+
+/* the winning patterns under the jackpot numbers: a strip you swipe sideways */
+.pstrip { position: relative; display: flex; gap: 5px; overflow-x: auto; overflow-y: hidden; flex: none; padding-bottom: 3px; touch-action: pan-x; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.pstrip::-webkit-scrollbar { display: none; }
+.pchip { flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border: 2px solid var(--line); border-radius: 14px; font-size: 7px; white-space: nowrap; line-height: 1; }
+.pchip b { font-weight: 400; color: var(--gold); }
+.pchip .mini { display: grid; grid-template-columns: repeat(4, 3px); gap: 1px; flex: none; }
+.pchip .mini b { width: 3px; height: 3px; background: #2A3670; }
+.pchip .mini b.on { background: var(--gold); }
+.pchip.won { background: var(--gold); border-color: var(--gold); color: var(--navy); }
+.pchip.won b { color: var(--navy); }
+.pchip.won .mini b.on { background: var(--navy); }
+.stage { touch-action: pan-x; }              /* so the pattern strip can be swiped sideways */

@@ -19,7 +19,7 @@
   }
 
   function create(parts) {
-    var board = parts.board, card = parts.card, jpRow = parts.jpRow, power = parts.power, pays = parts.pays, i, j;
+    var board = parts.board, card = parts.card, jpRow = parts.jpRow, power = parts.power, paysList = [].concat(parts.pays || []), pays = paysList[0], i, j;
     var D = T.H - 520;                                              // the board is taller than the first design: everything near the floor moves down by D
     board.setAttribute('viewBox', '0 0 600 ' + T.H); board.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     svg('path', { d: 'M 592 ' + (510 + D) + ' V 60 Q 592 14 546 14 H 54 Q 8 14 8 60 V ' + (510 + D), fill: 'none', stroke: C.wall, 'stroke-width': 4 }, board);
@@ -73,9 +73,13 @@
         var v = nums[k] != null ? String(nums[k]) : '-', lit = nums[k] != null && scene.jpLit && scene.jpLit[nums[k]], key = v + (lit ? 'L' : '');
         if (jpCells[k] && last['j' + k] !== key) { jpCells[k].textContent = v; jpCells[k].className = 'hcell' + (v === '-' ? '' : ' on') + (lit ? ' lit' : ''); last['j' + k] = key; }
       }
-      if (pays && pays.getAttribute('data-win') !== (scene.winKey || '')) {                                  // the page rebuilds the panel after a play: the attribute is removed then
-        var rowsEl = pays.querySelectorAll('[data-key]');
-        for (k = 0; k < rowsEl.length; k++) rowsEl[k].classList.toggle('won', rowsEl[k].getAttribute('data-key') === scene.winKey);
+      if (pays && pays.getAttribute('data-win') !== (scene.winKey || '')) {                                  // the page rebuilds the panels after a play: the attribute is removed then
+        paysList.forEach(function (box) {                                                                    // the pay sheet and the strip under the jackpot numbers
+          var rowsEl = box.querySelectorAll('[data-key]'), hit = null, r;
+          for (r = 0; r < rowsEl.length; r++) { var w = rowsEl[r].getAttribute('data-key') === scene.winKey; rowsEl[r].classList.toggle('won', w); if (w) hit = rowsEl[r]; }
+          if (hit && box.scrollWidth > box.clientWidth) box.scrollTo({ left: Math.max(0, hit.offsetLeft - (box.clientWidth - hit.offsetWidth) / 2), behavior: 'smooth' });
+          else if (!hit && box.scrollLeft) box.scrollTo({ left: 0, behavior: 'smooth' });
+        });
         pays.setAttribute('data-win', scene.winKey || '');
       }
       for (k = 1; k <= 16; k++) {                                                                            // balls resting in the slots
