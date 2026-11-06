@@ -11,7 +11,7 @@ Pay for one credit (stake included): BAR 30 (the BAR-x50 cell pays 12), 7 = 10, 
 Each symbol is tuned on its own: every single-symbol bet returns 89.96-89.99%, and betting on all eight returns **89.9762%** (PAR sheet: `PAR_SHEET.txt`, exact fractions in `par.json`). No bet is more generous than another, so there is no "best" symbol to play. Lucky stops are 3.817% of spins.
 
 ## Double-up (Small / Big)
-After a win the player may double it: a number 1-14 is drawn, **Small** is 1-7, **Big** is 8-14; right = twice the win, wrong = the win is lost. Exactly 50/50, so a double-up is RTP-neutral. At most **3 in a row**.
+After a win the player may first move part of it to their balance (the arrows; that part is paid at once and is not risked) and then double the rest: a number 1-14 is drawn, **Small** is 1-7, **Big** is 8-14; right = twice the win, wrong = the win is lost. Exactly 50/50, so a double-up is RTP-neutral. At most **3 in a row**.
 
 ## The draw (provably fair)
 Same scheme as the other games. `stream = HMAC-SHA256(server seed bytes, label ":" counter)`, 4 bytes (big endian) per number, `int(n)` uniform by rejection sampling.

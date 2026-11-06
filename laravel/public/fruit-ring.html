@@ -23,7 +23,11 @@
   <div class="head">
     <a id="btnLobby" class="lobby" href="/account" hidden aria-label="Back to the lobby">&#9664;</a>
     <h1>FRUIT GAME</h1>
-    <div class="top"><span>BALANCE</span><b id="balance">-</b></div>
+  </div>
+
+  <div class="disp">
+    <div class="dbox gold" id="dBonus"><span class="lbl">BONUS-WIN</span><b id="bonus">0.00</b></div>
+    <div class="dbox"><span class="lbl" id="balLbl">CREDIT</span><b id="balance">-</b></div>
   </div>
 
   <div class="ringbox" id="ringbox">
@@ -33,8 +37,6 @@
       <div class="cvalue" id="cValue">0.00</div>
       <div class="csub vt" id="cSub">Choose your fruits and press START</div>
       <div class="cbtns" id="cBtns" hidden>
-        <button type="button" id="btnSmall" class="dbl">SMALL<br><i>1-7</i></button>
-        <button type="button" id="btnBig" class="dbl">BIG<br><i>8-14</i></button>
         <button type="button" id="btnCollect" class="col">COLLECT</button>
       </div>
     </div>
@@ -51,11 +53,25 @@
     <button id="btnClear" type="button" class="small">CLEAR</button>
     <button id="btnRepeat" type="button" class="small">REPEAT</button>
   </div>
-  <div class="btns">
+  <div class="btns ctl" id="ctl">
+    <button id="btnLeft" type="button" class="arrow" aria-label="Move less of the win to your credit" disabled>&#9664;</button>
+    <button id="btnRight" type="button" class="arrow" aria-label="Move more of the win to your credit" disabled>&#9654;</button>
+    <button id="btnSmall" type="button" class="dbl" disabled>SMALL<i>1-7</i></button>
+    <button id="btnBig" type="button" class="dbl" disabled>BIG<i>8-14</i></button>
+    <button id="play" class="play" type="button" disabled>START</button>
+  </div>
+  <div class="btns util">
     <button id="btnRules" type="button" class="small">PAYS</button>
     <button id="btnFair" type="button" class="small">FAIR</button>
     <button id="btnSound" type="button" class="small" aria-label="Sound">SND</button>
-    <button id="play" class="play" type="button" disabled>START</button>
+    <button id="btnHelp" type="button" class="small" aria-label="Show the help again">HELP</button>
+  </div>
+
+  <div class="tour" id="tour" hidden>
+    <div class="hole" id="tourHole"></div>
+    <div class="arrowg" id="tourArrow">&#9660;</div>
+    <div class="ttext" id="tourText"></div>
+    <button type="button" class="tskip" id="tourSkip">click to skip</button>
   </div>
 
   <div class="banner" id="banner" hidden></div>
@@ -71,7 +87,7 @@
       <h2>HOW TO PLAY</h2>
       <p>Put credits on the fruits you like (tap a fruit to add one credit, hold it to take its credits off). Choose what one credit is worth, then press START. A light runs round the ring and stops on one of its 24 cells. <b>Every cell that lights pays the credits you put on its fruit</b>, as the table below shows (your credits times the number, your stake included). A cell marked ×3 pays three times.</p>
       <p><b>Lucky cells</b> pay nothing themselves but start free spins on the same bets: the purple one gives <b>3 free spins</b>, the cyan one <b>one free spin with 3 lit cells</b>. Free spins never give more free spins.</p>
-      <p><b>Double up:</b> after a win you can try to double it. Pick <b>SMALL</b> (1-7) or <b>BIG</b> (8-14): a number from 1 to 14 is drawn, the odds are exactly even. Right: the win doubles. Wrong: it is lost. You can double up to 3 times in a row, then the win is collected. Press <b>COLLECT</b> at any time to take it; a win you leave alone is collected for you after a couple of minutes, or when you start the next spin.</p>
+      <p><b>Double up:</b> after a win you can try to double it. Pick <b>SMALL</b> (1-7) or <b>BIG</b> (8-14): a number from 1 to 14 is drawn, the odds are exactly even. Right: the win doubles. Wrong: it is lost. With the <b>left and right arrows</b> you can first move part of the win from BONUS-WIN to your CREDIT: that part is paid now and is not at risk, only what stays in BONUS-WIN is doubled. You can double up to 3 times in a row, then the win is collected. Press <b>COLLECT</b> at any time to take it; a win you leave alone is collected for you after a couple of minutes, or when you start the next spin.</p>
       <table class="paytab" id="rulesPays"></table>
       <p class="warn"><b>The result is decided by the server</b> before the light starts running. The animation is only for show.</p>
       <p id="rulesLimits"></p>

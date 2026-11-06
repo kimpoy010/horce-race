@@ -69,7 +69,7 @@ final class Reconcile
                         if (($ev['game'] ?? null) === GameReports::BINGO16 && str_ends_with((string) $ev['txId'], ':win')) {
                             $b16['credits'] += (int) $ev['amount'];
                         }
-                        if (($ev['game'] ?? null) === GameReports::FRUIT && str_ends_with((string) $ev['txId'], ':win')) {
+                        if (($ev['game'] ?? null) === GameReports::FRUIT && (str_ends_with((string) $ev['txId'], ':win') || str_contains((string) $ev['txId'], ':take'))) {
                             $fr['credits'] += (int) $ev['amount'];
                         }
                         if (($ev['game'] ?? null) === GameReports::BINGO && str_ends_with((string) $ev['txId'], ':win')) {

@@ -44,7 +44,7 @@
     auth: function (token, client) { return request('POST', '/auth', { token: token, client: client || undefined }); },
     state: function () { return request('GET', '/state'); },
     play: function (bets, credit, requestId) { return request('POST', '/play', { bets: bets, credit: credit, requestId: requestId }, 15000); },
-    double: function (id, side, step) { return request('POST', '/round/' + id + '/double', { side: side, step: step }, 15000); },
+    double: function (id, side, step, take) { return request('POST', '/round/' + id + '/double', { side: side, step: step, take: take || 0 }, 15000); },
     collect: function (id) { return request('POST', '/round/' + id + '/collect', {}, 15000); },
     round: function (id) { return request('GET', '/round/' + id); },
     history: function (limit) { return request('GET', '/history?limit=' + (limit || 30)); },

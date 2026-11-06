@@ -1,5 +1,5 @@
 /*
- * Fruit Game, the fairness check in the browser: re-draws a spin and its double-ups from (server seed, client seed, nonce) exactly as docs/fruit/MATH.md says and compares them with what
+ * Fruit Game, the fairness check in the browser: re-draws a spin and its double-ups (and the parts of the win moved to the balance on the way) from (server seed, client seed, nonce) exactly as docs/fruit/MATH.md says and compares them with what
  * the server reported. Written from that text (like docs/fruit/verify_play.py), not from the server's code; test/fruit.test.js runs it against docs/fruit/test-vectors.json.
  * Uses only WebCrypto (HMAC-SHA-256, SHA-256): window.FruitFair / require.
  */
@@ -79,18 +79,20 @@
       return spin(proof.serverSeed, proof.clientSeed, proof.nonce);
     }).then(function (rounds) {
       if (JSON.stringify(rounds) !== JSON.stringify(round.rounds)) problems.push('the lit cells are not what the seeds give');
-      var win = winOf(rounds, round.bets || {}) * round.credit, held = win, i, chain = Promise.resolve();
+      var win = winOf(rounds, round.bets || {}) * round.credit, held = win, taken = 0, chain = Promise.resolve();
       if (win !== round.spinWin) problems.push('the win of the spin is not what the paytable gives (' + win + ')');
       (round.doubles || []).forEach(function (d, n) {
         chain = chain.then(function () { return doubleNumber(proof.serverSeed, proof.clientSeed, d.nonce); }).then(function (num) {
           var won = d.side === 'small' ? num <= 7 : num >= 8;
           if (num !== d.number) problems.push('double-up ' + (n + 1) + ': the number is not what the seeds give (' + num + ')');
           if (won !== d.won) problems.push('double-up ' + (n + 1) + ': the result is not what the number gives');
-          held = won ? held * 2 : 0;
+          var take = d.take || 0;                                                    // moved to the balance before this double-up: not risked
+          if (take >= held) problems.push('double-up ' + (n + 1) + ': more was taken than the win');
+          taken += take; held = won ? (held - take) * 2 : 0;
         });
       });
       return chain.then(function () {
-        if (round.status === 'settled' && held !== round.payout) problems.push('the payout is not what the double-ups leave (' + held + ')');
+        if (round.status === 'settled' && held + taken !== round.payout) problems.push('the payout is not what the double-ups leave (' + (held + taken) + ')');
         return { ok: problems.length === 0, problems: problems };
       });
     });

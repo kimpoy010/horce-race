@@ -3,8 +3,12 @@
 .head { display: flex; align-items: center; gap: 8px; }
 .head h1 { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; }
 .head .lobby { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid var(--line); border-radius: 6px; color: var(--mute); font-size: 11px; text-decoration: none; }
-.top { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; padding: 4px 8px; border: 2px solid var(--cyan); border-radius: 8px; color: var(--cyan); }
-.top span { font-size: 7px; } .top b { font-size: 11px; font-weight: 400; }
+/* the two displays: BONUS-WIN (the win in hand) and CREDIT (the balance) */
+.disp { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.dbox { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 5px 10px; background: #070B1C; border: 2px solid var(--line); border-radius: 8px; }
+.dbox .lbl { font-size: 7px; color: var(--mute); align-self: flex-start; }
+.dbox b { font-size: 15px; font-weight: 400; color: #FF5B4D; font-family: 'VT323', monospace; font-size: 26px; line-height: 1; }
+.dbox.gold { border-color: var(--gold); } .dbox.gold .lbl { color: var(--gold); }
 
 .ringbox { position: relative; flex: none; width: 100%; aspect-ratio: 1; background: #0E1533; border: 3px solid var(--line); border-radius: 8px; padding: 2px; }
 .ringbox svg { width: 100%; height: 100%; display: block; }
@@ -13,7 +17,7 @@
 .clabel { font-size: 8px; color: var(--cyan); letter-spacing: 1px; }
 .cvalue { font-size: 26px; color: var(--gold); line-height: 1; min-height: 28px; }
 .csub { font-size: 20px; color: var(--mute); line-height: 1; min-height: 20px; }
-.cbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; margin-top: 4px; }
+.cbtns { display: grid; grid-template-columns: 1fr; gap: 6px; width: 100%; margin-top: 4px; }
 .cbtns button { height: 44px; border-radius: 8px; font-size: 8px; line-height: 1.5; padding: 0; border: 2px solid var(--line); background: var(--cell); display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .cbtns button i { font-style: normal; color: var(--mute); font-size: 7px; }
 .cbtns .dbl { border-color: var(--cyan); }
@@ -44,3 +48,19 @@
 .rtab { width: 100%; }
 .paytab img { vertical-align: middle; }
 .paytab svg { width: 28px; height: 28px; vertical-align: middle; margin-right: 8px; }
+
+/* the machine row: arrows (win to credit), SMALL, BIG, START */
+.ctl .arrow { width: 40px; height: 46px; flex: none; padding: 0; background: #1C4F9C; border: 2px solid #3E7BD6; border-radius: 8px; font-size: 14px; color: #fff; }
+.ctl .dbl { width: 58px; height: 46px; flex: none; padding: 0; background: #1F7A3A; border: 2px solid #4FC46B; border-radius: 8px; font-size: 8px; line-height: 1.5; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ctl .dbl i { font-style: normal; font-size: 7px; color: #CFFFD9; }
+.ctl .arrow:disabled, .ctl .dbl:disabled { filter: saturate(.3) brightness(.7); }
+.ctl .play { flex: 1; height: 46px; }
+.util .small { flex: 1; height: 34px; }
+.btns.ctl .arrow.hl, .btns.ctl .dbl.hl { box-shadow: 0 0 0 3px var(--gold); }
+
+/* the help tour: dimmed screen, a frame round what is explained, an arrow and a sentence */
+.tour { position: absolute; inset: 0; z-index: 40; cursor: pointer; }
+.tour .hole { position: absolute; border: 3px solid var(--gold); border-radius: 10px; box-shadow: 0 0 0 2000px rgba(5, 8, 20, .8); pointer-events: none; transition: all .18s; }
+.tour .ttext { position: absolute; left: 14px; right: 14px; text-align: center; color: #fff; font-family: 'VT323', monospace; font-size: 27px; line-height: 1.05; text-transform: none; text-shadow: 0 2px 0 #000; pointer-events: none; }
+.tour .arrowg { position: absolute; width: 40px; text-align: center; color: #fff; font-size: 30px; line-height: 1; pointer-events: none; text-shadow: 0 2px 0 #000; }
+.tour .tskip { position: absolute; right: 8px; top: 6px; background: none; border: none; color: #fff; font: 400 22px 'VT323', monospace; text-transform: none; padding: 4px 6px; }

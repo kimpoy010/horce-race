@@ -157,6 +157,11 @@ class FruitPlayTest extends TestCase
         return $this->postJson(self::BASE.'/round/'.$id.'/double', ['side' => $side, 'step' => $step], $this->bearer($s));
     }
 
+    private function doubleTake(string $s, int $id, string $side, int $step, int $take)
+    {
+        return $this->postJson(self::BASE.'/round/'.$id.'/double', ['side' => $side, 'step' => $step, 'take' => $take], $this->bearer($s));
+    }
+
     private function collect(string $s, int $id)
     {
         return $this->postJson(self::BASE.'/round/'.$id.'/collect', [], $this->bearer($s));
@@ -255,6 +260,40 @@ class FruitPlayTest extends TestCase
         $this->assertSame(['settled', 0, false], [$d2->json('round.status'), $d2->json('round.payout'), $d2->json('round.canDouble')]);
         $this->assertSame([], $this->sent('/wallet/credit'), 'a lost double-up credits nothing');
         $this->double($s, $id, 'big', 2)->assertStatus(409);
+    }
+
+    public function test_the_arrows_move_part_of_the_win_to_the_balance_before_the_double_up(): void
+    {
+        [$v, $sym, $pay] = $this->winner();
+        $s = $this->auth();
+        $this->rig('p1', $v, $v['nonce']);
+        $win = 3 * $pay * 100;
+        $id = $this->spin($s, [$sym => 3], 100)->assertOk()->json('round.id');
+        [$right, $wrong] = $this->sides($v, $v['nonce'] + 1);
+        $this->doubleTake($s, $id, $right, 0, $win)->assertStatus(400);                         // everything cannot be taken and doubled
+        $this->doubleTake($s, $id, $right, 0, -1)->assertStatus(400);
+        $d = $this->doubleTake($s, $id, $right, 0, 100)->assertOk();
+        $this->assertSame([100, 2 * ($win - 100), true], [$d->json('round.doubles.0.take'), $d->json('round.held'), $d->json('round.canDouble')]);
+        $this->assertSame(['fr:'.$id.':take1'], array_column($this->sent('/wallet/credit'), 'txId'), 'the part moved to the balance is credited at once');
+        $this->assertSame(['fr:'.$id.':take1' => 100], array_column(array_map(fn ($c) => ['k' => $c['txId'], 'a' => $c['amount']], $this->sent('/wallet/credit')), 'a', 'k'));
+        $c = $this->collect($s, $id)->assertOk();
+        $this->assertSame(['settled', 100 + 2 * ($win - 100), 100], [$c->json('round.status'), $c->json('round.payout'), $c->json('round.taken')]);
+        $this->assertSame(['fr:'.$id.':take1', 'fr:'.$id.':win'], array_column($this->sent('/wallet/credit'), 'txId'));
+        $this->assertSame(100000 - 300 + 100 + 2 * ($win - 100), $this->balance, 'the balance holds the stake once and every part of the win once');
+    }
+
+    public function test_a_lost_double_up_still_pays_the_part_that_was_moved(): void
+    {
+        [$v, $sym, $pay] = $this->winner();
+        $s = $this->auth();
+        $this->rig('p1', $v, $v['nonce']);
+        $win = 3 * $pay * 100;
+        $id = $this->spin($s, [$sym => 3], 100)->assertOk()->json('round.id');
+        [, $wrong] = $this->sides($v, $v['nonce'] + 1);
+        $d = $this->doubleTake($s, $id, $wrong, 0, 200)->assertOk();
+        $this->assertSame(['settled', 200], [$d->json('round.status'), $d->json('round.payout')]);
+        $this->assertSame(['fr:'.$id.':take1'], array_column($this->sent('/wallet/credit'), 'txId'));
+        $this->assertSame(100000 - 300 + 200, $this->balance);
     }
 
     public function test_three_wins_in_a_row_collect_by_themselves(): void

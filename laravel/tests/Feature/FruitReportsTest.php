@@ -169,7 +169,7 @@ class FruitReportsTest extends StaffTestCase
         for ($i = 0; $i < 80 && ! $held; $i++) {                                               // a win that is doubled once and left held
             $r = $this->spin($h);
             if ($r['status'] === 'open') {
-                $held = $this->postJson(self::BASE.'/round/'.$r['id'].'/double', ['side' => 'big', 'step' => 0], $h)->assertOk()->json('round');
+                $held = $this->postJson(self::BASE.'/round/'.$r['id'].'/double', ['side' => 'big', 'step' => 0, 'take' => min(100, max(0, $r['held'] - 1))], $h)->assertOk()->json('round');
             }
         }
         $res = app(Reconcile::class)->run();

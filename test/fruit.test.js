@@ -95,6 +95,10 @@ assert.strictEqual(JSON.stringify(Fair.WEIGHTS), JSON.stringify(pyWeights), 'the
   const proof = { serverSeed: v.serverSeed, commit: v.commit, clientSeed: v.clientSeed, nonce: v.nonce };
   const ok = await Fair.verify(round, proof);
   assert.deepStrictEqual([ok.ok, ok.problems.length], [true, 0], 'a right round passes: ' + ok.problems);
+  // the same round with a part of the win moved to the balance before the first double-up (a right answer): payout = taken + 2 x (win - taken) ... then the second wrong
+  const withTake = Object.assign({}, round, { doubles: [Object.assign({}, round.doubles[0], { take: 100 }), round.doubles[1]], payout: 100 });
+  assert.strictEqual((await Fair.verify(withTake, proof)).ok, true, 'a round with a take passes');
+  assert.strictEqual((await Fair.verify(Object.assign({}, withTake, { payout: 0 }), proof)).ok, false, 'a taken part must be in the payout');
   for (const bad of [{ payout: 1 }, { spinWin: win + 100 }, { rounds: [[(v.rounds[0][0] + 1) % 24]] }, { doubles: [Object.assign({}, round.doubles[0], { number: n1 === 1 ? 2 : 1 }), round.doubles[1]] }]) {
     const r = await Fair.verify(Object.assign({}, round, bad), proof);
     assert.strictEqual(r.ok, false, 'a wrong round fails: ' + JSON.stringify(bad));

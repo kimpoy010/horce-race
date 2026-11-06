@@ -246,20 +246,20 @@ final class FruitService
     /* ---------- double-up and collect ---------- */
 
     /** @param string $side 'small' (1-7) or 'big' (8-14); $step how many double-ups the page has seen so far (a repeated step returns the result that exists) */
-    public function double(string $sessionId, int $id, mixed $side, mixed $step): array
+    public function double(string $sessionId, int $id, mixed $side, mixed $step, mixed $take = 0): array
     {
         $s = $this->session($sessionId);
-        if (! in_array($side, ['small', 'big'], true) || ! is_int($step) || $step < 0) {
+        if (! in_array($side, ['small', 'big'], true) || ! is_int($step) || $step < 0 || ! is_int($take) || $take < 0) {
             throw new GameError(400, 'BAD_REQUEST');
         }
         try {
-            return Cache::lock('horse-player:'.$s->player_key, 20)->block((int) ($this->settings['lock_wait_seconds'] ?? 5), fn () => $this->doubleLocked($s, $id, $side, $step));
+            return Cache::lock('horse-player:'.$s->player_key, 20)->block((int) ($this->settings['lock_wait_seconds'] ?? 5), fn () => $this->doubleLocked($s, $id, $side, $step, $take));
         } catch (LockTimeoutException) {
             throw new GameError(429, 'TOO_MANY_REQUESTS');
         }
     }
 
-    private function doubleLocked(object $s, int $id, string $side, int $step): array
+    private function doubleLocked(object $s, int $id, string $side, int $step, int $take): array
     {
         $r = $this->own($s, $id);
         $d = json_decode($r->details, true);
@@ -273,26 +273,40 @@ final class FruitService
         if ($done >= Rules::DOUBLE_MAX || (int) $d['held'] < 1) {
             throw new GameError(409, 'NO_DOUBLE');
         }
+        if ($take >= (int) $d['held']) {
+            throw new GameError(400, 'BAD_REQUEST');                     // something must stay at stake: the part moved to the balance is smaller than the win
+        }
         $seed = DB::table('player_seeds')->where('id', $r->seed_id)->first();
         if (! $seed || $seed->status !== 'active') {
             throw new GameError(409, 'NOT_OPEN');
         }
         $ref = 'fr:'.$id;
         $finished = false;
-        DB::transaction(function () use ($r, $d, $seed, $side, $ref, $s, &$finished) {
+        $takeTx = null;
+        DB::transaction(function () use ($r, $d, $seed, $side, $ref, $s, $take, $done, &$finished, &$takeTx) {
             $nonce = $this->seeds->take($seed);
             $number = Draw::doubleNumber($this->seeds->serverSeed($seed), $seed->client_seed, $nonce);
             $won = Evaluator::doubleWins($number, $side);
-            $d['doubles'][] = ['nonce' => $nonce, 'side' => $side, 'number' => $number, 'won' => $won];
-            $d['held'] = $won ? (int) $d['held'] * 2 : 0;
-            $this->journal->log(['e' => 'fr.double', 'roundId' => $ref, 'playerId' => $s->player_key, 'nonce' => $nonce, 'side' => $side, 'number' => $number, 'won' => $won, 'held' => $d['held']], self::GAME);
+            $remain = (int) $d['held'] - $take;                                // the part the player moved to the balance is paid now and not risked
+            $d['doubles'][] = ['nonce' => $nonce, 'side' => $side, 'number' => $number, 'won' => $won, 'take' => $take];
+            $d['held'] = $won ? $remain * 2 : 0;
+            if ($take > 0) {
+                $takeTx = $ref.':take'.($done + 1);
+                $this->journal->log(['e' => 'fr.take', 'roundId' => $ref, 'playerId' => $s->player_key, 'amount' => $take, 'txId' => $takeTx], self::GAME);
+                $this->gateway->queueCredit($takeTx, $r->player_key, $take, null, 'win', array_filter(['currency' => $r->currency, 'brandId' => $r->brand_id]), self::GAME, $ref);
+                DB::table('game_sessions')->where('player_key', $r->player_key)->where('game_id', self::GAME)->update(['s_paid' => DB::raw('s_paid + '.$take)]);
+            }
+            $this->journal->log(['e' => 'fr.double', 'roundId' => $ref, 'playerId' => $s->player_key, 'nonce' => $nonce, 'side' => $side, 'number' => $number, 'won' => $won, 'take' => $take, 'held' => $d['held']], self::GAME);
             DB::table('instant_rounds')->where('id', $r->id)->update(['details' => json_encode($d)]
                 + (self::hasFigures() ? ['doubles' => count($d['doubles']), 'doubles_won' => count(array_filter($d['doubles'], fn ($x) => $x['won']))] : []));
             $finished = ! $won || count($d['doubles']) >= Rules::DOUBLE_MAX;
         });
+        if ($takeTx !== null) {
+            $this->gateway->flushCredits($takeTx);
+        }
         $round = DB::table('instant_rounds')->where('id', $id)->first();
         if ($finished) {
-            $round = $this->settle($s, $round);                          // lost: nothing to pay; the third win in a row is collected by itself
+            $round = $this->settle($s, $round);                          // lost: nothing left to pay; the third win in a row is collected by itself
         }
 
         return $this->answer($round, DB::table('game_sessions')->where('key', $s->key)->first(), false);
@@ -334,13 +348,14 @@ final class FruitService
                 return false;
             }
             $d = json_decode($fresh->details, true);
-            $payout = (int) $d['held'];
+            $held = (int) $d['held'];
+            $payout = $held + self::taken($d);                               // what was moved to the balance on the way, and what is paid now
             DB::table('instant_rounds')->where('id', $r->id)->update(['status' => 'settled', 'payout' => $payout, 'settled_at' => $this->now()]);
             $this->journal->log(['e' => 'fr.settled', 'roundId' => $ref, 'playerId' => $r->player_key, 'payout' => $payout, 'doubles' => count($d['doubles'])], self::GAME);
-            if ($payout > 0) {
-                $this->gateway->queueCredit($ref.':win', $r->player_key, $payout, null, 'win', array_filter(['currency' => $r->currency, 'brandId' => $r->brand_id]), self::GAME, $ref);
+            if ($held > 0) {
+                $this->gateway->queueCredit($ref.':win', $r->player_key, $held, null, 'win', array_filter(['currency' => $r->currency, 'brandId' => $r->brand_id]), self::GAME, $ref);
             }
-            DB::table('game_sessions')->where('player_key', $r->player_key)->where('game_id', self::GAME)->update(['s_paid' => DB::raw('s_paid + '.$payout)]);
+            DB::table('game_sessions')->where('player_key', $r->player_key)->where('game_id', self::GAME)->update(['s_paid' => DB::raw('s_paid + '.$held)]);
 
             return true;
         });
@@ -356,11 +371,11 @@ final class FruitService
     private function afterSettled(object $s, object $round): void
     {
         $ref = 'fr:'.$round->id;
-        if ((int) $round->payout > 0) {
-            $this->gateway->flushCredits($ref.':win');
-        }
         $client = $this->clients->config($round->client_id);
         $d = json_decode($round->details, true);
+        if ((int) $round->payout - self::taken($d) > 0) {
+            $this->gateway->flushCredits($ref.':win');
+        }
         $raw = PlayerKey::split($round->player_key)[1];
         $common = ['roundId' => $ref, 'gameId' => self::GAME, 'playerId' => $raw, 'brandId' => $round->brand_id, 'currency' => $round->currency, 'stake' => (int) $round->stake, 'payout' => (int) $round->payout,
             'spinWin' => $d['spinWin'], 'doubles' => count($d['doubles']), 'paytable' => Rules::PAYTABLE_ID];
@@ -370,6 +385,12 @@ final class FruitService
         if (! empty($client['gameSettings'][self::GAME]['roundWebhooks'])) {
             $this->webhooks->emit('round.settled', $ref, $common + ['nonce' => (int) $round->nonce], $round->client_id, self::GAME);
         }
+    }
+
+    /** the total moved to the balance before the round ended (by the player's arrows) */
+    private static function taken(array $d): int
+    {
+        return (int) array_sum(array_map(fn ($x) => (int) ($x['take'] ?? 0), $d['doubles'] ?? []));
     }
 
     private function void(int $id, string $reason): void
@@ -405,7 +426,9 @@ final class FruitService
             'held' => $open ? (int) ($d['held'] ?? 0) : 0, 'doubles' => $d['doubles'] ?? [], 'canDouble' => $open && count($d['doubles'] ?? []) < Rules::DOUBLE_MAX && (int) ($d['held'] ?? 0) > 0,
             'payout' => (int) $r->payout, 'nonce' => $r->nonce === null ? null : (int) $r->nonce, 'seedId' => $r->seed_id === null ? null : (int) $r->seed_id,
             'createdAt' => (int) $r->created_at, 'settledAt' => $r->settled_at === null ? null : (int) $r->settled_at, 'seen' => $r->seen_at !== null,
-            'creditPending' => (int) $r->payout > 0 && DB::table('pending_ops')->where('tx_id', $ref.':win')->exists()];
+            'taken' => $d ? self::taken($d) : 0,
+            'creditPending' => (int) $r->payout > 0 && DB::table('pending_ops')->where('tx_id', 'like', $ref.':%')->exists(),
+            'creditPendingAmount' => (int) DB::table('pending_ops')->where('tx_id', 'like', $ref.':%')->where('kind', 'credit')->sum('amount')];
     }
 
     private function own(object $s, int $id): object

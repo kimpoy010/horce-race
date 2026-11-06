@@ -393,7 +393,7 @@ final class GameReports
 
         return ['id' => (int) $r->id, 'ref' => 'fr:'.$r->id, 'playerId' => \App\Game\Engine::splitPk($r->player_key)[1], 'status' => $r->status, 'at' => (int) ($r->settled_at ?? $r->created_at), 'stake' => (int) $r->stake,
             'payout' => (int) $r->payout, 'currency' => $r->currency, 'bets' => $d['bets'] ?? null, 'credit' => $d['credit'] ?? null, 'rounds' => $d['rounds'] ?? null, 'spinWin' => $d['spinWin'] ?? 0,
-            'doubles' => $d['doubles'] ?? [], 'held' => $r->status === 'open' ? (int) ($d['held'] ?? 0) : 0, 'paytable' => $r->paytable_id, 'nonce' => $r->nonce === null ? null : (int) $r->nonce];
+            'doubles' => $d['doubles'] ?? [], 'taken' => (int) array_sum(array_map(fn ($x) => (int) ($x['take'] ?? 0), $d['doubles'] ?? [])), 'held' => $r->status === 'open' ? (int) ($d['held'] ?? 0) : 0, 'paytable' => $r->paytable_id, 'nonce' => $r->nonce === null ? null : (int) $r->nonce];
     }
 
     /** the latest plays of a client (optionally of one player), newest first; a win still held shows as open */

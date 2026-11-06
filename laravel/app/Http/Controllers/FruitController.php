@@ -38,7 +38,7 @@ class FruitController extends Controller
 
     public function double(Request $r, int $id): JsonResponse
     {
-        return $this->ok($this->game->double(self::session($r), $id, $r->input('side'), $r->input('step')));
+        return $this->ok($this->game->double(self::session($r), $id, $r->input('side'), $r->input('step'), $r->input('take', 0)));
     }
 
     public function collect(Request $r, int $id): JsonResponse
