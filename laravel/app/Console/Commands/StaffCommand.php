@@ -30,7 +30,7 @@ class StaffCommand extends Command
     public function handle(UserStore $us, ClientRegistry $clients): int
     {
         $action = $this->argument('action');
-        $op = str_ends_with($action, '-operator') || $action === 'list-operators';
+        $op = str_ends_with($action, '-operator') || $action === 'list-operators' || $action === 'reset-operator-password';
         $client = $op ? '_operator' : (string) $this->argument('a');
         $name = $op ? (string) $this->argument('a') : (string) $this->argument('b');
         try {
