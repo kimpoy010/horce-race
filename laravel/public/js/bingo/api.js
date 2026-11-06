@@ -22,7 +22,22 @@
     });
   }
 
+  /* A player who is signed in to the operator's own site (the cookie of /account) needs no launch token typed or passed: the page asks the account for a one-time token itself.
+     Rejects {noAccount: true} when there is no signed-in account here (then the game is only reachable through a platform's launch link). */
+  function accountLaunch() {
+    var opts = { credentials: 'same-origin', cache: 'no-store' };
+    return fetch('/player/api/me', opts).then(function (r) {
+      if (r.status !== 200) throw { noAccount: true };
+      return r.json();
+    }).then(function (me) {
+      return fetch('/player/api/launch', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'X-CSRF-Token': me.csrf, 'Content-Type': 'application/json' }, body: '{}' });
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) { if (r.status === 200 && d.token) return { token: d.token, client: d.client }; throw { noAccount: true }; });
+    }, function (e) { throw e && e.noAccount ? e : { network: true }; });
+  }
+
   window.BingoApi = {
+    accountLaunch: accountLaunch,
     hasSession: function () { return !!session; },
     setSession: function (s) { session = s; try { sessionStorage.setItem(KEY, s); } catch (e) { /* ignore */ } },
     clearSession: function () { session = null; try { sessionStorage.removeItem(KEY); } catch (e) { /* ignore */ } },

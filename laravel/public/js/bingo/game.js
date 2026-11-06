@@ -194,7 +194,7 @@
       S.requestId = null;
       setBalance(before);
       note(errText(e), false, 7000); Snd.sfx.error();
-      if (e && e.error === 'SESSION_EXPIRED') gate('SESSION ENDED', ERR.SESSION_EXPIRED, true);
+      if (e && e.error === 'SESSION_EXPIRED') { Api.clearSession(); return viaAccount().then(function () { note('Your session was renewed. Press PLAY again.', true, 6000); }, function () { gate('SESSION ENDED', ERR.SESSION_EXPIRED, true); }); }
       return refresh();
     }).then(function () { lockControls(false); return refresh(); }).catch(function () { lockControls(false); });
   }
@@ -212,8 +212,9 @@
     el.play.disabled = S.busy;
     fillRules(); fillFair();
   }
-  function refresh() {
+  function refresh(quiet) {
     return Api.state().then(function (st) { applyState(st); return st; }).catch(function (e) {
+      if (quiet) throw e;                                                  // start-up decides what to show (it may renew the session through the account)
       if (e && e.error === 'SESSION_EXPIRED') gate('SESSION ENDED', ERR.SESSION_EXPIRED, true);
       else if (e && e.error === 'GAME_NOT_ENABLED') gate('NOT AVAILABLE', ERR.GAME_NOT_ENABLED, false);
       else if (e && e.error === 'GAME_NOT_CONFIGURED') gate('NOT AVAILABLE', ERR.GAME_NOT_CONFIGURED, false);
@@ -230,6 +231,7 @@
     }
     if (st.unseen && st.last && st.last.status === 'void') { note('Your last play did not happen. Nothing was charged.', false, 6000); Api.seen(st.last.id).catch(function () {}); }
     lockControls(false);
+    setBalance(S.balance);                                  // (applyState leaves the balance alone while the controls are locked at start-up)
     return Promise.resolve();
   }
 
@@ -304,19 +306,24 @@
   if (qs.get('start') === '0') Snd.sfx.click();
 
   /* ---------- start ---------- */
+  // a signed-in player of the operator's own site needs no token: the account gives the page a one-time launch token (a platform's launch link still carries its own)
+  function viaAccount() {
+    return Api.accountLaunch().then(function (l) { return Api.auth(l.token, l.client); }).then(function (res) { Api.setSession(res.session); applyState(res); return res; });
+  }
+  function signInGate() { gate('BINGO PINBALL', 'Sign in to play.', true); }
   function begin() {
     var token = qs.get('token'), first;
     if (token) {
       history.replaceState(null, '', location.pathname + (qs.get('start') === '0' ? '?start=0' : ''));      // never leave the launch token in the address bar
       first = Api.auth(token, qs.get('client')).then(function (res) { Api.setSession(res.session); applyState(res); return res; });
     } else if (Api.hasSession()) {
-      first = refresh();
+      first = refresh(true).catch(function (e) { if (e && e.error === 'SESSION_EXPIRED') { Api.clearSession(); return viaAccount(); } throw e; });      // the saved session ended: a signed-in account starts a new one
     } else {
-      gate('BINGO PINBALL', 'Open this game from your account to play.', true);
-      return;
+      first = viaAccount();
     }
     first.then(function () { return Api.state(); }).then(function (st) { applyState(st); return recover(st); }).catch(function (e) {
-      if (e && e.status) {
+      if (e && e.noAccount) signInGate();
+      else if (e && e.status) {
         if (e.error === 'SESSION_EXPIRED' || e.error === 'INVALID_TOKEN') { Api.clearSession(); gate('SESSION ENDED', e.error === 'INVALID_TOKEN' ? 'This link was already used or has expired. Open the game again from your account.' : ERR.SESSION_EXPIRED, true); }
         else if (e.error === 'GAME_NOT_ENABLED') gate('NOT AVAILABLE', ERR.GAME_NOT_ENABLED, false);
         else gate('NOT AVAILABLE', errText(e), false);
