@@ -145,7 +145,7 @@
 
 
   /* ---------- games: the figures of each game and the plays of Bingo Pinball ---------- */
-  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball', 'bingo-pinball-16': 'Bingo Pinball 16' };
+  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball', 'bingo-pinball-16': 'Bingo Pinball 16', 'fruit-ring': 'Fruit Ring' };
   function gameRounds(box, cur, player) {
     api('GET', 'rounds?game=bingo-pinball&limit=100' + (player ? '&player=' + encodeURIComponent(player) : '')).then(function (r) {
       if (handleAuth(r)) return; clear(box);
@@ -203,6 +203,46 @@
       modal('Play ' + x.ref, body);
     });
   }
+  function gameRoundsFruit(box, cur, player) {
+    api('GET', 'rounds?game=fruit-ring&limit=100' + (player ? '&player=' + encodeURIComponent(player) : '')).then(function (r) {
+      if (handleAuth(r)) return; clear(box);
+      var list = r.data.rounds || [];
+      if (!list.length) return box.appendChild(h('p', { class: 'mute' }, 'No plays yet.'));
+      box.appendChild(table([['Play'], ['Time'], ['Player'], ['Status'], ['Stake', 'right'], ['Paid', 'right'], ['Spin win', 'right'], ['Double-ups', 'right']], list.map(function (x) {
+        return h('tr', { class: 'click', onclick: function () { gameRoundFruit(x.id, cur); } }, td(x.ref), td(when(x.at), 'nowrap'), td(x.playerId), td(x.status === 'open' ? 'held ' + money(x.held, cur) : x.status), td(money(x.stake, cur), 'right'), td(money(x.payout, cur), 'right ' + (x.payout > x.stake ? 'ok' : '')),
+          td(x.spinWin ? money(x.spinWin, cur) : '-', 'right'), td(x.doubles.length ? x.doubles.map(function (d) { return d.won ? '+' : '-'; }).join(' ') : '-', 'right'));
+      })));
+    });
+  }
+  function gameRoundFruit(id, cur) {
+    api('GET', 'games/fruit-ring/rounds/' + id).then(function (r) {
+      if (handleAuth(r)) return;
+      var body = h('div');
+      if (r.status !== 200) { body.appendChild(msg('err', errText(r))); return modal('Play fr:' + id, body); }
+      var x = r.data.round, pr = r.data.proof, bets = x.bets ? Object.keys(x.bets).map(function (k) { return k + ' ' + x.bets[k]; }).join(', ') : '-';
+      body.appendChild(table([['Item'], ['Value']], [['Player', x.playerId], ['Time', when(x.at)], ['Status', x.status + (x.status === 'open' ? ' (a win is held: ' + money(x.held, cur) + ')' : '')], ['Stake', money(x.stake, cur) + ' = ' + (x.credit ? Math.round(x.stake / x.credit) + ' credits of ' + money(x.credit, cur) : '')],
+        ['Bets (credits)', bets], ['Lit cells (rounds)', x.rounds ? x.rounds.map(function (r2) { return '[' + r2.join(' ') + ']'; }).join(' ') : '-'], ['Spin win', money(x.spinWin, cur)],
+        ['Double-ups', x.doubles.length ? x.doubles.map(function (d) { return d.side + ' ' + d.number + (d.won ? ' right' : ' wrong'); }).join('; ') : 'none'], ['Paid', money(x.payout, cur)], ['Paytable', x.paytable], ['Nonce', x.nonce == null ? '-' : x.nonce]].map(function (a) { return h('tr', null, td(a[0]), td(String(a[1]))); })));
+      if (pr) {
+        body.appendChild(h('h3', null, 'Proof'));
+        body.appendChild(h('p', { class: 'mute' }, 'The server seed was revealed, so the spin and each double-up can be re-run with the standalone verifier.'));
+        body.appendChild(h('pre', { class: 'mono', style: 'white-space:pre-wrap;word-break:break-all' }, Object.keys(pr.verify).map(function (k) { return pr.verify[k]; }).join('\n')));
+        body.appendChild(table([['Item'], ['Value']], [['Server seed', pr.serverSeed], ['Commit (sha256 of the server seed)', pr.commit], ['Player seed', pr.clientSeed], ['Nonce', pr.nonce]].map(function (a) { return h('tr', null, td(a[0]), td(String(a[1]))); })));
+      } else body.appendChild(msg('note', r.data.proofNote || 'No proof yet.'));
+      modal('Play ' + x.ref, body);
+    });
+  }
+  function sectionFruit(view, d, cur) {
+    var g = d.games['fruit-ring'], on = d.enabled.indexOf('fruit-ring') >= 0;
+    if (!g || (!on && !g.plays)) return;
+    view.appendChild(h('h2', null, 'Fruit Ring'));
+    view.appendChild(h('div', { class: 'cards' }, card('Return', pct(g.rtpActual) + ' (maths ' + pct(g.rtpTheoretical) + ')'), card('Spins vs maths', (g.rtpZ >= 0 ? '+' : '') + g.rtpZ.toFixed(1) + ' sd'),
+      card('Double-ups right', g.doubles.count ? g.doubles.won + ' of ' + g.doubles.count + ' (' + pct(g.doubles.won / g.doubles.count) + ')' : '-'), card('Wins held now', g.open.count)));
+    var q = h('input', { placeholder: 'player id (empty = everyone)', style: 'max-width:260px' }), box = h('div'), t;
+    view.appendChild(h('div', { class: 'bar' }, h('h3', { style: 'margin:0' }, 'Plays'), q, h('a', { href: '/bo/api/export/fruit-rounds.csv', download: 'fruit-rounds.csv' }, 'Download CSV')));
+    view.appendChild(box); gameRoundsFruit(box, cur, '');
+    q.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { gameRoundsFruit(box, cur, q.value.trim()); }, 250); });
+  }
   function section16(view, d, cur) {
     var g = d.games['bingo-pinball-16'], on = d.enabled.indexOf('bingo-pinball-16') >= 0;
     if (!on && !g.plays) return;
@@ -232,6 +272,7 @@
       })));
       view.appendChild(h('p', { class: 'mute' }, 'Return = paid / staked so far; Expected is what the game\'s maths predicts for the plays made. With few plays they differ by chance; the gap closes as the number of plays grows.'));
       section16(view, d, cur);
+      sectionFruit(view, d, cur);
       if (d.enabled.indexOf('bingo-pinball') < 0 && !b.plays) return;
       view.appendChild(h('h2', null, 'Bingo Pinball'));
       var lines = Object.keys(b.byLine);

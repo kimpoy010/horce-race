@@ -41,6 +41,14 @@ final class FruitService
     public function __construct(private Sessions $sessions, private WalletGateway $gateway, private Limits $limits, private ClientDirectory $clients, private Journal $journal,
         private WebhookQueue $webhooks, private SeedService $seeds, private Games $games, private Closure $now, private array $settings, private int $bigWinMin) {}
 
+    private static ?bool $figures = null;
+
+    /** whether the columns of 2026_01_10_000100 exist (code is often deployed before `php artisan migrate`; until then the game plays, the extra figures are simply not kept) */
+    private static function hasFigures(): bool
+    {
+        return self::$figures ??= Schema::hasColumn('instant_rounds', 'spin_win');
+    }
+
     private function now(): int
     {
         return ($this->now)();
@@ -214,11 +222,13 @@ final class FruitService
             $rounds = Draw::spin($this->seeds->serverSeed($seed), $seed->client_seed, $nonce);
             $payouts = Evaluator::payouts($rounds);
             $win = Evaluator::pay($rounds, $bets) * $credit;
+            $fig = Par::spinFigures($bets);
             $details = ['bets' => $bets, 'credit' => $credit, 'rounds' => $rounds, 'payouts' => $payouts, 'spinWin' => $win, 'held' => $win, 'doubles' => [], 'spinNonce' => $nonce];
             $this->journal->log(['e' => 'fr.play', 'roundId' => $ref, 'playerId' => $s->player_key, 'stake' => $stake, 'currency' => $s->currency, 'txId' => $txId, 'seedId' => (int) $seed->id,
                 'commit' => $seed->commit, 'clientSeed' => $seed->client_seed, 'nonce' => $nonce, 'bets' => $bets, 'credit' => $credit, 'rounds' => $rounds, 'win' => $win, 'paytable' => Rules::PAYTABLE_ID], self::GAME);
             DB::table('instant_rounds')->where('id', $id)->update(['seed_id' => $seed->id, 'nonce' => $nonce, 'holes' => json_encode($rounds), 'details' => json_encode($details),
-                'status' => $win > 0 ? 'open' : 'settled', 'settled_at' => $win > 0 ? null : $this->now(), 'payout' => 0, 'multiple' => null]);
+                'status' => $win > 0 ? 'open' : 'settled', 'settled_at' => $win > 0 ? null : $this->now(), 'payout' => 0, 'multiple' => null]
+                + (self::hasFigures() ? ['spin_win' => $win, 'exp_win' => $fig['expected'] * $credit, 'var_win' => $fig['variance'] * $credit * $credit, 'doubles' => 0, 'doubles_won' => 0] : []));
             DB::table('game_sessions')->where('key', $s->key)->update(['balance' => $res['balance'] ?? null, 's_staked' => DB::raw('s_staked + '.(int) $stake)]);
             if ($win === 0) {
                 $this->journal->log(['e' => 'fr.settled', 'roundId' => $ref, 'playerId' => $s->player_key, 'payout' => 0, 'doubles' => 0], self::GAME);
@@ -276,7 +286,8 @@ final class FruitService
             $d['doubles'][] = ['nonce' => $nonce, 'side' => $side, 'number' => $number, 'won' => $won];
             $d['held'] = $won ? (int) $d['held'] * 2 : 0;
             $this->journal->log(['e' => 'fr.double', 'roundId' => $ref, 'playerId' => $s->player_key, 'nonce' => $nonce, 'side' => $side, 'number' => $number, 'won' => $won, 'held' => $d['held']], self::GAME);
-            DB::table('instant_rounds')->where('id', $r->id)->update(['details' => json_encode($d)]);
+            DB::table('instant_rounds')->where('id', $r->id)->update(['details' => json_encode($d)]
+                + (self::hasFigures() ? ['doubles' => count($d['doubles']), 'doubles_won' => count(array_filter($d['doubles'], fn ($x) => $x['won']))] : []));
             $finished = ! $won || count($d['doubles']) >= Rules::DOUBLE_MAX;
         });
         $round = DB::table('instant_rounds')->where('id', $id)->first();

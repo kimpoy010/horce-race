@@ -86,7 +86,7 @@
 
 
   /* ---------- games: per game, in total and per client ---------- */
-  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball', 'bingo-pinball-16': 'Bingo Pinball 16' };
+  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball', 'bingo-pinball-16': 'Bingo Pinball 16', 'fruit-ring': 'Fruit Ring' };
   function z(v) { return v == null ? '-' : (v >= 0 ? '+' : '') + v.toFixed(1) + ' sd'; }
   function games(view) {
     function load() {
@@ -109,6 +109,13 @@
               td(p.balanced ? 'balanced' : 'DOES NOT BALANCE', p.balanced ? 'ok' : 'bad'));
           })));
           view.appendChild(h('p', { class: 'mute' }, 'Jackpots won: ' + b16.jackpotHits + ' (the maths expects ' + b16.jackpotExpected.toFixed(1) + ' for these plays, 1 in ' + Math.round(1 / b16.jackpotProbability).toLocaleString() + ' per play). Pattern pays vs the PAR sheet: ' + z(b16.rtpZ) + '.'));
+        }
+        var fr = d.games['fruit-ring'];
+        if (fr && (fr.plays || fr.doubles.count || fr.open.count)) {
+          view.appendChild(h('h2', null, 'Fruit Ring: double-ups and held wins'));
+          view.appendChild(h('p', { class: 'mute' }, '"vs maths" above judges the win of each spin before any double-up against what its bets are expected to win. The double-up is an even chance and is judged separately: right answers against 50%. A win is held while the player decides; the round loop collects it after ' + 2 + ' minutes of silence.'));
+          view.appendChild(table([['Double-ups', 'right'], ['Right', 'right'], ['vs 50%', 'right'], ['Wins held now', 'right'], ['Oldest held (s)', 'right']], [h('tr', null, td(fr.doubles.count.toLocaleString(), 'right'), td(fr.doubles.won.toLocaleString() + (fr.doubles.count ? ' (' + pct(fr.doubles.won / fr.doubles.count) + ')' : ''), 'right'),
+            td(z(fr.doubles.z), 'right ' + (Math.abs(fr.doubles.z) > 4 ? 'bad' : '')), td(fr.open.count, 'right ' + (fr.open.count ? 'warn' : '')), td(Math.round(fr.open.oldestSeconds), 'right'))]));
         }
         var b = d.games['bingo-pinball'], lines = Object.keys(b.byLine);
         if (lines.length) {

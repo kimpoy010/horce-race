@@ -332,6 +332,7 @@ final class BackOffice
                 return $this->send(200, match ($gameParam) {
                     \App\Games\GameReports::BINGO => $reports->bingoRounds($c, $r->query('limit'), $r->query('player')),
                     \App\Games\GameReports::BINGO16 => $reports->bingo16Rounds($c, $r->query('limit'), $r->query('player')),
+                    \App\Games\GameReports::FRUIT => $reports->fruitRounds($c, $r->query('limit'), $r->query('player')),
                     default => $eng->rounds($c, $r->query('limit')),
                 });
             }
@@ -339,6 +340,7 @@ final class BackOffice
                 return $this->send(200, match ($gameParam) {
                     \App\Games\GameReports::BINGO => $reports->bingoPlayers($c, $r->query('query'), $r->query('limit')),
                     \App\Games\GameReports::BINGO16 => $reports->bingo16Players($c, $r->query('query'), $r->query('limit')),
+                    \App\Games\GameReports::FRUIT => $reports->fruitPlayers($c, $r->query('query'), $r->query('limit')),
                     default => $eng->players($c, ['query' => $r->query('query'), 'limit' => $r->query('limit')]),
                 });
             }
@@ -346,6 +348,14 @@ final class BackOffice
                 $enabled = app(\App\Platform\Games\Games::class)->enabledFor($this->clients->get($c) ?? ['id' => $c]);
 
                 return $this->send(200, ['ok' => true, 'enabled' => $enabled, 'games' => $reports->summary($c)]);
+            }
+            if ($isClient && preg_match('#^games/fruit-ring/rounds/([0-9]{1,18})$#', $sub, $gm) && $method === 'GET') {
+                $res = $reports->fruitRound($c, (int) $gm[1]);
+                if (! $res) {
+                    throw self::err(404, 'NOT_FOUND');
+                }
+
+                return $this->send(200, $res);
             }
             if ($isClient && preg_match('#^games/bingo-pinball-16/rounds/([0-9]{1,18})$#', $sub, $gm) && $method === 'GET') {
                 $res = $reports->bingo16Round($c, (int) $gm[1]);
@@ -379,6 +389,14 @@ final class BackOffice
                 }
 
                 return $this->send(200, ['ok' => true, 'closed' => $eng->closeSessions($pk)]);
+            }
+            if ($isClient && $sub === 'export/fruit-rounds.csv' && $method === 'GET') {
+                $audit(['action' => 'export', 'target' => $sub]);
+                $csv = self::csv(['round', 'time', 'player', 'status', 'stake', 'paid', 'spin_win', 'credit', 'bets', 'rounds', 'doubles', 'paytable', 'nonce'],
+                    array_map(fn ($x) => [$x['ref'], gmdate('c', intdiv($x['at'], 1000)), $x['playerId'], $x['status'], $x['stake'], $x['payout'], $x['spinWin'], $x['credit'] ?? '', json_encode($x['bets'] ?? []),
+                        json_encode($x['rounds'] ?? []), implode(' ', array_map(fn ($d) => $d['side'].':'.$d['number'].($d['won'] ? ':won' : ':lost'), $x['doubles'])), $x['paytable'], $x['nonce'] ?? ''], $reports->fruitRounds($c, 300)['rounds']));
+
+                return response($csv, 200, ['Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="fruit-rounds.csv"', 'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff']);
             }
             if ($isClient && $sub === 'export/bingo16-rounds.csv' && $method === 'GET') {
                 $audit(['action' => 'export', 'target' => $sub]);

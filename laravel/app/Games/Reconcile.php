@@ -18,7 +18,8 @@ final class Reconcile
         $horse = ['settled' => 0, 'staked' => 0, 'paid' => 0];
         $bp = ['plays' => [], 'settled' => [], 'credits' => 0, 'voided' => []];
         $b16 = ['plays' => [], 'settled' => [], 'jackpotPaid' => 0, 'credits' => 0, 'add' => 0, 'win' => 0, 'seed' => 0];
-        DB::table('ledger')->orderBy('seq')->chunkById(5000, function ($rows) use (&$horse, &$bp, &$b16) {
+        $fr = ['plays' => [], 'settled' => [], 'voided' => [], 'doubles' => 0, 'credits' => 0];
+        DB::table('ledger')->orderBy('seq')->chunkById(5000, function ($rows) use (&$horse, &$bp, &$b16, &$fr) {
             foreach ($rows as $row) {
                 $ev = json_decode($row->line, true);
                 switch ($ev['e'] ?? '') {
@@ -43,6 +44,18 @@ final class Reconcile
                         $b16['settled'][$ev['roundId']] = (int) $ev['payout'];
                         $b16['jackpotPaid'] += (int) $ev['jackpotPaid'];
                         break;
+                    case 'fr.play':
+                        $fr['plays'][$ev['roundId']] = (int) $ev['stake'];
+                        break;
+                    case 'fr.double':
+                        $fr['doubles']++;
+                        break;
+                    case 'fr.settled':
+                        $fr['settled'][$ev['roundId']] = (int) $ev['payout'];
+                        break;
+                    case 'fr.void':
+                        $fr['voided'][$ev['roundId']] = true;
+                        break;
                     case 'jackpot.add':
                         $b16['add'] += (int) $ev['amount'];
                         break;
@@ -55,6 +68,9 @@ final class Reconcile
                     case 'credit_due':
                         if (($ev['game'] ?? null) === GameReports::BINGO16 && str_ends_with((string) $ev['txId'], ':win')) {
                             $b16['credits'] += (int) $ev['amount'];
+                        }
+                        if (($ev['game'] ?? null) === GameReports::FRUIT && str_ends_with((string) $ev['txId'], ':win')) {
+                            $fr['credits'] += (int) $ev['amount'];
                         }
                         if (($ev['game'] ?? null) === GameReports::BINGO && str_ends_with((string) $ev['txId'], ':win')) {
                             $bp['credits'] += (int) $ev['amount'];
@@ -77,6 +93,14 @@ final class Reconcile
         foreach ($b16['settled'] as $ref => $pay) {
             $b16Stake += $b16['plays'][$ref] ?? 0;
         }
+        $settledF = DB::table('instant_rounds')->where('game_id', GameReports::FRUIT)->where('status', 'settled');
+        $openF = DB::table('instant_rounds')->where('game_id', GameReports::FRUIT)->where('status', 'open')->count();
+        $frStake = 0;
+        foreach ($fr['settled'] as $ref => $pay) {
+            $frStake += $fr['plays'][$ref] ?? 0;
+        }
+        $frOpenLedger = count(array_diff_key($fr['plays'], $fr['settled'], $fr['voided']));         // spins that have a stake line but no settlement and no void: the wins still held
+        $frDoubles = Schema::hasColumn('instant_rounds', 'doubles') ? (int) DB::table('instant_rounds')->where('game_id', GameReports::FRUIT)->sum('doubles') : $fr['doubles'];
         $pools = Schema::hasTable('jackpot_pools') ? DB::table('jackpot_pools')->where('game_id', GameReports::BINGO16)->get() : collect();
         $unbalanced = $pools->filter(fn ($p) => (int) $p->amount !== (int) $p->seeded + (int) $p->contributed - (int) $p->paid)->count();
 
@@ -107,6 +131,15 @@ final class Reconcile
                 self::check('seed money (pool) against the ledger', (int) $pools->sum('seeded'), $b16['seed']),
                 self::check('pools that do not balance (pool = seed money + contributions - jackpots paid)', 0, $unbalanced),
                 self::check('plays settled without a stake line', 0, count(array_diff_key($b16['settled'], $b16['plays']))),
+            ]],
+            GameReports::FRUIT => ['checks' => [
+                self::check('settled plays', (int) (clone $settledF)->count(), count($fr['settled'])),
+                self::check('staked', (int) (clone $settledF)->sum('stake'), $frStake),
+                self::check('paid (after double-ups)', (int) (clone $settledF)->sum('payout'), array_sum($fr['settled'])),
+                self::check('wins queued for the wallet (credit_due)', (int) (clone $settledF)->sum('payout'), $fr['credits']),
+                self::check('wins held (open rounds) against the ledger', (int) $openF, $frOpenLedger),
+                self::check('double-ups (rounds) against the ledger', $frDoubles, $fr['doubles']),
+                self::check('plays settled without a stake line', 0, count(array_diff_key($fr['settled'], $fr['plays']))),
             ]],
         ];
         $all = true;

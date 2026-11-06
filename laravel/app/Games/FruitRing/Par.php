@@ -8,6 +8,35 @@ namespace App\Games\FruitRing;
  */
 final class Par
 {
+    private static ?array $figures = null;
+
+    /** @return array<string,array{rtp:float,sd:float}> the return and the standard deviation of one credit on each symbol (computed once) */
+    public static function symbolFigures(): array
+    {
+        if (self::$figures === null) {
+            self::$figures = [];
+            foreach (self::enumerate()['symbols'] as $sym => $f) {
+                self::$figures[$sym] = ['rtp' => $f['rtp'], 'sd' => $f['standardDeviation']];
+            }
+        }
+
+        return self::$figures;
+    }
+
+    /** what the maths expects a spin on these bets to win, and an upper bound of the variance (the symbols are treated as perfectly correlated, which can only overstate it), in credits */
+    public static function spinFigures(array $bets): array
+    {
+        $f = self::symbolFigures();
+        $exp = 0.0;
+        $sd = 0.0;
+        foreach ($bets as $sym => $n) {
+            $exp += $n * $f[$sym]['rtp'];
+            $sd += $n * $f[$sym]['sd'];
+        }
+
+        return ['expected' => $exp, 'variance' => $sd * $sd];
+    }
+
     /** @return array{symbols:array<string,array{rtp:float,hit:float,standardDeviation:float,stop:float}>, allEightRtp:float, luckyShare:float} */
     public static function enumerate(): array
     {

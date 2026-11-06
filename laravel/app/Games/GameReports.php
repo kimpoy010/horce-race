@@ -23,6 +23,8 @@ final class GameReports
 
     public const BINGO16 = 'bingo-pinball-16';
 
+    public const FRUIT = 'fruit-ring';
+
     public function __construct(private Engine $engine, private SeedService $seeds) {}
 
     private bool $ready = false;
@@ -39,7 +41,7 @@ final class GameReports
     /** @return array<string,array> the figures of every game, optionally of one client only */
     public function summary(?string $client = null): array
     {
-        return [self::HORSE => $this->horse($client), self::BINGO => $this->bingo($client), self::BINGO16 => $this->bingo16($client)];
+        return [self::HORSE => $this->horse($client), self::BINGO => $this->bingo($client), self::BINGO16 => $this->bingo16($client), self::FRUIT => $this->fruit($client)];
     }
 
     /* ---------- horse race ---------- */
@@ -321,6 +323,118 @@ final class GameReports
     public function bingo16Players(string $client, ?string $query = null, mixed $limit = 100): array
     {
         $by = DB::table('instant_rounds')->where('game_id', self::BINGO16)->where('client_id', $client)->where('status', 'settled')->groupBy('player_key')
+            ->selectRaw('player_key, count(*) as n, sum(stake) as s, sum(payout) as p, max(settled_at) as last')->orderByDesc('last')->get();
+        $q = strtolower((string) $query);
+        $out = [];
+        foreach ($by as $r) {
+            $id = \App\Game\Engine::splitPk($r->player_key)[1];
+            if ($q === '' || str_contains(strtolower($id), $q)) {
+                $out[] = ['playerId' => $id, 'plays' => (int) $r->n, 'staked' => (int) $r->s, 'paid' => (int) $r->p, 'lastPlayAt' => (int) $r->last];
+            }
+        }
+
+        return ['ok' => true, 'total' => count($out), 'players' => array_slice($out, 0, max(1, min(500, (int) $limit ?: 100)))];
+    }
+
+    /* ---------- fruit ring ---------- */
+
+    private function fruitReady(): bool
+    {
+        return $this->ready() && Schema::hasColumn('instant_rounds', 'spin_win');
+    }
+
+    private function fruitQuery(?string $client, array $status = ['settled'])
+    {
+        $q = DB::table('instant_rounds')->where('game_id', self::FRUIT)->whereIn('status', $status);
+
+        return $client === null ? $q : $q->where('client_id', $client);
+    }
+
+    /**
+     * Fruit Ring: stakes and payouts, the return, how far the SPINS are from the maths (the win of each spin before any double-up against what its bets are expected to win, with an
+     * upper bound of the variance, so it never raises a false alarm; the double-up is an even chance and is judged on its own), the double-ups against 50%, and wins still held.
+     */
+    private function fruit(?string $client): array
+    {
+        $pending = $this->pending(self::FRUIT, $client);
+        if (! $this->fruitReady()) {
+            return ['game' => self::FRUIT, 'plays' => 0, 'rounds' => 0, 'staked' => 0, 'paid' => 0, 'ggr' => 0, 'byCurrency' => (object) [], 'rtpActual' => null, 'rtpTheoretical' => null, 'rtpZ' => 0.0,
+                'hitFrequency' => null, 'doubles' => ['count' => 0, 'won' => 0, 'z' => 0.0], 'open' => ['count' => 0, 'oldestSeconds' => 0], 'pending' => $pending];
+        }
+        $q = fn () => $this->fruitQuery($client);
+        $plays = (int) $q()->count();
+        $staked = (int) $q()->sum('stake');
+        $paid = (int) $q()->sum('payout');
+        $byCurrency = [];
+        foreach ($q()->selectRaw('currency, sum(stake) as s, sum(payout) as p')->groupBy('currency')->get() as $c) {
+            $byCurrency[$c->currency] = ['staked' => (int) $c->s, 'paid' => (int) $c->p];
+        }
+        $spin = (float) $q()->sum('spin_win');
+        $exp = (float) $q()->sum('exp_win');
+        $var = (float) $q()->sum('var_win');
+        $wins = (int) $q()->where('spin_win', '>', 0)->count();
+        $all = $this->fruitQuery($client, ['settled', 'open']);
+        $dn = (int) (clone $all)->sum('doubles');
+        $dw = (int) (clone $all)->sum('doubles_won');
+        $open = $this->fruitQuery($client, ['open']);
+        $openCount = (int) (clone $open)->count();
+        $oldest = $openCount ? (clone $open)->min('created_at') : null;
+
+        return ['game' => self::FRUIT, 'plays' => $plays, 'rounds' => $plays, 'staked' => $staked, 'paid' => $paid, 'ggr' => $staked - $paid, 'byCurrency' => (object) $byCurrency,
+            'rtpActual' => $staked ? $paid / $staked : null, 'rtpTheoretical' => $staked ? $exp / $staked : null, 'spinRtpActual' => $staked ? $spin / $staked : null,
+            'rtpZ' => $var > 0 ? ($spin - $exp) / sqrt($var) : 0.0, 'hitFrequency' => $plays ? $wins / $plays : null,
+            'doubles' => ['count' => $dn, 'won' => $dw, 'z' => $dn > 0 ? ($dw - $dn / 2) / sqrt($dn / 4) : 0.0],
+            'open' => ['count' => $openCount, 'oldestSeconds' => $oldest ? max(0, ($this->engine->now() - (int) $oldest) / 1000) : 0], 'pending' => $pending];
+    }
+
+    private static function roundRowFruit(object $r): array
+    {
+        $d = $r->details === null ? [] : json_decode($r->details, true);
+
+        return ['id' => (int) $r->id, 'ref' => 'fr:'.$r->id, 'playerId' => \App\Game\Engine::splitPk($r->player_key)[1], 'status' => $r->status, 'at' => (int) ($r->settled_at ?? $r->created_at), 'stake' => (int) $r->stake,
+            'payout' => (int) $r->payout, 'currency' => $r->currency, 'bets' => $d['bets'] ?? null, 'credit' => $d['credit'] ?? null, 'rounds' => $d['rounds'] ?? null, 'spinWin' => $d['spinWin'] ?? 0,
+            'doubles' => $d['doubles'] ?? [], 'held' => $r->status === 'open' ? (int) ($d['held'] ?? 0) : 0, 'paytable' => $r->paytable_id, 'nonce' => $r->nonce === null ? null : (int) $r->nonce];
+    }
+
+    /** the latest plays of a client (optionally of one player), newest first; a win still held shows as open */
+    public function fruitRounds(string $client, mixed $limit = 50, ?string $playerId = null): array
+    {
+        $q = DB::table('instant_rounds')->where('game_id', self::FRUIT)->where('client_id', $client)->whereIn('status', ['settled', 'void', 'open']);
+        if ($playerId !== null && $playerId !== '') {
+            $q->where('player_key', $this->engine->playerKey($client, $playerId));
+        }
+
+        return ['ok' => true, 'rounds' => $q->orderByDesc('id')->limit(max(1, min(300, (int) $limit ?: 50)))->get()->map(fn ($r) => self::roundRowFruit($r))->all()];
+    }
+
+    /** one play with what is needed to re-run it (once its seed pair has been revealed): the spin and every double-up */
+    public function fruitRound(string $client, int $id): ?array
+    {
+        $r = DB::table('instant_rounds')->where('game_id', self::FRUIT)->where('client_id', $client)->where('id', $id)->first();
+        if (! $r) {
+            return null;
+        }
+        $out = ['ok' => true, 'round' => self::roundRowFruit($r), 'proof' => null];
+        $seed = $r->seed_id === null ? null : app('fruit.seeds')->revealed((int) $r->seed_id);
+        if ($seed) {
+            $d = json_decode($r->details, true);
+            $verify = ['spin' => 'php bin/fruit-verify.php --server-seed '.$seed['serverSeed'].' --client-seed '.$seed['clientSeed'].' --nonce '.(int) $r->nonce.' --bets '
+                .implode(',', array_map(fn ($sym) => $d['bets'][$sym] ?? 0, \App\Games\FruitRing\Rules::SYMBOLS)).' --commit '.$seed['commit']];
+            foreach ($d['doubles'] ?? [] as $i => $x) {
+                $verify['double'.($i + 1)] = 'php bin/fruit-verify.php --double --server-seed '.$seed['serverSeed'].' --client-seed '.$seed['clientSeed'].' --nonce '.(int) $x['nonce'];
+            }
+            $out['proof'] = ['serverSeed' => $seed['serverSeed'], 'commit' => $seed['commit'], 'clientSeed' => $seed['clientSeed'], 'nonce' => (int) $r->nonce, 'verify' => $verify];
+        } else {
+            $out['proofNote'] = 'The server seed of this play is still secret; it is shown once the player starts a new seed or the pair is used up.';
+        }
+
+        return $out;
+    }
+
+    /** the players of a client who played Fruit Ring, latest first */
+    public function fruitPlayers(string $client, ?string $query = null, mixed $limit = 100): array
+    {
+        $by = DB::table('instant_rounds')->where('game_id', self::FRUIT)->where('client_id', $client)->where('status', 'settled')->groupBy('player_key')
             ->selectRaw('player_key, count(*) as n, sum(stake) as s, sum(payout) as p, max(settled_at) as last')->orderByDesc('last')->get();
         $q = strtolower((string) $query);
         $out = [];

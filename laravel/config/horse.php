@@ -70,6 +70,7 @@ return [
         'rtpMinRounds' => 300,                                              // ... after this many races
         'jackpotMinExpected' => (int) env('HORSE_ALERT_JACKPOT_MIN_EXPECTED', 5),   // Bingo Pinball 16: the jackpot-count check starts when this many jackpots are expected by the maths
         'bingoMinPlays' => (int) env('HORSE_ALERT_BINGO_MIN_PLAYS', 1000), // Bingo Pinball: the same check against its PAR sheet, after this many plays
+        'doubleMinCount' => (int) env('HORSE_ALERT_FRUIT_DOUBLE_MIN', 400),   // Fruit Ring: the double-ups are compared with an even chance after this many
         'diskFreeMb' => (int) env('HORSE_ALERT_DISK_FREE_MB', 500),         // free space where the database / logs are kept
         'repeatMinutes' => (int) env('HORSE_ALERT_REPEAT_MIN', 30),         // reminder while an alert stays active
     ],
