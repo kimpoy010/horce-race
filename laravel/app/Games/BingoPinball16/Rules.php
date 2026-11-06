@@ -3,7 +3,7 @@
 namespace App\Games\BingoPinball16;
 
 /**
- * Bingo Pinball 16: the fixed rules (docs/bingo16/MATH.md). 16 balls are played; every ball ends in one of 16 slots (the slots fill the floor, nothing drains out); a slot with a
+ * Bingo Pinball 16: the fixed rules (docs/bingo16/MATH.md). 16 balls are played; every ball ends in one of 16 slots (the slots fill the floor) or falls into one of three baskets among the pegs and is MISSED; a slot with a
  * ball lights its cell on a 4 x 4 card (slot k lights cell k, numbered 1-16 row by row); the best complete pattern (of twelve) pays a multiple of the stake; five random jackpot numbers decide
  * the progressive jackpot (each needs at least two balls).
  * Nothing here is ever changed once a game is certified: a different paytable is a new game version.
@@ -12,16 +12,24 @@ final class Rules
 {
     public const ID = 'bingo-pinball-16';
 
-    public const PAYTABLE_ID = 'b16-v90-2';
+    public const PAYTABLE_ID = 'b16-v90-3';
 
     public const BALLS = 16;
 
     public const SLOTS = 16;
 
-    /** every ball is one number below TOTAL_WEIGHT: slot k for [625 (k-1), 625 k) */
+    /** every ball is one number below TOTAL_WEIGHT: a MISS (it falls into a basket) for [0, 1,600), then slot k for [1,600 + 525 (k-1), 1,600 + 525 k) */
     public const TOTAL_WEIGHT = 10000;
 
-    public const SLOT_WEIGHT = 625;
+    public const SLOT_WEIGHT = 525;
+
+    /** 16% of the balls miss: they fall into one of the three baskets among the pegs */
+    public const MISS_WEIGHT = 1600;
+
+    /** three baskets take the place of three of ten pegs, new ones for every play */
+    public const BASKETS = 3;
+
+    public const BASKET_SPOTS = 10;
 
     public const JACKPOT_NUMBERS = 5;
 
@@ -34,14 +42,14 @@ final class Rules
      */
     public const PATTERNS = [
         'full' => ['FULL CARD', 10000, [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]]],
-        'bigbox' => ['BIG BOX', 300, [[0, 1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15]]],
-        'zshape' => ['Z SHAPE', 30, [[0, 1, 2, 3, 6, 9, 12, 13, 14, 15]]],
-        'equal' => ['EQUAL', 10, [[0, 1, 2, 3, 12, 13, 14, 15]]],
-        'eleven' => ['NUMBER ELEVEN', 10, [[0, 4, 8, 12, 3, 7, 11, 15]]],
-        'lucky7' => ['LUCKY SEVEN', 4, [[0, 1, 2, 3, 6, 9, 12]]],
-        'lshape' => ['L SHAPE', 4, [[0, 4, 8, 12, 13, 14, 15]]],
-        'corners' => ['4 CORNERS', 2, [[0, 3, 12, 15]]],
-        'smallbox' => ['SMALL BOX', 2, [[5, 6, 9, 10]]],
+        'bigbox' => ['BIG BOX', 1000, [[0, 1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15]]],
+        'zshape' => ['Z SHAPE', 160, [[0, 1, 2, 3, 6, 9, 12, 13, 14, 15]]],
+        'equal' => ['EQUAL', 20, [[0, 1, 2, 3, 12, 13, 14, 15]]],
+        'eleven' => ['NUMBER ELEVEN', 20, [[0, 4, 8, 12, 3, 7, 11, 15]]],
+        'lucky7' => ['LUCKY SEVEN', 8, [[0, 1, 2, 3, 6, 9, 12]]],
+        'lshape' => ['L SHAPE', 8, [[0, 4, 8, 12, 13, 14, 15]]],
+        'corners' => ['4 CORNERS', 4, [[0, 3, 12, 15]]],
+        'smallbox' => ['SMALL BOX', 4, [[5, 6, 9, 10]]],
         'diagonal' => ['DIAGONAL', 2, [[0, 5, 10, 15], [3, 6, 9, 12]]],
         'across' => ['ACROSS', 1, [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]],
         'down' => ['DOWN', 1, [[0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15]]],
@@ -80,6 +88,6 @@ final class Rules
     /** a stable text of everything that decides a result or a payout: its sha256 is frozen in a test, so the rules cannot change by accident */
     public static function canonical(): string
     {
-        return json_encode([self::PAYTABLE_ID, self::BALLS, self::SLOTS, self::TOTAL_WEIGHT, self::SLOT_WEIGHT, self::JACKPOT_NUMBERS, self::JACKPOT_MIN_BALLS, self::PATTERNS, self::LINES], JSON_THROW_ON_ERROR);
+        return json_encode([self::PAYTABLE_ID, self::BALLS, self::SLOTS, self::TOTAL_WEIGHT, self::SLOT_WEIGHT, self::MISS_WEIGHT, self::BASKETS, self::BASKET_SPOTS, self::JACKPOT_NUMBERS, self::JACKPOT_MIN_BALLS, self::PATTERNS, self::LINES], JSON_THROW_ON_ERROR);
     }
 }

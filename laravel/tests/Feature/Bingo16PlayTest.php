@@ -211,7 +211,7 @@ class Bingo16PlayTest extends TestCase
     {
         $s = $this->auth();
         $st = $this->getJson(self::BASE.'/state', $this->bearer($s))->assertOk()->json();
-        $this->assertSame(['PHP', 100000, 'b16-v90-2', 16, 16], [$st['currency'], $st['balance'], $st['paytable']['id'], $st['paytable']['balls'], $st['paytable']['slots']]);
+        $this->assertSame(['PHP', 100000, 'b16-v90-3', 16, 16], [$st['currency'], $st['balance'], $st['paytable']['id'], $st['paytable']['balls'], $st['paytable']['slots']]);
         $this->assertSame(10000, $st['jackpot']['amount'], 'the pool starts at its seed');
         $this->assertNull($st['last']);
         $r = $this->play($s, 1000)->assertOk()->json();

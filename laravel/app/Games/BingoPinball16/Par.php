@@ -3,7 +3,7 @@
 namespace App\Games\BingoPinball16;
 
 /**
- * The PAR figures of the paytable by enumerating every set of lit slots (65,536) with its probability (inclusion-exclusion over the sets); the jackpot (each of five numbers holds two balls) by a generating function, through the same Evaluator
+ * The PAR figures of the paytable by enumerating every set of lit slots (65,536) with its probability (inclusion-exclusion over the sets); the jackpot (each of five numbers holds two balls) by a generating function (a ball is missed with 16%, lands on one slot with 5.25%), through the same Evaluator
  * the game uses. PHP has no big integers here, so this is double-precision arithmetic (good to about 1e-10); the EXACT figures, with big integers, come from
  * docs/bingo16/verify_play.py and are in docs/bingo16/par.json: the test requires the two to agree.
  */
@@ -20,7 +20,7 @@ final class Par
         }
         $g = [];
         for ($s = 0; $s < $size; $s++) {
-            $g[$s] = ($pop[$s] / Rules::SLOTS) ** Rules::BALLS;          // P(every ball lands in a slot of the set)
+            $g[$s] = ((Rules::MISS_WEIGHT + Rules::SLOT_WEIGHT * $pop[$s]) / Rules::TOTAL_WEIGHT) ** Rules::BALLS;          // P(every ball is missed or lands in a slot of the set)
         }
         for ($i = 0; $i < $n; $i++) {                                  // inclusion-exclusion: P(the lit set is exactly S)
             $b = 1 << $i;
@@ -58,7 +58,7 @@ final class Par
         return ['patterns' => $patterns, 'rtp' => $rtp, 'hit' => array_sum($patterns), 'standardDeviation' => sqrt($second - $rtp * $rtp), 'jackpot' => $jackpot, 'expectedLit' => $lit];
     }
 
-    /** P(five given slots each hold at least two of the 16 balls): 16! x [x^16] (e^x - 1 - x)^5 (e^x)^11 / 16^16 (double precision; the exact fraction is in docs/bingo16/par.json) */
+    /** P(five given slots each hold at least two of the 16 balls): 16! x [x^16] of the product of five (sum from 2 of (p x)^i / i!) and one e^((11 p + miss) x) (double precision; the exact fraction is in docs/bingo16/par.json) */
     public static function jackpotProbability(): float
     {
         $n = Rules::BALLS;
@@ -78,19 +78,19 @@ final class Par
 
             return $r;
         };
+        $p = Rules::SLOT_WEIGHT / Rules::TOTAL_WEIGHT;                   // a ball lands in one given slot
+        $other = (Rules::SLOTS - Rules::JACKPOT_NUMBERS) * $p + Rules::MISS_WEIGHT / Rules::TOTAL_WEIGHT;
         $ex = $two = [];
         for ($i = 0; $i <= $n; $i++) {
-            $ex[$i] = 1 / $fact[$i];
-            $two[$i] = $i >= Rules::JACKPOT_MIN_BALLS ? $ex[$i] : 0.0;
+            $ex[$i] = $other ** $i / $fact[$i];
+            $two[$i] = $i >= Rules::JACKPOT_MIN_BALLS ? $p ** $i / $fact[$i] : 0.0;
         }
-        $p = array_merge([1.0], array_fill(1, $n, 0.0));
+        $poly = array_merge([1.0], array_fill(1, $n, 0.0));
         for ($i = 0; $i < Rules::JACKPOT_NUMBERS; $i++) {
-            $p = $mul($p, $two);
+            $poly = $mul($poly, $two);
         }
-        for ($i = 0; $i < Rules::SLOTS - Rules::JACKPOT_NUMBERS; $i++) {
-            $p = $mul($p, $ex);
-        }
+        $poly = $mul($poly, $ex);
 
-        return $p[$n] * $fact[$n] / (Rules::SLOTS ** $n);
+        return $poly[$n] * $fact[$n];
     }
 }

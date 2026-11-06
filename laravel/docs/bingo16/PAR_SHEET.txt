@@ -1,24 +1,24 @@
-Bingo Pinball 16 - paytable b16-v90-2: exact PAR sheet
+Bingo Pinball 16 - paytable b16-v90-3: exact PAR sheet
 
-Each ball lands in slot k with probability 625/10000 (every ball lands in a slot, there is no OUT). 16 balls per play.
+Each ball is MISSED (falls into a basket) with probability 1600/10000, otherwise lands in slot k with probability 525/10000. 16 balls per play, three baskets on three of ten places.
 
 Pattern            pays   probability   1 in         share of RTP (best pattern only)
-FULL CARD         5000x   0.00000113     881,658.0    0.567%
-BIG BOX            150x   0.00049995       2,000.2    7.499%
-Z SHAPE             15x   0.00303820         329.1    4.557%
-EQUAL                5x   0.01017647          98.3    5.088%
-NUMBER ELEVEN        5x   0.01321467          75.7    6.607%
-LUCKY SEVEN          2x   0.02299526          43.5    4.599%
-L SHAPE              2x   0.02086604          47.9    4.173%
-4 CORNERS            1x   0.10468521           9.6   10.469%
-SMALL BOX            1x   0.13168309           7.6   13.168%
-DIAGONAL             1x   0.11889507           8.4   11.890%
-ACROSS             0.5x   0.25353813           3.9   12.677%
-DOWN               0.5x   0.13306236           7.5    6.653%
+FULL CARD         5000x   0.00000007   14,349,327.6    0.035%
+BIG BOX            500x   0.00008706      11,486.3    4.353%
+Z SHAPE             80x   0.00078638       1,271.6    6.291%
+EQUAL               10x   0.00405244         246.8    4.052%
+NUMBER ELEVEN       10x   0.00483883         206.7    4.839%
+LUCKY SEVEN          4x   0.01022831          97.8    4.091%
+L SHAPE              4x   0.00960599         104.1    3.842%
+4 CORNERS            2x   0.07720284          13.0   15.441%
+SMALL BOX            2x   0.08807347          11.4   17.615%
+DIAGONAL             1x   0.09796061          10.2    9.796%
+ACROSS             0.5x   0.21106326           4.7   10.553%
+DOWN               0.5x   0.14030294           7.1    7.015%
 
-Pattern RTP  87.9479%   exact 506985152978611131/576460752303423488
-Win frequency (any pattern)      81.266%
-Standard deviation of a play     6.3818 x stake
-Expected lit slots per play      10.303 of 16
-Jackpot (all 5 jackpot numbers hold at least 2 balls)  probability 0.000209  1 in 4,791
+Pattern RTP  87.9235%   exact 4720359261712142310111056264182550132841/5368709120000000000000000000000000000000
+Win frequency (any pattern)      64.420%
+Standard deviation of a play     5.4608 x stake
+Expected lit slots per play      9.249 of 16
+Jackpot (all 5 jackpot numbers hold at least 2 balls)  probability 0.000046  1 in 21,586
 

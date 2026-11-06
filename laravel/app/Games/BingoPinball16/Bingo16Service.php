@@ -192,7 +192,7 @@ final class Bingo16Service
             $pool = $this->pool->settle($ref, $stake, $s->currency, $e['jackpot']);          // locks the pool row; the whole pool when all five numbers are lit
             $payout = $patternPay + $pool['paid'];
             $t = $this->now();
-            $details = ['balls' => $d['balls'], 'jackpotNumbers' => $d['jackpotNumbers'], 'lit' => $e['lit'], 'pattern' => $e['pattern'], 'lines' => $e['lines'], 'jackpotLit' => $e['jackpotLit'],
+            $details = ['balls' => $d['balls'], 'jackpotNumbers' => $d['jackpotNumbers'], 'baskets' => $d['baskets'], 'missed' => $e['missed'], 'lit' => $e['lit'], 'pattern' => $e['pattern'], 'lines' => $e['lines'], 'jackpotLit' => $e['jackpotLit'],
                 'jackpot' => $e['jackpot'], 'patternPay' => $patternPay, 'contribution' => $pool['contribution'], 'poolBefore' => $pool['poolBefore'], 'poolAfter' => $pool['poolAfter']];
             DB::table('instant_rounds')->where('id', $id)->update(['seed_id' => $seed->id, 'nonce' => $nonce, 'holes' => json_encode($d['balls']), 'best_lit' => count($e['lit']), 'multiple' => $e['halves'],
                 'payout' => $payout, 'jackpot_paid' => $pool['paid'], 'pattern' => $e['pattern'], 'details' => json_encode($details), 'status' => 'settled', 'settled_at' => $t]);
@@ -257,7 +257,7 @@ final class Bingo16Service
         $pattern = $d['pattern'] ?? null;
 
         return ['id' => (int) $r->id, 'ref' => $ref, 'status' => $r->status, 'stake' => (int) $r->stake, 'currency' => $r->currency, 'paytable' => ['id' => $r->paytable_id],
-            'balls' => $d['balls'] ?? null, 'jackpotNumbers' => $d['jackpotNumbers'] ?? null, 'lit' => $d['lit'] ?? null, 'pattern' => $pattern, 'patternName' => $pattern ? Rules::PATTERNS[$pattern][0] : null,
+            'balls' => $d['balls'] ?? null, 'jackpotNumbers' => $d['jackpotNumbers'] ?? null, 'baskets' => $d['baskets'] ?? null, 'missed' => $d['missed'] ?? null, 'lit' => $d['lit'] ?? null, 'pattern' => $pattern, 'patternName' => $pattern ? Rules::PATTERNS[$pattern][0] : null,
             'lines' => $d['lines'] ?? null, 'multiple' => $r->multiple === null ? null : (int) $r->multiple / 2, 'jackpotLit' => $d['jackpotLit'] ?? null, 'jackpot' => $d['jackpot'] ?? false,
             'patternPay' => $d['patternPay'] ?? 0, 'jackpotPaid' => (int) $r->jackpot_paid, 'payout' => (int) $r->payout, 'nonce' => $r->nonce === null ? null : (int) $r->nonce,
             'seedId' => $r->seed_id === null ? null : (int) $r->seed_id, 'createdAt' => (int) $r->created_at, 'settledAt' => $r->settled_at === null ? null : (int) $r->settled_at, 'seen' => $r->seen_at !== null,
@@ -324,7 +324,7 @@ final class Bingo16Service
         }
 
         return ['round' => $this->roundView($r), 'proof' => ['serverSeed' => $seed['serverSeed'], 'commit' => $seed['commit'], 'clientSeed' => $seed['clientSeed'], 'nonce' => (int) $r->nonce,
-            'balls' => json_decode($r->details, true)['balls'], 'jackpotNumbers' => json_decode($r->details, true)['jackpotNumbers'], 'paytable' => Rules::paytable(),
+            'balls' => json_decode($r->details, true)['balls'], 'jackpotNumbers' => json_decode($r->details, true)['jackpotNumbers'], 'baskets' => json_decode($r->details, true)['baskets'] ?? null, 'paytable' => Rules::paytable(),
             'verify' => 'php bin/bingo16-verify.php --server-seed '.$seed['serverSeed'].' --client-seed '.$seed['clientSeed'].' --nonce '.(int) $r->nonce.' --stake '.(int) $r->stake.' --commit '.$seed['commit']]];
     }
 

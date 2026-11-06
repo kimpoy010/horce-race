@@ -14,12 +14,13 @@ require_once __DIR__.'/../../bin/bingo16-verify.php';
 class BingoMath16Test extends TestCase
 {
     /** sha256 of Rules::canonical(): the rules of a certified game are frozen; a change is a new version and a deliberate new line here */
-    private const FROZEN = '6a036849baa0b4033beb2d52d034ab4e6672801f5beab64b94d14540313f232b';
+    private const FROZEN = 'c0ccfa2f6f6a0dce78d953a86686cdd8c64fb1e5f19ec3bff88747ef1049590c';
 
     public function test_the_rules_are_frozen(): void
     {
         $this->assertSame(self::FROZEN, hash('sha256', Rules::canonical()), 'the rules of Bingo Pinball 16 changed: a certified game is never edited, add a new version instead');
-        $this->assertSame(Rules::TOTAL_WEIGHT, Rules::SLOT_WEIGHT * Rules::SLOTS, 'every ball lands in a slot: no OUT');
+        $this->assertSame(Rules::TOTAL_WEIGHT, Rules::MISS_WEIGHT + Rules::SLOT_WEIGHT * Rules::SLOTS, 'every ball is missed or lands in a slot');
+        $this->assertSame([3, 10], [Rules::BASKETS, Rules::BASKET_SPOTS]);
         $this->assertCount(10, Rules::LINES);
     }
 
@@ -48,12 +49,13 @@ class BingoMath16Test extends TestCase
             $this->assertSame($want, $e['pattern'], 'balls '.implode(',', $balls));
             $this->assertSame($want === null ? 0 : Rules::PATTERNS[$want][1], $e['halves']);
         }
-        $this->assertSame([2, 1, 10], [Rules::PATTERNS['diagonal'][1], Rules::PATTERNS['across'][1], Rules::PATTERNS['eleven'][1]]);
+        $this->assertSame([2, 1, 20], [Rules::PATTERNS['diagonal'][1], Rules::PATTERNS['across'][1], Rules::PATTERNS['eleven'][1]]);
         $this->assertSame(500, Rules::pay('across', 1000), 'half the stake');
-        $this->assertSame(1000, Rules::pay('smallbox', 1000), 'the stake');
-        $this->assertSame(5000, Rules::pay('eleven', 1000));
+        $this->assertSame(2000, Rules::pay('smallbox', 1000), 'twice the stake');
+        $this->assertSame(10000, Rules::pay('eleven', 1000));
         $this->assertSame(2, Rules::pay('across', 5), 'rounded down');
-        $this->assertSame([5, 9], Evaluator::evaluate([9, 5, 5, 9], [1, 2, 3, 4, 5])['lit'], 'lit cells, once each, in order');
+        $this->assertSame([5, 9], Evaluator::evaluate([9, 5, 5, 0, 9, 0], [1, 2, 3, 4, 5])['lit'], 'lit cells, once each, in order; a missed ball (0) lights nothing');
+        $this->assertSame(2, Evaluator::evaluate([9, 5, 5, 0, 9, 0], [1, 2, 3, 4, 5])['missed']);
         $j = Evaluator::evaluate([3, 3, 7, 7, 10, 10, 12, 12, 16, 16], [3, 7, 10, 12, 16]);
         $this->assertSame([5, true], [$j['jackpotLit'], $j['jackpot']], 'each jackpot number holds two balls');
         $j = Evaluator::evaluate([3, 3, 7, 7, 10, 10, 12, 12, 16], [3, 7, 10, 12, 16]);
@@ -90,7 +92,7 @@ class BingoMath16Test extends TestCase
             $this->assertEqualsWithDelta($exact['patterns'][$k]['probability'], $p, 1e-11, $k);
             $this->assertEqualsWithDelta(Rules::PATTERNS[$k][1] / 2, $exact['patterns'][$k]['pays'], 1e-12);
         }
-        $this->assertEqualsWithDelta(0.8795, $par['rtp'], 0.00005, 'the published pattern RTP');
+        $this->assertEqualsWithDelta(0.8792, $par['rtp'], 0.00005, 'the published pattern RTP');
     }
 
     public function test_the_draw_gives_the_known_answers_of_the_independent_python_implementation(): void
@@ -104,6 +106,9 @@ class BingoMath16Test extends TestCase
             $this->assertSame($v['jackpotNumbers'], $d['jackpotNumbers']);
             $e = Evaluator::evaluate($d['balls'], $d['jackpotNumbers']);
             $this->assertSame([$v['lit'], $v['pattern'], $v['halves'], $v['cells'], $v['jackpotLit'], $v['jackpot']], [$e['lit'], $e['pattern'], $e['halves'], $e['cells'], $e['jackpotLit'], $e['jackpot']]);
+            $this->assertSame($v['baskets'], $d['baskets']);
+            $this->assertSame($v['baskets'], b16_draw($v['serverSeed'], $v['clientSeed'], $v['nonce'])[2]);
+            $this->assertSame(count(array_filter($v['balls'], fn ($b) => $b === 0)), $e['missed']);
             $this->assertSame($v['commit'], Draw::commitOf($v['serverSeed']));
             [$vb, $vj] = b16_draw($v['serverSeed'], $v['clientSeed'], $v['nonce']);             // the standalone PHP verifier
             $this->assertSame([$v['balls'], $v['jackpotNumbers']], [$vb, $vj]);
@@ -137,8 +142,9 @@ class BingoMath16Test extends TestCase
     public function test_every_outcome_of_a_ball_and_every_jackpot_number_is_equally_likely(): void
     {
         $draws = (int) (getenv('BINGO_STAT_DRAWS') ?: 6000);                // 96,000 balls and 6,000 sets of jackpot numbers
-        $ball = array_fill(1, 16, 0);
+        $ball = array_fill(0, 17, 0);
         $jp = array_fill(1, 16, 0);
+        $bk = array_fill(1, 10, 0);
         $seed = hash('sha256', 'uniformity16');
         for ($n = 1; $n <= $draws; $n++) {
             $d = Draw::play($seed, 'stat', $n);
@@ -148,19 +154,28 @@ class BingoMath16Test extends TestCase
             foreach ($d['jackpotNumbers'] as $x) {
                 $jp[$x]++;
             }
+            $this->assertCount(3, array_unique($d['baskets']));
+            foreach ($d['baskets'] as $x) {
+                $bk[$x]++;
+            }
         }
         $total = $draws * 16;
-        $p = array_fill(1, 16, 625 / 10000);
+        $p = [0 => 1600 / 10000] + array_fill(1, 16, 525 / 10000);
         $chi = 0.0;
         foreach ($p as $k => $pk) {
             $chi += ($ball[$k] - $total * $pk) ** 2 / ($total * $pk);
         }
-        $this->assertLessThan(15 + 4.5 * sqrt(2 * 15), $chi, 'balls follow the slot weights (chi-square, 15 degrees of freedom)');
+        $this->assertLessThan(16 + 4.5 * sqrt(2 * 16), $chi, 'balls follow the miss and slot weights (chi-square, 16 degrees of freedom)');
         $chi = 0.0;
         foreach ($jp as $c) {
             $chi += ($c - $draws * 5 / 16) ** 2 / ($draws * 5 / 16);
         }
         $this->assertLessThan(15 + 4.5 * sqrt(2 * 15), $chi, 'every number is equally likely to be a jackpot number');
+        $chi = 0.0;
+        foreach ($bk as $c) {
+            $chi += ($c - $draws * 3 / 10) ** 2 / ($draws * 3 / 10);
+        }
+        $this->assertLessThan(9 + 4.5 * sqrt(2 * 9), $chi, 'every place is equally likely to hold a basket');
     }
 
     public function test_the_observed_return_of_many_plays_is_close_to_the_exact_one(): void
@@ -172,7 +187,7 @@ class BingoMath16Test extends TestCase
             $d = Draw::play($seed, 'rtp', $n);
             $paid += Evaluator::evaluate($d['balls'], $d['jackpotNumbers'])['halves'] / 2;
         }
-        $sd = 6.3818 / sqrt($plays);
-        $this->assertEqualsWithDelta(0.879479, $paid / $plays, 5 * $sd, 'observed pattern return of '.$plays.' plays within 5 standard errors');
+        $sd = 5.4608 / sqrt($plays);
+        $this->assertEqualsWithDelta(0.879235, $paid / $plays, 5 * $sd, 'observed pattern return of '.$plays.' plays within 5 standard errors');
     }
 }

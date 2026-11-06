@@ -69,7 +69,7 @@ class GameReports16Test extends StaffTestCase
         $rows = [];
         for ($i = 1; $i <= $n; $i++) {
             $jp = $jackpotEvery && $i % $jackpotEvery === 0 ? 5000 : $jackpotPaid;
-            $rows[] = ['game_id' => 'bingo-pinball-16', 'player_key' => 'acme:x', 'client_id' => 'acme', 'stake' => 1000, 'currency' => 'PHP', 'paytable_id' => 'b16-v90-2', 'paytable_version' => 1, 'best_lit' => 4,
+            $rows[] = ['game_id' => 'bingo-pinball-16', 'player_key' => 'acme:x', 'client_id' => 'acme', 'stake' => 1000, 'currency' => 'PHP', 'paytable_id' => 'b16-v90-3', 'paytable_version' => 1, 'best_lit' => 4,
                 'multiple' => $multiple * 2, 'payout' => 1000 * $multiple + $jp, 'jackpot_paid' => $jp, 'pattern' => $multiple === 2 ? 'lshape' : null, 'status' => 'settled', 'request_id' => 'bulk'.$i, 'created_at' => $at, 'settled_at' => $at];
         }
         foreach (array_chunk($rows, 500) as $c) {
@@ -98,6 +98,7 @@ class GameReports16Test extends StaffTestCase
 
     public function test_the_alerts_judge_the_patterns_the_jackpots_and_the_books_of_the_pool(): void
     {
+        config(['horse.alerts.jackpotMinExpected' => 1]);                                      // a jackpot is about 1 in 21,600 plays: judge it after 1 expected, not 5
         $alerts = new AlertManager($this->engine, config('horse.alerts'), null, fn () => $this->t);
         $this->assertSame([], array_column($alerts->current(), 'name'));
         $this->bulk(20000, 0);                                                                  // 20,000 plays that never win: far below the PAR sheet

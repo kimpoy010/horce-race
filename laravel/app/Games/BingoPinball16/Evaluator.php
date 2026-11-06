@@ -6,15 +6,17 @@ namespace App\Games\BingoPinball16;
 final class Evaluator
 {
     /**
-     * @param  list<int>  $balls  the slot of each ball (1-16)
+     * @param  list<int>  $balls  the slot of each ball (1-16), 0 for a missed ball (it fell into a basket)
      * @param  list<int>  $jackpotNumbers  five numbers 1-16
-     * @return array{lit:list<int>, pattern:?string, halves:int, cells:list<int>, jackpotLit:int, jackpot:bool, lines:list<int>}
+     * @return array{lit:list<int>, pattern:?string, halves:int, cells:list<int>, missed:int, jackpotLit:int, jackpot:bool, lines:list<int>}
      */
     public static function evaluate(array $balls, array $jackpotNumbers): array
     {
         $cells = [];
         foreach ($balls as $b) {
-            $cells[$b - 1] = true;
+            if ($b > 0) {
+                $cells[$b - 1] = true;
+            }
         }
         $fullLines = [];
         foreach (Rules::LINES as $i => $line) {
@@ -46,7 +48,7 @@ final class Evaluator
         $made = array_map(fn ($c) => $c + 1, $made);
         sort($made);
 
-        return ['lit' => $lit, 'pattern' => $pattern, 'halves' => $pattern === null ? 0 : Rules::PATTERNS[$pattern][1], 'cells' => $made, 'jackpotLit' => $jackpotLit,
+        return ['lit' => $lit, 'pattern' => $pattern, 'halves' => $pattern === null ? 0 : Rules::PATTERNS[$pattern][1], 'cells' => $made, 'missed' => count(array_filter($balls, fn ($b) => $b === 0)), 'jackpotLit' => $jackpotLit,
             'jackpot' => $jackpotLit === Rules::JACKPOT_NUMBERS, 'lines' => $fullLines];
     }
 }
