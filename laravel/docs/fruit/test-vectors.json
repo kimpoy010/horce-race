@@ -1,0 +1,622 @@
+[
+ {
+  "serverSeed": "77c2139db7a18a2892314c631389f5e3b398ee11f61c33e489e7dc8e833dfa6e",
+  "commit": "67cc9517f314a32659bdba4b6749e210a6883d492655586f5e82fcdf79837fe5",
+  "clientSeed": "vector-1",
+  "nonce": 2,
+  "lit": [
+   11
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 6,
+   "apple": 0
+  },
+  "double": 13
+ },
+ {
+  "serverSeed": "74726a775db733c56d1b8e41a0e594ac4fd9bd0401589410f6eaecee68538cac",
+  "commit": "4bf05db485aaa986447bf052fcf7f3f48b64bc72b17e4f81498a75edb6325a7f",
+  "clientSeed": "vector-2",
+  "nonce": 3,
+  "lit": [
+   21,
+   10,
+   13
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 5,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 2
+  },
+  "double": 12
+ },
+ {
+  "serverSeed": "c08dc8164f9fc6475dcf36757438195ca8ffa7c3106c72014ad66cc78bc1d87e",
+  "commit": "0fbe35955d1e08990c49880b3dc264013303b15c68c2575d16fc6e9c7e7d6271",
+  "clientSeed": "vector-3",
+  "nonce": 4,
+  "lit": [
+   12
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 2,
+   "apple": 0
+  },
+  "double": 8
+ },
+ {
+  "serverSeed": "ec5f24c02f1648d7fd26769919ca3d54262c3d53486dd74d940fdd87d702205c",
+  "commit": "404fd14c2e3880014a11e6685063109fb5e6b8c4b1455d912fd4facd453b849c",
+  "clientSeed": "vector-4",
+  "nonce": 5,
+  "lit": [
+   10
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 2
+  },
+  "double": 12
+ },
+ {
+  "serverSeed": "96bfa43740cbc9972209577e0eb56f3f5a631c3cdb23b743ae6809b258fb4b1c",
+  "commit": "d3d7cea9c090545a4ac9e6e89c20726f1bc4e9b8511818571f5c53fde929a4f3",
+  "clientSeed": "vector-5",
+  "nonce": 6,
+  "lit": [
+   14
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 30,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 4
+ },
+ {
+  "serverSeed": "f68dff983f4508c119eb96689c8891c23912bea5044455cea342f7521b546b4a",
+  "commit": "64acd7b40cdce6c389873f8e65023cf97224d5d37a240622f75bebb902862ca9",
+  "clientSeed": "vector-6",
+  "nonce": 7,
+  "lit": [
+   17
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 12,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 8
+ },
+ {
+  "serverSeed": "49c047254f53cd8b6e8cb7c93d52e0870f5947c30a9639b165242568a94ee443",
+  "commit": "f90f87b54809334f2616800e56f0bf0b15c18af1efc87edf819dfa78a971b05a",
+  "clientSeed": "vector-7",
+  "nonce": 8,
+  "lit": [
+   14
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 30,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 7
+ },
+ {
+  "serverSeed": "4a828342244c82dd50caf4efbbe6a9ce4c9dde2cc8ab2cc891a126a84b6de6fd",
+  "commit": "3fa98530a4ed36dd2dc9bf04bb88820401a5c00fad3df67e8d02b0fb7b68f937",
+  "clientSeed": "vector-8",
+  "nonce": 9,
+  "lit": [
+   0
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 2,
+   "apple": 0
+  },
+  "double": 12
+ },
+ {
+  "serverSeed": "e94a20cba315440c36df624eea0adf0bea212bd4249192fb9b8df5842d2182fc",
+  "commit": "f77ff234bd4791567f615f372be52fbc57962c513fbe5bdb9f5091e336ee5814",
+  "clientSeed": "vector-9",
+  "nonce": 1,
+  "lit": [
+   6
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 4,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 6
+ },
+ {
+  "serverSeed": "c6cb84ff92185df6a79790042a1e8b599f2200c2870e518412a034124aaf5c73",
+  "commit": "d438d3c2b8d522101da3160da237539b5eb6e6e2552d49054f1ec9c841ba4ff9",
+  "clientSeed": "vector-10",
+  "nonce": 2,
+  "lit": [
+   10
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 2
+  },
+  "double": 12
+ },
+ {
+  "serverSeed": "7ee4a8a2290fdf94dd7f742c4c1317131a62d6d44363176c94447c82490db097",
+  "commit": "c904ed6496d1ede5c582f9870dd69014c4de7dfec58395e99b509384b1135e74",
+  "clientSeed": "vector-11",
+  "nonce": 3,
+  "lit": [
+   22
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 2
+  },
+  "double": 11
+ },
+ {
+  "serverSeed": "e4f61e1e0a5aaba76918860cb3dbb92cc7f1ad7e3ce3e6501e4f9459955f8b72",
+  "commit": "b85750bb086dd9924e1c98d7e3f13fc1e3ca9a8a8eed133ffa3a3c55518c4e4c",
+  "clientSeed": "vector-12",
+  "nonce": 4,
+  "lit": [
+   16
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 2
+  },
+  "double": 3
+ },
+ {
+  "serverSeed": "e308dcbd61e079803284a1c3e971bc45d06bc6b96423f6c7842448ffbe363412",
+  "commit": "cc5cbbecedcfd5d037ffef989734d323483be56bf3139491757f1bc59d78ebfe",
+  "clientSeed": "vector-13",
+  "nonce": 5,
+  "lit": [
+   12
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 2,
+   "apple": 0
+  },
+  "double": 14
+ },
+ {
+  "serverSeed": "d0c3115c94ad9132d094cd1af221974adcefc8ecd3dc45bb4ae828d9585be8a8",
+  "commit": "a432b6b5a07a46a7ee25f9e5d22cdf881b9c7e4595c910eab1e908a3719e5b7f",
+  "clientSeed": "vector-18",
+  "nonce": 1,
+  "lit": [
+   3
+  ],
+  "payouts": {
+   "bar": 30,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 14
+ },
+ {
+  "serverSeed": "ad7c76cee95678b0e969a121399f2ab42ecb2442d4dc6a3bd8bd519f5c792b38",
+  "commit": "d7f2fbee270158a6ae6622d9722a02b2e50e231535c50f807fcdf1320b653475",
+  "clientSeed": "vector-21",
+  "nonce": 4,
+  "lit": [
+   17
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 12,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 7
+ },
+ {
+  "serverSeed": "5e3ea6451fb09e67321d141066357bf2b24d336facd8cda3f711e8931d238652",
+  "commit": "25b83265de143e39f7225fa10611751f54be130b5dbe03c1be01e57aa6d76c35",
+  "clientSeed": "vector-23",
+  "nonce": 6,
+  "lit": [
+   23
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 15,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 10
+ },
+ {
+  "serverSeed": "912dbed393ca67361ac68dfc056827126ae697f5266a76fa1cab3733d43f1ae6",
+  "commit": "12085f199db26c4469bd06a2be16d9dceb71ce665c055baa206a1cf1c9184fb3",
+  "clientSeed": "vector-26",
+  "nonce": 9,
+  "lit": [
+   11
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 6,
+   "apple": 0
+  },
+  "double": 4
+ },
+ {
+  "serverSeed": "354381874807a4481027f40e4a6248b929d6af570bf54a2430d68469080cf9ac",
+  "commit": "8d3459794b9ff469a70acd68935ba6f8c6c9ab11ed8f00ee002ac738af61ded6",
+  "clientSeed": "vector-29",
+  "nonce": 3,
+  "lit": [
+   11
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 6,
+   "apple": 0
+  },
+  "double": 9
+ },
+ {
+  "serverSeed": "4a536f850ae88a557f6f882f7a7f81f6132863d92b3a153596de1d9bee3decf2",
+  "commit": "3478094fb08ecf7fe7676df32b25eb36ef002d88a36910246c10f33bef5ca58e",
+  "clientSeed": "vector-33",
+  "nonce": 7,
+  "lit": [
+   9,
+   4,
+   8
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 15,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 2
+  },
+  "double": 3
+ },
+ {
+  "serverSeed": "68956c88f5230557ee781880b89f43b41ff8c04dca3caa157311227d06cbe6d6",
+  "commit": "fea7a1f8f07cfa0a8321b6fab6d98b3e52ef05f7949ab442498caa6c9eda7ffc",
+  "clientSeed": "vector-36",
+  "nonce": 1,
+  "lit": [
+   9,
+   8,
+   13
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 15,
+   "bell": 5,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 2
+ },
+ {
+  "serverSeed": "9ea512c6abacaa38e718b21a1714e71929dfa307e168fa7bff0b81e1e7ef7863",
+  "commit": "24ddb47044a013cec71bf991a73205ef5bdd4001ee84ecf0064dc89d388d6130",
+  "clientSeed": "vector-49",
+  "nonce": 5,
+  "lit": [
+   2
+  ],
+  "payouts": {
+   "bar": 12,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 3
+ },
+ {
+  "serverSeed": "18a44c56d30070082f7d24b18635d8368d34fbefce9e48aaac8422a525a2de73",
+  "commit": "fc5e89c1450fd10d8bdb4d0cdf8c826371409d88444b0a274cc36a7588f930b9",
+  "clientSeed": "vector-63",
+  "nonce": 1,
+  "lit": [
+   9,
+   7,
+   19
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 21,
+   "watermelon": 5,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 7
+ },
+ {
+  "serverSeed": "33f2a35857cbc385d27f1b447907987c596fad924ea108de3d763a65c4503025",
+  "commit": "31798ce45e1dc96f546f7d00cce919244538da4d1b04cbcdd79209ccb06e7953",
+  "clientSeed": "vector-66",
+  "nonce": 4,
+  "lit": [
+   3
+  ],
+  "payouts": {
+   "bar": 30,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 12
+ },
+ {
+  "serverSeed": "f68c8999e09926d8a3c3352afd1cde1182f3371898b0b77280ee270e14777d35",
+  "commit": "e01f090ea7699826d1e8413c0a1469db5e5577a4dd1c80d85d4f712c387fae0a",
+  "clientSeed": "vector-77",
+  "nonce": 6,
+  "lit": [
+   2
+  ],
+  "payouts": {
+   "bar": 12,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 2
+ },
+ {
+  "serverSeed": "9f7ec113720cc7ab807d2f057b2b77afd0abc50a4b98ad81591501a2e57970bc",
+  "commit": "92b5f84914f70a03fef0ab6d849e731a21db23878d7b50830cd5ae934981a515",
+  "clientSeed": "vector-78",
+  "nonce": 7,
+  "lit": [
+   21,
+   19,
+   0
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 21,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 2,
+   "apple": 0
+  },
+  "double": 13
+ },
+ {
+  "serverSeed": "2e713c93270395eccb22ccc9db2af9fd6a1d7f23c761da710a8114cfd842cf94",
+  "commit": "9e6eb6a5ffabea3b6b883bb22ef8cfca63525888381ca0f2bc2e9797b35b1274",
+  "clientSeed": "vector-98",
+  "nonce": 9,
+  "lit": [
+   21,
+   0,
+   16
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 2,
+   "apple": 2
+  },
+  "double": 12
+ },
+ {
+  "serverSeed": "1a018b15bea8f21b2ebd394ec77c7d454f6673075f316fccfb9ea12b87799aa7",
+  "commit": "10b2562e5083a447a72ada007f57f35047986f63927d635ef5df4aef7b66dbfd",
+  "clientSeed": "vector-110",
+  "nonce": 3,
+  "lit": [
+   21,
+   17,
+   2
+  ],
+  "payouts": {
+   "bar": 12,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 12,
+   "orange": 0,
+   "apple": 0
+  },
+  "double": 9
+ },
+ {
+  "serverSeed": "1785f78294f0e888820713bf3f537e610cbf414ad6df08df738701f43a4d172b",
+  "commit": "0092bb832405d2b7f16b7939cccdbe36a9fce881d38244f0093d3a7999839bea",
+  "clientSeed": "vector-136",
+  "nonce": 2,
+  "lit": [
+   21,
+   15,
+   5
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 10,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 0,
+   "apple": 6
+  },
+  "double": 1
+ },
+ {
+  "serverSeed": "b76632cfbd6de28812a2ddaeccdc0b58bbc78583d8a5d04f3fe13c8c23c7f8f9",
+  "commit": "8fbd07ef8c284ce279cbac5ae1ea57d0dcc1f23a40aaf9422fee65b946771049",
+  "clientSeed": "vector-139",
+  "nonce": 5,
+  "lit": [
+   21,
+   11,
+   6
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 4,
+   "orange": 6,
+   "apple": 0
+  },
+  "double": 10
+ },
+ {
+  "serverSeed": "4887851d0c8f0226ebcb712ce0345b72e236bf8cc3d01016a813676d1c527561",
+  "commit": "b9293c07644ae547c6bde974f27049da1b7041fe560b4ea3d8368c229e9c73a6",
+  "clientSeed": "vector-149",
+  "nonce": 6,
+  "lit": [
+   21,
+   12,
+   4
+  ],
+  "payouts": {
+   "bar": 0,
+   "seven": 0,
+   "star": 0,
+   "watermelon": 0,
+   "bell": 0,
+   "lemon": 0,
+   "orange": 2,
+   "apple": 2
+  },
+  "double": 5
+ }
+]

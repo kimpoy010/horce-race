@@ -1,0 +1,18 @@
+Fruit Ring - paytable fr-v90-1: exact PAR sheet
+
+24 cells, stop weights out of 100,000; Lucky cells (share 7.648%) pay nothing and light two more cells, which pay.
+A credit on one symbol:
+
+symbol       pay    light stops on it    wins (incl. Lucky)    returns      standard deviation
+bar           30x           3.676%              4.273%     89.9818%       4.6545 x
+seven         10x           3.860%              4.486%     89.9864%       4.6684 x
+star           7x           5.514%              6.400%     89.9818%       3.8787 x
+watermelon     5x           7.720%              8.945%     89.9864%       3.2474 x
+bell           5x           9.264%             10.721%     89.9864%       3.0324 x
+lemon          4x          11.580%             13.378%     89.9864%       2.6862 x
+orange         2x          23.163%             26.518%     89.9981%       1.8047 x
+apple          2x          27.575%             31.460%     89.9981%       1.6247 x
+
+One credit on each of the eight symbols returns 89.9882% (standard deviation of that spin 7.211 credits on 8 staked).
+Double-up: a number 1-14 (Small 1-7, Big 8-14), 50% to double, up to 3 times in a row: returns 100% of what is risked; it does not change the return of the game.
+

@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Games\FruitRing;
+
+/**
+ * Fruit Ring: the fixed rules (docs/fruit/MATH.md). A ring of 24 cells; the player puts credits on any of 8 symbols; a light stops on one cell, drawn by the server by weight;
+ * a Lucky stop lights two more cells; every lit cell pays the bets on its symbol; a x3 cell pays three times. After a win the player may double it (Small 1-7 / Big 8-14, a fair
+ * 50/50), up to three times in a row. Nothing here is ever changed once the game is certified: other pays or weights are a new version with a new id.
+ */
+final class Rules
+{
+    public const ID = 'fruit-ring';
+
+    public const PAYTABLE_ID = 'fr-v90-1';
+
+    public const TOTAL_WEIGHT = 100000;
+
+    /** the eight bets, in the order of the bets array */
+    public const SYMBOLS = ['bar', 'seven', 'star', 'watermelon', 'bell', 'lemon', 'orange', 'apple'];
+
+    /** credits paid for one credit on the symbol when its cell lights (stake included) */
+    public const PAYS = ['bar' => 30, 'seven' => 10, 'star' => 7, 'watermelon' => 5, 'bell' => 5, 'lemon' => 4, 'orange' => 2, 'apple' => 2];
+
+    /** the BAR x50 cell pays this for a credit on BAR (the BAR BAR BAR cell pays PAYS['bar']) */
+    public const BAR50 = 12;
+
+    public const DOUBLE_MAX = 3;
+
+    public const DOUBLE_NUMBERS = 14;
+
+    /** the 24 cells clockwise from the top left: [symbol, multiplier, weight]. 'lucky' pays nothing and lights two more cells; 'bar3' and 'bar50' are the two BAR cells */
+    public const RING = [
+        ['orange', 1, 7721], ['bell', 1, 3088], ['bar50', 1, 1838], ['bar3', 1, 1838], ['apple', 1, 5515], ['apple', 3, 5515], ['lemon', 1, 3860],
+        ['watermelon', 1, 3860], ['watermelon', 3, 3860], ['lucky', 1, 3824], ['apple', 1, 5515], ['orange', 3, 7721],
+        ['orange', 1, 7721], ['bell', 1, 3088], ['seven', 3, 1930], ['seven', 1, 1930], ['apple', 1, 5515], ['lemon', 3, 3860], ['lemon', 1, 3860],
+        ['star', 3, 2757], ['star', 1, 2757], ['lucky', 1, 3824], ['apple', 1, 5515], ['bell', 3, 3088],
+    ];
+
+    /** @return list<int> the cells that are Lucky */
+    public static function luckyCells(): array
+    {
+        return array_keys(array_filter(self::RING, fn ($c) => $c[0] === 'lucky'));
+    }
+
+    /** the symbol (one of SYMBOLS) a cell belongs to, or 'lucky' */
+    public static function symbolOf(int $cell): string
+    {
+        $c = self::RING[$cell][0];
+
+        return in_array($c, ['bar3', 'bar50'], true) ? 'bar' : $c;
+    }
+
+    /** credits paid for one credit on the cell's symbol when this cell lights */
+    public static function cellPay(int $cell): int
+    {
+        [$c, $m] = self::RING[$cell];
+
+        return match ($c) {
+            'bar3' => self::PAYS['bar'],
+            'bar50' => self::BAR50,
+            'lucky' => 0,
+            default => self::PAYS[$c] * $m,
+        };
+    }
+
+    public static function paytable(): array
+    {
+        $ring = [];
+        foreach (self::RING as $i => [$c, $m]) {
+            $ring[] = ['cell' => $i, 'symbol' => self::symbolOf($i), 'kind' => $c, 'multiplier' => $m, 'pay' => self::cellPay($i)];
+        }
+
+        return ['id' => self::PAYTABLE_ID, 'symbols' => self::SYMBOLS, 'pays' => self::PAYS, 'bar50' => self::BAR50, 'ring' => $ring, 'doubleMax' => self::DOUBLE_MAX, 'doubleNumbers' => self::DOUBLE_NUMBERS];
+    }
+
+    /** a stable text of everything that decides a result or a payout: its sha256 is frozen in a test */
+    public static function canonical(): string
+    {
+        return json_encode([self::PAYTABLE_ID, self::TOTAL_WEIGHT, self::SYMBOLS, self::PAYS, self::BAR50, self::DOUBLE_MAX, self::DOUBLE_NUMBERS, self::RING], JSON_THROW_ON_ERROR);
+    }
+}
