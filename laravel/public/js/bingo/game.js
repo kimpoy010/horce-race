@@ -79,6 +79,7 @@
       function finish(p) {
         if (done) return; done = true; cancelAnimationFrame(raf); clearTimeout(idleTimer);
         el.stage.removeEventListener('pointerdown', down); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+        window.removeEventListener('keydown', keyDown); window.removeEventListener('keyup', keyUp);
         scene.pull = 0; scene.hint = false; el.hint.hidden = true; resolve(p);
       }
       function tick() {
@@ -87,13 +88,15 @@
         scene.ball = { x: T.LANE.x, y: T.LANE.startY + 2 + Math.round(pull * 7) };          // the ball rests on the plunger
         raf = requestAnimationFrame(tick);
       }
-      function inLane(ev) { var r = el.stage.getBoundingClientRect(), p = window.HorseOrient ? window.HorseOrient.point(ev) : { x: ev.clientX, y: ev.clientY }; return p; }
       function down(ev) {
         if (ev.target.closest && ev.target.closest('button,input,.sheet')) return;
         holding = true; t0 = performance.now(); clearTimeout(idleTimer); ev.preventDefault();
       }
       function up() { if (holding) finish(Math.max(0.12, pull)); }
+      function keyDown(ev) { if (ev.code !== 'Space' || ev.repeat || (ev.target.closest && ev.target.closest('input,textarea,button,select'))) return; ev.preventDefault(); if (!holding) { holding = true; t0 = performance.now(); clearTimeout(idleTimer); } }
+      function keyUp(ev) { if (ev.code === 'Space') { ev.preventDefault(); up(); } }
       el.stage.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+      window.addEventListener('keydown', keyDown); window.addEventListener('keyup', keyUp);
       scene.hint = !auto; el.hint.hidden = !!auto;
       idleTimer = setTimeout(function () { finish(0.35 + Math.random() * 0.5); }, auto ? 450 : 3500);
       tick();
@@ -330,6 +333,15 @@
       } else gate('NO CONNECTION', errText(e), false);
     });
   }
+  // the screen is 180 x 320 pixel-art pixels: shown at a whole multiple (crisp pixels) when that uses at least 85% of the space, otherwise stretched to fit
+  function fit() {
+    var w = el.stage.parentNode.clientWidth, h = el.stage.parentNode.clientHeight, k = Math.min(w / 180, h / 320);
+    if (!(k > 0)) return;
+    el.stage.style.setProperty('--sw', (k >= 2 && Math.floor(k) >= 0.85 * k ? Math.floor(k) * 180 : Math.floor(k * 180)) + 'px');
+  }
+  var fitSoon = function () { requestAnimationFrame(fit); setTimeout(fit, 300); };
+  window.addEventListener('resize', fitSoon); window.addEventListener('orientationchange', fitSoon); if (window.visualViewport) window.visualViewport.addEventListener('resize', fitSoon);
+  fitSoon(); fit();
   lockControls(true);
   requestAnimationFrame(render);
   begin();

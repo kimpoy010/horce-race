@@ -2,28 +2,24 @@
 :root {
   --vh: 1vh; --sat: env(safe-area-inset-top, 0px); --sar: env(safe-area-inset-right, 0px); --sab: env(safe-area-inset-bottom, 0px); --sal: env(safe-area-inset-left, 0px);
   --aw: calc(100vw - var(--sal) - var(--sar)); --ah: calc(var(--vh) * 100 - var(--sat) - var(--sab));
-  --sw: min(var(--aw), calc(var(--ah) * 1.7778));
+  --sw: min(var(--aw), calc(var(--ah) * 0.5625));       /* the stage is 9:16; the page rounds it to a whole multiple of 180 px when it can (game.js) */
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: calc(var(--vh) * 100); background: #0b0b14; overflow: hidden; }
 body { display: flex; align-items: center; justify-content: center; font-family: "Courier New", Courier, ui-monospace, monospace; font-weight: 900; color: #fff; -webkit-tap-highlight-color: transparent; }
 .layout { position: relative; display: flex; align-items: center; justify-content: center; width: var(--aw); height: var(--ah); margin: var(--sat) var(--sar) var(--sab) var(--sal); overflow: hidden; }
-@media (orientation: portrait) and (pointer: coarse) {
-  :root { --aw: calc(var(--vh) * 100 - var(--sat) - var(--sab)); --ah: calc(100vw - var(--sal) - var(--sar)); }
-  .layout { position: fixed; top: 0; left: 0; margin: 0; transform-origin: 0 0; transform: translate(calc(100vw - var(--sar)), var(--sat)) rotate(90deg); }
-}
 
-.stage { --u: calc(var(--sw) / 160); position: relative; width: var(--sw); aspect-ratio: 16 / 9; font-size: calc(var(--u) * 1.9); text-transform: uppercase; user-select: none; -webkit-user-select: none; touch-action: none; }
+.stage { --u: calc(var(--sw) / 90); position: relative; width: var(--sw); aspect-ratio: 9 / 16; font-size: calc(var(--u) * 1.9); text-transform: uppercase; user-select: none; -webkit-user-select: none; touch-action: none; }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; cursor: pointer; text-transform: uppercase; }
-.lbl { color: #3cd8ff; font-size: .72em; letter-spacing: .08em; }
+.lbl { color: #3cd8ff; font-size: .62em; letter-spacing: .08em; }
 
 /* the balance, on the marquee */
-.balbox { position: absolute; right: 2.6%; top: .7%; height: 5.6%; display: flex; align-items: center; gap: calc(var(--u) * .8); font-size: calc(var(--u) * 1.7); color: #7dff7d; white-space: nowrap; text-shadow: calc(var(--u) * .18) calc(var(--u) * .18) 0 #000; }
+.balbox { position: absolute; left: 44%; right: 7%; top: 19.8%; height: 4.8%; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 0; font-size: calc(var(--u) * 2.1); line-height: 1.05; color: #7dff7d; white-space: nowrap; text-shadow: calc(var(--u) * .18) calc(var(--u) * .18) 0 #000; }
 
 /* the controls under the card */
-.ctl { position: absolute; left: 3%; width: 34.5%; top: 74%; height: 22.5%; display: grid; grid-template-rows: 1fr 1.15fr .62fr; gap: calc(var(--u) * .6); }
+.ctl { position: absolute; left: 6%; width: 88%; top: 84.4%; height: 12.6%; display: grid; grid-template-rows: 1fr 1.25fr .55fr; gap: calc(var(--u) * .6); }
 .stakeRow { display: grid; grid-template-columns: 17% 1fr 17%; gap: calc(var(--u) * .6); }
 .stakeRow button { background: #1c2a66; border: calc(var(--u) * .25) solid #3c54b4; border-radius: calc(var(--u) * .4); font-size: calc(var(--u) * 2.4); line-height: 1; padding: 0; }
 .stakeRow button:active:not(:disabled) { background: #2c3e94; }
@@ -36,15 +32,15 @@ button { font: inherit; color: inherit; cursor: pointer; text-transform: upperca
 .mini button.off { opacity: .5; text-decoration: line-through; }
 
 /* what the player is asked to do */
-.hint { position: absolute; left: 41%; right: 12%; bottom: 3.4%; text-align: center; color: #ffd23c; font-size: calc(var(--u) * 1.5); pointer-events: none; text-shadow: calc(var(--u) * .2) calc(var(--u) * .2) 0 #000; animation: blink 1s steps(2) infinite; }
+.hint { position: absolute; left: 4%; right: 4%; bottom: 21.5%; text-align: center; color: #ffd23c; font-size: calc(var(--u) * 1.5); pointer-events: none; text-shadow: calc(var(--u) * .2) calc(var(--u) * .2) 0 #000; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: .25; } }
 .blink { animation: blink 1s steps(2) infinite; }
-.banner { position: absolute; left: 44%; right: 10%; top: 30%; padding: calc(var(--u) * 1.4); text-align: center; background: rgba(8, 20, 40, .94); border: calc(var(--u) * .5) solid #ffd23c; box-shadow: calc(var(--u) * 1) calc(var(--u) * 1) 0 rgba(0, 0, 0, .6); pointer-events: none; }
+.banner { position: absolute; left: 10%; right: 10%; top: 40%; padding: calc(var(--u) * 1.4); text-align: center; background: rgba(8, 20, 40, .94); border: calc(var(--u) * .5) solid #ffd23c; box-shadow: calc(var(--u) * 1) calc(var(--u) * 1) 0 rgba(0, 0, 0, .6); pointer-events: none; }
 .banner .big { font-size: calc(var(--u) * 5); color: #7dff7d; line-height: 1.1; }
 .banner .mid { font-size: calc(var(--u) * 2.2); color: #ffd23c; margin-bottom: calc(var(--u) * .5); }
 .banner .sm { font-size: calc(var(--u) * 1.5); color: #cde; margin-top: calc(var(--u) * .5); }
 .banner.lose { border-color: #46537f; } .banner.lose .big { color: #8d9bc4; font-size: calc(var(--u) * 3.4); }
-.note { position: absolute; left: 41%; right: 7%; top: 8%; padding: calc(var(--u) * .9) calc(var(--u) * 1.2); background: #4a1e28; border: calc(var(--u) * .3) solid #b04a5a; color: #ffd0d6; font-size: calc(var(--u) * 1.6); text-align: center; z-index: 5; }
+.note { position: absolute; left: 6%; right: 6%; top: 33%; padding: calc(var(--u) * .9) calc(var(--u) * 1.2); background: #4a1e28; border: calc(var(--u) * .3) solid #b04a5a; color: #ffd0d6; font-size: calc(var(--u) * 1.6); text-align: center; z-index: 5; }
 .note.ok { background: #1c4a2a; border-color: #4ab06a; color: #d6ffe0; }
 
 /* a message instead of the game (no session, game off ...) */
