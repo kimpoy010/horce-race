@@ -124,7 +124,7 @@ final class FruitService
     {
         $base = $this->sessions->view($s);
         $seed = $this->seeds->active($s->player_key);
-        $out = ['currency' => $s->currency, 'decimals' => (int) $s->decimals, 'balance' => $base['balance'], 'limits' => $this->limitsOf($s) + ['maxCreditsPerSymbol' => $this->maxPerSymbol(), 'maxCredits' => $this->maxCredits()],
+        $out = ['currency' => $s->currency, 'decimals' => (int) $s->decimals, 'balance' => $base['balance'], 'limits' => $this->limitsOf($s),
             'responsible' => $base['responsible'], 'paytable' => Rules::paytable() + ['rtp' => '89.98'], 'seed' => $this->seeds->view($seed), 'minIntervalMs' => (int) $this->settings['min_interval_ms']];
         if ($withRound) {
             $last = DB::table('instant_rounds')->where('player_key', $s->player_key)->where('game_id', self::GAME)->orderByDesc('id')->first();
@@ -137,28 +137,22 @@ final class FruitService
         return $out;
     }
 
-    private function maxPerSymbol(): int
-    {
-        return (int) ($this->settings['max_credits_per_symbol'] ?? 20);
-    }
-
-    private function maxCredits(): int
-    {
-        return (int) ($this->settings['max_credits'] ?? 100);
-    }
-
     /* ---------- a spin ---------- */
 
-    /** @param mixed $bets credits on each symbol, e.g. {"apple": 2, "bar": 1}; $credit the value of one credit in minor units */
+    /**
+     * @param mixed $bets the amount on each symbol, e.g. {"apple": 500, "bar": 50}: any amount on any of the eight fruits, in minor units (or, when $credit is given, in credits of that value)
+     * @param mixed $credit optional, default 1: the value of one unit of $bets in minor units
+     */
     public function play(string $sessionId, mixed $bets, mixed $credit, mixed $requestId): array
     {
         $s = $this->session($sessionId);
+        $credit ??= 1;
         if (! is_string($requestId) || ! preg_match(self::REQUEST_ID_RE, $requestId) || ! is_int($credit) || $credit < 1 || ! is_array($bets)) {
             throw new GameError(400, 'BAD_REQUEST');
         }
         $clean = [];
         foreach ($bets as $sym => $n) {
-            if (! in_array($sym, Rules::SYMBOLS, true) || ! is_int($n) || $n < 0 || $n > $this->maxPerSymbol()) {
+            if (! in_array($sym, Rules::SYMBOLS, true) || ! is_int($n) || $n < 0 || $n > PHP_INT_MAX / 1000000) {
                 throw new GameError(400, 'BAD_BET');
             }
             if ($n > 0) {
@@ -182,7 +176,7 @@ final class FruitService
         $credits = array_sum($bets);
         $stake = $credits * $credit;
         $lim = $this->limitsOf($s);
-        if ($credits < 1 || $credits > $this->maxCredits() || $stake < $lim['minBet'] || $stake > $lim['maxBet']) {
+        if ($credits < 1 || $stake < $lim['minBet'] || $stake > $lim['maxBet']) {
             throw new GameError(400, 'BAD_BET');
         }
         $this->collectOpen($s);                                          // a win still held from the last spin is collected first

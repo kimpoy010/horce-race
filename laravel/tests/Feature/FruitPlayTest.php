@@ -210,7 +210,7 @@ class FruitPlayTest extends TestCase
     {
         $s = $this->auth();
         $st = $this->getJson(self::BASE.'/state', $this->bearer($s))->assertOk()->json();
-        $this->assertSame(['PHP', 100000, 'fr-v90-2', 20, 100], [$st['currency'], $st['balance'], $st['paytable']['id'], $st['limits']['maxCreditsPerSymbol'], $st['limits']['maxCredits']]);
+        $this->assertSame(['PHP', 100000, 'fr-v90-2'], [$st['currency'], $st['balance'], $st['paytable']['id']]);
         [$v] = $this->winner();
         $this->rig('p1', $v, $v['nonce']);
         // bet on a symbol that does not pay in this vector
@@ -343,17 +343,32 @@ class FruitPlayTest extends TestCase
     public function test_bad_bets_and_a_repeated_request_id(): void
     {
         $s = $this->auth();
-        foreach ([[[], 100], [['apple' => 0], 100], [['pear' => 1], 100], [['apple' => 21], 100], [['apple' => 1], 0], [['apple' => -1], 100], [['apple' => 1.5], 100]] as [$bets, $credit]) {
+        foreach ([[[], 100], [['apple' => 0], 100], [['pear' => 1], 100], [['apple' => 1], 0], [['apple' => -1], 100], [['apple' => 1.5], 100]] as [$bets, $credit]) {
             $this->t += 3500;
             $this->postJson(self::BASE.'/play', ['bets' => $bets, 'credit' => $credit, 'requestId' => 'bad-'.bin2hex(random_bytes(4))], $this->bearer($s))->assertStatus(400);
         }
         $this->t += 3500;
-        $this->postJson(self::BASE.'/play', ['bets' => ['apple' => 20, 'bar' => 20, 'star' => 20, 'bell' => 20, 'lemon' => 20, 'orange' => 20], 'credit' => 100, 'requestId' => 'big-0123456'], $this->bearer($s))->assertStatus(400);   // 120 credits
+        $this->postJson(self::BASE.'/play', ['bets' => ['apple' => 3000000], 'credit' => 1, 'requestId' => 'big-0123456'], $this->bearer($s))->assertStatus(400);       // above the biggest stake (1,000.00)
+        $this->t += 3500;
+        $this->postJson(self::BASE.'/play', ['bets' => ['apple' => 50], 'requestId' => 'small-012345'], $this->bearer($s))->assertStatus(400);                      // below the smallest stake
         $this->assertSame([], $this->sent('/wallet/debit'));
         $a = $this->postJson(self::BASE.'/play', ['bets' => ['apple' => 1], 'credit' => 100, 'requestId' => 'same-request-1'], $this->bearer($s))->assertOk();
         $b = $this->postJson(self::BASE.'/play', ['bets' => ['apple' => 1], 'credit' => 100, 'requestId' => 'same-request-1'], $this->bearer($s))->assertOk();
         $this->assertSame([$a->json('round.id'), true], [$b->json('round.id'), $b->json('repeat')]);
         $this->assertCount(1, $this->sent('/wallet/debit'));
+    }
+
+    public function test_different_amounts_on_different_fruits_are_paid_each_on_its_own_amount(): void
+    {
+        [$v, $sym, $pay] = $this->winner();
+        $other = collect(Rules::SYMBOLS)->first(fn ($x) => $x !== $sym && $v['payouts'][$x] === 0);
+        $s = $this->auth();
+        $this->rig('p1', $v, $v['nonce']);
+        $r = $this->postJson(self::BASE.'/play', ['bets' => [$sym => 250, $other => 1000], 'requestId' => 'mixed-amounts-1'], $this->bearer($s))->assertOk();
+        $this->assertSame([1250, [$sym => 250, $other => 1000], $pay * 250], [$r->json('round.stake'), $r->json('round.bets'), $r->json('round.spinWin')]);
+        $this->assertSame(100000 - 1250, $this->balance);
+        $this->collect($s, $r->json('round.id'))->assertOk();
+        $this->assertSame(100000 - 1250 + $pay * 250, $this->balance);
     }
 
     public function test_a_refused_debit_leaves_nothing_and_a_lost_answer_is_rolled_back(): void

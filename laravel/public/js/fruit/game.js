@@ -43,7 +43,7 @@
   /* ---------- the scene ---------- */
   function render(now) {
     scene.time = now;
-    scene.bets = S.bets;
+    scene.bets = S.betLabels || {};
     view.draw(scene);
     requestAnimationFrame(render);
   }
@@ -53,40 +53,52 @@
   function roundWin(cells, bets) { var t = 0; cells.forEach(function (c) { t += (bets[symbolOf(c)] || 0) * cellPay(c); }); return t; }
 
   /* ---------- bets ---------- */
+  // every fruit has its own amount (minor units): a tap adds the CHIP value to that fruit, hold clears it, the small minus takes one chip off
   function credits() { var n = 0; T.SYMBOLS.forEach(function (s) { n += S.bets[s] || 0; }); return n; }
-  function stake() { return credits() * S.credit; }
+  function stake() { return credits(); }
+  /** an amount in few characters for the small badges on the ring: 5, 0.5, 12.25, 1.5K */
+  function short(minor) { var v = minor / Math.pow(10, dec()); return v >= 1000 ? (Math.round(v / 100) / 10) + 'K' : String(Math.round(v * 100) / 100); }
   function betsUi() {
     if (!el.bets.children.length) return;
+    S.betLabels = {};
     T.SYMBOLS.forEach(function (s) {
       var b = $('bet-' + s), n = S.bets[s] || 0;
-      b.classList.toggle('on', n > 0); b.querySelector('.n').textContent = n ? n : '';
-      b.disabled = S.busy;
+      b.classList.toggle('on', n > 0); b.querySelector('.n').textContent = n ? fmt(n) : '';
+      if (n) S.betLabels[s] = short(n);
+      b.querySelector('.bmain').disabled = S.busy; b.querySelector('.bminus').disabled = S.busy || !n;
     });
     el.total.textContent = fmt(stake());
-    if (!S.busy && !S.round && !S.msgHold) setCenter('BET', fmt(stake()), credits() ? credits() + ' credits' : 'Choose your fruits and press START');
+    if (!S.busy && !S.round && !S.msgHold) setCenter('BET', fmt(stake()), credits() ? Object.keys(S.bets).filter(function (k) { return S.bets[k] > 0; }).length + ' fruits' : 'Choose your fruits and press START');
     el.btnClear.disabled = S.busy || !credits(); el.btnRepeat.disabled = S.busy || !S.lastBets;
     el.play.disabled = S.busy || !S.state || (!credits() && !S.round);
-    try { localStorage.setItem('fr.bets', JSON.stringify(S.bets)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('fr.bets2', JSON.stringify(S.bets)); } catch (e) { /* ignore */ }
   }
   function buildBets() {
     el.bets.innerHTML = '';
     T.SYMBOLS.forEach(function (s) {
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'bet'; b.id = 'bet-' + s; b.setAttribute('aria-label', 'Bet on ' + s);
-      b.innerHTML = '<svg viewBox="0 0 48 48">' + A.symbol(s) + '</svg><span class="pay">×' + ((S.state && S.state.paytable.pays[s]) || '') + '</span><span class="n"></span>';
-      var timer = null, held = false;
-      b.addEventListener('pointerdown', function () { held = false; clearTimeout(timer); timer = setTimeout(function () { held = true; if (!S.busy) { S.bets[s] = 0; S.msgHold = false; Snd.click(); betsUi(); } }, 550); });
-      ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { b.addEventListener(ev, function () { clearTimeout(timer); }); });
-      b.addEventListener('click', function () { if (held) { held = false; return; } addBet(s); });
-      el.bets.appendChild(b);
+      var d = document.createElement('div'); d.className = 'bet'; d.id = 'bet-' + s;
+      d.innerHTML = '<button type="button" class="bmain" aria-label="Bet on ' + s + '"><svg viewBox="0 0 48 48">' + A.symbol(s) + '</svg><span class="pay">×' + ((S.state && S.state.paytable.pays[s]) || '') + '</span><span class="n"></span></button>' +
+        '<button type="button" class="bminus" aria-label="Take a chip off ' + s + '">&minus;</button>';
+      var main = d.querySelector('.bmain'), timer = null, held = false;
+      main.addEventListener('pointerdown', function () { held = false; clearTimeout(timer); timer = setTimeout(function () { held = true; if (!S.busy) { delete S.bets[s]; S.msgHold = false; Snd.click(); betsUi(); } }, 550); });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { main.addEventListener(ev, function () { clearTimeout(timer); }); });
+      main.addEventListener('click', function () { if (held) { held = false; return; } addBet(s); });
+      d.querySelector('.bminus').addEventListener('click', function () { subBet(s); });
+      el.bets.appendChild(d);
     });
+  }
+  function subBet(s) {
+    if (S.busy || S.round) return;
+    var n = (S.bets[s] || 0) - S.credit;
+    if (n > 0) S.bets[s] = n; else delete S.bets[s];
+    S.msgHold = false; Snd.click(); betsUi();
   }
   function addBet(s) {
     if (S.busy || !S.state) return;
-    var lim = S.state.limits, n = S.bets[s] || 0;
+    var lim = S.state.limits;
     if (S.round) { note('Collect your win first, or press START to collect it and spin again.', false, 3500); return; }
-    if (n >= lim.maxCreditsPerSymbol || credits() >= lim.maxCredits) { note('That is the most you can bet on ' + (n >= lim.maxCreditsPerSymbol ? 'one fruit' : 'the ring') + '.', false, 2500); return; }
-    if ((credits() + 1) * S.credit > lim.maxBet) { note('The most you can bet is ' + money(lim.maxBet) + '.', false, 2500); return; }
-    S.bets[s] = n + 1; S.msgHold = false; Snd.click(); betsUi();
+    if (stake() + S.credit > lim.maxBet) { note('The most you can bet is ' + money(lim.maxBet) + '.', false, 2500); return; }
+    S.bets[s] = (S.bets[s] || 0) + S.credit; S.msgHold = false; Snd.click(); betsUi();
   }
   function buildSteps(min, max) {
     var out = {}, mult = [1, 2, 5], p = 1, i, v, lo = Math.max(1, Math.floor(min / 10));
@@ -144,15 +156,15 @@
           var e = plan.events[idx++];
           if (e.round !== lastRound) {
             lastRound = e.round; scene.lit = {}; scene.flash = null;
-            if (e.round > 0) setCenter(kind === 'free3' ? 'FREE SPIN ' + e.round + ' OF 3' : 'FREE SPIN', fmt(running * S.credit), e.lights.length > 1 ? '3 lights' : '', 'roll');
+            if (e.round > 0) setCenter(kind === 'free3' ? 'FREE SPIN ' + e.round + ' OF 3' : 'FREE SPIN', fmt(running * round.credit), e.lights.length > 1 ? '3 lights' : '', 'roll');
           }
           if (e.type === 'run') { scene.lights = e.lights; if (!fast && e.lights.length === 1 && e.lights[0] !== lastCell) { Snd.tick(false); } lastCell = e.lights[0]; }
           else if (e.type === 'land') {
             scene.lights = []; scene.lit = {};
             e.lights.forEach(function (c) { scene.lit[c] = true; if (cellPay(c) > 0 && (round.bets[symbolOf(c)] || 0) > 0) scene.wins[c] = true; });
-            var w = roundWin(e.lights, round.bets); running += w; setBonus(running * S.credit);
+            var w = roundWin(e.lights, round.bets); running += w; setBonus(running * round.credit);
             if (e.round === 0 && T.cells[e.lights[0]].symbol === 'lucky') { kind = T.cells[e.lights[0]].kind; Snd.lucky(); setCenter('LUCKY!', kind === 'free3' ? '3 SPINS' : '3 LIGHTS', 'free spins on your bets', 'good'); }
-            else { if (w > 0) Snd.land(); setCenter(e.round > 0 ? 'FREE SPIN' : 'SPIN', running ? fmt(running * S.credit) : '', running ? 'you win' : '', running ? 'good' : ''); }
+            else { if (w > 0) Snd.land(); setCenter(e.round > 0 ? 'FREE SPIN' : 'SPIN', running ? fmt(running * round.credit) : '', running ? 'you win' : '', running ? 'good' : ''); }
           } else if (e.type === 'lucky') { scene.flash = e.lights[0]; }
         }
         if (now >= plan.duration + 350) { scene.lights = []; scene.flash = null; S.cursor = round.rounds[round.rounds.length - 1].slice(-1)[0]; resolve(); return; }
@@ -176,7 +188,7 @@
     T.SYMBOLS.forEach(function (s) { if (S.bets[s]) bets[s] = S.bets[s]; });
     S.requestId = S.requestId || newRequestId(); rid = S.requestId;
     setCenter('SPIN', fmt(st), 'placing your bet'); setBalance(before - st);
-    sendPlay(bets, S.credit, rid, 0).then(function (res) {
+    sendPlay(bets, 1, rid, 0).then(function (res) {
       S.requestId = null; note(null); S.balance = res.balance; setBalance(res.balance);
       S.lastBets = bets;
       return showSpin(res.round, false).then(function () { return afterSpin(res.round, res); });
@@ -202,7 +214,7 @@
     el.cBtns.hidden = false;
     el.btnCollect.textContent = 'COLLECT ' + fmt(round.held);
     el.play.textContent = 'START'; betsUi(); controlsUi();
-    if (n === 0) Snd.win(round.held >= 10 * S.credit * Math.max(1, credits()));
+    if (n === 0) Snd.win(round.held >= 5 * round.stake);
   }
   function hideOpen() { el.cBtns.hidden = true; S.round = null; S.take = 0; setBonus(0); betsUi(); controlsUi(); }
   function settleBalance(res) { S.balance = res.balance; S.take = 0; setBalance(res.balance + (res.round.creditPendingAmount || 0)); }
@@ -275,7 +287,7 @@
       scene.lit = {}; scene.wins = {};
       st.last.rounds[st.last.rounds.length - 1].forEach(function (c) { scene.lit[c] = true; });
       S.cursor = st.last.rounds[st.last.rounds.length - 1].slice(-1)[0];
-      Object.keys(st.last.bets || {}).forEach(function (s) { S.bets[s] = st.last.bets[s]; });
+      S.bets = {}; Object.keys(st.last.bets || {}).forEach(function (s) { S.bets[s] = st.last.bets[s] * (st.last.credit || 1); });
       showOpen(st.last); markWinners(st.last);
     } else {
       if (S.round) hideOpen();
@@ -294,7 +306,7 @@
     rows += '<tr><td>BAR single plate</td><td>×' + st.paytable.bar50 + '</td></tr>';
     el.rulesPays.innerHTML = rows;
     var l = st.limits || {};
-    el.rulesLimits.textContent = 'Stake from ' + money(l.minBet || 0) + ' to ' + money(l.maxBet || 0) + ', up to ' + l.maxCreditsPerSymbol + ' credits on a fruit and ' + l.maxCredits + ' in all. Published return to player: about ' + st.paytable.rtp + '% (paytable ' + st.paytable.id + '). The double-up is an even chance and does not change it.';
+    el.rulesLimits.textContent = 'Stake from ' + money(l.minBet || 0) + ' to ' + money(l.maxBet || 0) + ', all the fruits together. Published return to player: about ' + st.paytable.rtp + '% (paytable ' + st.paytable.id + '). The double-up is an even chance and does not change it.';
   }
   function openSheet(name) { el[name].hidden = false; Snd.click(); }
 
@@ -310,7 +322,7 @@
 
   /* ---------- the help tour: what to tap, step by step (shown the first time, HELP shows it again, "click to skip" ends it) ---------- */
   var TOUR = [
-    { to: ['bets'], text: 'Tap the fruits to bet', arrow: 'down' },
+    { to: ['bets'], text: 'Tap a fruit to bet. Each tap adds the CHIP amount to that fruit, so every fruit can have its own amount.', arrow: 'down' },
     { to: ['play'], text: 'Tap START to play', arrow: 'down' },
     { to: ['dBonus'], text: 'You win coins: they wait in BONUS-WIN', arrow: 'up' },
     { to: ['btnLeft', 'btnRight'], text: 'Tap the left / right arrow to move part of your win to CREDIT. That part is safe.', arrow: 'down' },
@@ -370,7 +382,7 @@
   var startEl = $('start');
   if (startEl) startEl.addEventListener('click', function () { Snd.unlock(); });
   document.addEventListener('pointerdown', function () { Snd.unlock(); }, { once: true });
-  try { S.bets = JSON.parse(localStorage.getItem('fr.bets') || '{}') || {}; } catch (e) { S.bets = {}; }
+  try { S.bets = JSON.parse(localStorage.getItem('fr.bets2') || '{}') || {}; } catch (e) { S.bets = {}; }
   T.SYMBOLS.forEach(function (s) { if (!(S.bets[s] > 0)) delete S.bets[s]; });
   lobbyProbe();
 

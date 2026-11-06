@@ -44,8 +44,6 @@ return [
             'lock_wait_seconds' => 5,
             'stuck_after_ms' => 30000,
             'open_after_ms' => (int) env('FRUIT_OPEN_AFTER_MS', 120000),         // a win held this long without a double-up or a collect is collected for the player
-            'max_credits_per_symbol' => (int) env('FRUIT_MAX_CREDITS_PER_SYMBOL', 20),
-            'max_credits' => (int) env('FRUIT_MAX_CREDITS', 100),                // credits on all eight symbols together
         ],
     ],
 ];

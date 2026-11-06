@@ -99,6 +99,12 @@ final class Reconcile
         foreach ($fr['settled'] as $ref => $pay) {
             $frStake += $fr['plays'][$ref] ?? 0;
         }
+        $frOpenTaken = 0;                                                                              // parts of a held win already moved to the balance (credited, not yet in the payout of the round)
+        foreach (DB::table('instant_rounds')->where('game_id', GameReports::FRUIT)->where('status', 'open')->pluck('details') as $json) {
+            foreach ((json_decode((string) $json, true)['doubles'] ?? []) as $x) {
+                $frOpenTaken += (int) ($x['take'] ?? 0);
+            }
+        }
         $frOpenLedger = count(array_diff_key($fr['plays'], $fr['settled'], $fr['voided']));         // spins that have a stake line but no settlement and no void: the wins still held
         $frDoubles = Schema::hasColumn('instant_rounds', 'doubles') ? (int) DB::table('instant_rounds')->where('game_id', GameReports::FRUIT)->sum('doubles') : $fr['doubles'];
         $pools = Schema::hasTable('jackpot_pools') ? DB::table('jackpot_pools')->where('game_id', GameReports::BINGO16)->get() : collect();
@@ -136,7 +142,7 @@ final class Reconcile
                 self::check('settled plays', (int) (clone $settledF)->count(), count($fr['settled'])),
                 self::check('staked', (int) (clone $settledF)->sum('stake'), $frStake),
                 self::check('paid (after double-ups)', (int) (clone $settledF)->sum('payout'), array_sum($fr['settled'])),
-                self::check('wins queued for the wallet (credit_due)', (int) (clone $settledF)->sum('payout'), $fr['credits']),
+                self::check('wins queued for the wallet (credit_due), settled plays plus parts already moved from held wins', (int) (clone $settledF)->sum('payout') + $frOpenTaken, $fr['credits']),
                 self::check('wins held (open rounds) against the ledger', (int) $openF, $frOpenLedger),
                 self::check('double-ups (rounds) against the ledger', $frDoubles, $fr['doubles']),
                 self::check('plays settled without a stake line', 0, count(array_diff_key($fr['settled'], $fr['plays']))),
