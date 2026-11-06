@@ -8,6 +8,7 @@ use App\Games\BingoPinball\Par;
 use App\Games\BingoPinball\Paytables;
 use App\Games\BingoPinball\SeedService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * What the consoles, /metrics and the alerts say about each game (Phase 5). One place computes the numbers so that they cannot disagree with each other:
@@ -21,6 +22,17 @@ final class GameReports
     public const BINGO = 'bingo-pinball';
 
     public function __construct(private Engine $engine, private SeedService $seeds) {}
+
+    private bool $ready = false;
+
+    /**
+     * Whether the tables of the instant games exist yet. Code is often deployed before `php artisan migrate` is run; until then the horse race, the consoles and /metrics must
+     * keep working, so every figure of a game that has no tables reads as zero instead of failing. (Only "yes" is remembered, so a later migration is noticed.)
+     */
+    private function ready(): bool
+    {
+        return $this->ready = $this->ready || (Schema::hasTable('instant_rounds') && Schema::hasColumn('pending_ops', 'game_id'));
+    }
 
     /** @return array<string,array> the figures of every game, optionally of one client only */
     public function summary(?string $client = null): array
@@ -55,6 +67,10 @@ final class GameReports
 
     private function bingo(?string $client): array
     {
+        if (! $this->ready()) {
+            return ['game' => self::BINGO, 'plays' => 0, 'rounds' => 0, 'staked' => 0, 'paid' => 0, 'ggr' => 0, 'byCurrency' => (object) [], 'rtpActual' => null, 'rtpTheoretical' => null, 'rtpZ' => 0.0,
+                'hits' => [3 => 0, 4 => 0, 5 => 0], 'hitFrequency' => null, 'hitFrequencyTheoretical' => null, 'byLine' => (object) [], 'pending' => $this->pending(self::BINGO, $client)];
+        }
         $staked = (int) $this->settled($client)->sum('stake');
         $paid = (int) $this->settled($client)->sum('payout');
         $plays = (int) $this->settled($client)->count();
@@ -93,9 +109,15 @@ final class GameReports
     /** the credits, rollbacks and webhooks of a game that the wallet or the platform has not confirmed yet */
     public function pending(string $game, ?string $client = null): array
     {
-        $q = function (string $kind) use ($game, $client) {
+        $ready = $this->ready();
+        $q = function (string $kind) use ($game, $client, $ready) {
+            if (! $ready && $game !== self::HORSE) {
+                return ['count' => 0, 'oldestSeconds' => 0];
+            }
             $c = DB::table('pending_ops')->where('kind', $kind);
-            if ($game === self::HORSE) {
+            if (! $ready) {                                          // before the migration every queued item is the horse race's
+                $game = self::HORSE;
+            } elseif ($game === self::HORSE) {
                 $c->where(fn ($w) => $w->whereNull('game_id')->orWhere('game_id', self::HORSE));
             } else {
                 $c->where('game_id', $game);

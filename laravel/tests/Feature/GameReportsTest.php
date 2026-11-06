@@ -183,4 +183,18 @@ class GameReportsTest extends StaffTestCase
         $this->assertFalse($res['games']['bingo-pinball']['ok']);
         $this->assertTrue($res['games']['horse-race']['ok']);
     }
+
+    public function test_everything_keeps_working_when_the_code_is_deployed_before_the_migration(): void
+    {
+        \Illuminate\Support\Facades\Schema::drop('instant_rounds');         // the new tables are not there yet
+        $this->staff('_operator', 'olga', 'viewer');
+        $adm = $this->signIn('admin', null, 'olga')[0];
+        $o = $this->getJson('/admin/api/overview', $adm)->assertOk()->json();
+        $this->assertSame([], $o['alerts']);
+        $g = $this->getJson('/admin/api/games', $adm)->assertOk()->json();
+        $this->assertSame(0, $g['games']['bingo-pinball']['plays']);
+        $this->assertSame(0, $g['games']['bingo-pinball']['pending']['credits']['count']);
+        $this->get('/metrics', ['X-Controller-Key' => 'ctl-key-for-tests'])->assertOk()->assertSee('horse_game_plays_total{game="bingo-pinball"} 0', false);
+        $this->assertSame([], array_column((new AlertManager($this->engine, config('horse.alerts'), null, fn () => $this->t))->current(), 'name'));
+    }
 }
