@@ -31,12 +31,14 @@ class GamesRegistryTest extends StaffTestCase
         return $this->signIn('admin', null, 'olga')[0];
     }
 
-    public function test_the_horse_race_is_the_default_game_and_bingo_pinball_ships_switched_off(): void
+    public function test_the_horse_race_and_bingo_pinball_are_the_default_games(): void
     {
         $g = $this->games();
         $this->assertSame(['horse-race', 'bingo-pinball'], $g->ids());
-        $this->assertSame(['horse-race'], $g->defaults(), 'a new game is registered but is not in the defaults: no client plays it until an operator adds it');
-        $this->assertFalse($g->isEnabled($this->reg->get('acme'), 'bingo-pinball'));
+        $this->assertSame(['horse-race', 'bingo-pinball'], $g->defaults(), 'every client plays both games unless its own list says otherwise');
+        $this->assertTrue($g->isEnabled($this->reg->get('acme'), 'bingo-pinball'));
+        $off = new Games(app(), ['default' => ['horse-race'], 'modules' => config('games.modules')]);          // BINGO_DEFAULT_ON=false
+        $this->assertFalse($off->isEnabled($this->reg->get('acme'), 'bingo-pinball'));
         $this->assertSame(['instant', 'Bingo Pinball', '/games/bingo-pinball'], [$g->get('bingo-pinball')->kind(), $g->get('bingo-pinball')->name(), $g->get('bingo-pinball')->launchPath()]);
         $m = $g->get('horse-race');
         $this->assertInstanceOf(GameModule::class, $m);
@@ -53,9 +55,9 @@ class GamesRegistryTest extends StaffTestCase
     {
         $c = $this->reg->get('acme');
         $this->assertArrayNotHasKey('games', $c, 'existing clients are untouched');
-        $this->assertSame(['horse-race'], $this->games()->enabledFor($c));
+        $this->assertSame(['horse-race', 'bingo-pinball'], $this->games()->enabledFor($c));
         $this->assertTrue($this->games()->isEnabled($c, 'horse-race'));
-        $this->assertFalse($this->games()->isEnabled($c, 'bingo-pinball'));
+        $this->assertTrue($this->games()->isEnabled($c, 'bingo-pinball'));
         $this->assertArrayNotHasKey('games', $this->reg->publicView($c), 'the client views are as they were');
     }
 
@@ -99,6 +101,7 @@ class GamesRegistryTest extends StaffTestCase
         $sessions = new Sessions(fn () => $this->t, $log, $cfg, $dir, new WalletGateway(fn () => $this->t, $log, fn ($id) => $dir->walletFor($id)), new Limits(fn () => $this->t, $cfg),
             fn (array $client, string $game) => $this->games()->isEnabled($client, $game));
 
+        $this->reg->update('acme', ['games' => ['horse-race']]);                                  // an operator left the game out of this client's list
         try {
             $sessions->auth('demo-alice', 'acme', 'bingo-pinball');
             $this->fail('not enabled');

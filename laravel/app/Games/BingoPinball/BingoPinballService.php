@@ -49,10 +49,10 @@ final class BingoPinballService
 
     /* ---------- the player's session ---------- */
 
-    /** the client's paytable, or GAME_NOT_CONFIGURED: the RTP is an operator's decision, there is no default */
+    /** the client's paytable, else the server's default (config games.settings.bingo-pinball.default_paytable); GAME_NOT_CONFIGURED when neither is a real version */
     private function paytableOf(array $client): Paytable
     {
-        $v = $client['gameSettings'][self::GAME]['paytable'] ?? null;
+        $v = $client['gameSettings'][self::GAME]['paytable'] ?? ($this->settings['default_paytable'] ?? null);
         if (! is_int($v) || ! in_array($v, Paytables::VERSIONS, true)) {
             throw new GameError(409, 'GAME_NOT_CONFIGURED', 'This game has no paytable for this client yet.');
         }

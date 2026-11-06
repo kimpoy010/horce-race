@@ -262,10 +262,11 @@
         var gf = h('form', { class: 'panel' }), boxes = {};
         gf.appendChild(h('h3', null, 'Games')); gf.appendChild(h('div', { class: 'sub' }, 'Which games this client may offer. A new game is off until it is switched on here.'));
         avail.forEach(function (g) { boxes[g.id] = h('input', { type: 'checkbox', style: 'width:auto;flex:none;margin:0', checked: enabled.indexOf(g.id) >= 0, disabled: !can('admin') }); gf.appendChild(h('label', { style: 'display:flex;gap:8px;align-items:center;justify-content:flex-start;margin:6px 0;text-align:left' }, boxes[g.id], g.name)); });
-        var pt = h('select', { name: 'paytable', disabled: !can('admin') }, [h('option', { value: '' }, 'choose...')].concat([88, 90, 92, 94, 96].map(function (v) { return h('option', { value: v, selected: bs.paytable === v }, v + '%'); })));
+        var dflt = (gr.data.defaults && gr.data.defaults.paytable) || '?';
+        var pt = h('select', { name: 'paytable', disabled: !can('admin') }, [h('option', { value: '' }, 'server default (' + dflt + '%)')].concat([88, 90, 92, 94, 96].map(function (v) { return h('option', { value: v, selected: bs.paytable === v }, v + '%'); })));
         var bmin = E('bmin', bl.minBet != null ? money(bl.minBet, dec).replace(/,/g, '') : '', { placeholder: 'default' }), bmax = E('bmax', bl.maxBet != null ? money(bl.maxBet, dec).replace(/,/g, '') : '', { placeholder: 'default' });
         var rw = h('input', { type: 'checkbox', style: 'width:auto;flex:none;margin:0', checked: !!bs.roundWebhooks, disabled: !can('admin') });
-        gf.appendChild(h('h3', { style: 'margin-top:14px' }, 'Bingo Pinball')); gf.appendChild(h('div', { class: 'sub' }, 'The paytable is the return to player (RTP) of this client\'s Bingo Pinball. It is an operator\'s decision: there is no default.'));
+        gf.appendChild(h('h3', { style: 'margin-top:14px' }, 'Bingo Pinball')); gf.appendChild(h('div', { class: 'sub' }, 'The paytable is the return to player (RTP) of this client\'s Bingo Pinball. Leave it on the server default unless this client should play another one.'));
         gf.appendChild(h('div', { class: 'fgrid' }, field('Paytable (RTP)', pt), field('Min stake', bmin), field('Max stake', bmax)));
         gf.appendChild(h('label', { style: 'display:flex;gap:8px;align-items:center;justify-content:flex-start;margin:6px 0;text-align:left' }, rw, 'Send a round.settled webhook for every play (big wins are always sent)'));
         if (can('admin')) gf.appendChild(h('div', { class: 'bar' }, h('button', { class: 'primary', type: 'submit' }, 'Save games')));
@@ -276,10 +277,12 @@
             if (!boxes['horse-race'].checked && !confirm('The horse race will be switched off for ' + id + '. Continue?')) return;
             var patch = { games: list };
             if (boxes['bingo-pinball'].checked || pt.value) {
-              if (boxes['bingo-pinball'].checked && !pt.value) throw new Error('Choose the paytable (RTP) before switching Bingo Pinball on.');
-              var set = { paytable: Number(pt.value) }, lim = {}, a = toMinor(bmin.value, dec), b2 = toMinor(bmax.value, dec); if (a) lim.minBet = a; if (b2) lim.maxBet = b2;
+              var set = {}, lim = {}, lo = toMinor(bmin.value, dec), hi = toMinor(bmax.value, dec);
+              if (pt.value) set.paytable = Number(pt.value);                // no paytable chosen = the server default
+              if (lo) lim.minBet = lo; if (hi) lim.maxBet = hi;
               if (Object.keys(lim).length) set.limits = lim; if (rw.checked) set.roundWebhooks = true;
-              patch.gameSettings = Object.assign({}, gs, { 'bingo-pinball': set });
+              var all = Object.assign({}, gs); if (Object.keys(set).length) all['bingo-pinball'] = set; else delete all['bingo-pinball'];
+              patch.gameSettings = all;
             }
             act('', patch, 'Games saved.');
           } catch (e) { out.replaceChildren(msg('err', e.message)); }

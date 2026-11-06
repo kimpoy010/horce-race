@@ -361,13 +361,13 @@ class HouseTest extends StaffTestCase
         $this->assertSame('called, ok', $this->getJson("/admin/api/house/players/$pid", $a)->json('player.note'));
     }
 
-    public function test_the_account_page_offers_bingo_only_when_the_game_is_on_for_the_house(): void
+    public function test_the_account_page_offers_bingo_unless_the_operator_switched_it_off_for_the_house(): void
     {
         $h = $this->register()[0] ?? null;
         $this->assertNotNull($h);
-        $this->assertSame(['horse-race'], $this->getJson('/player/api/games', $h)->assertOk()->json('games'));
-        $this->reg->update('house', ['games' => ['horse-race', 'bingo-pinball'], 'gameSettings' => ['bingo-pinball' => ['paytable' => 96]]]);
-        $this->assertSame(['horse-race', 'bingo-pinball'], $this->getJson('/player/api/games', $h)->json('games'));
+        $this->assertSame(['horse-race', 'bingo-pinball'], $this->getJson('/player/api/games', $h)->assertOk()->json('games'), 'on for everyone by default');
+        $this->reg->update('house', ['games' => ['horse-race']]);
+        $this->assertSame(['horse-race'], $this->getJson('/player/api/games', $h)->json('games'), 'unless the operator leaves it out of the list');
         $this->getJson('/player/api/games')->assertStatus(401);
     }
 

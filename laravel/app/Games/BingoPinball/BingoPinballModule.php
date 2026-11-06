@@ -6,7 +6,7 @@ use App\Platform\Games\GameModule;
 
 /**
  * Bingo Pinball as a module of the platform: an instant game (one round per play, settled inside the player's request).
- * Per client an operator sets the paytable (the RTP version) and may narrow the stake limits; a client without a paytable cannot play it.
+ * Every client plays it with the server's default paytable unless an operator gives the client its own paytable (the RTP version) or narrows the stake limits.
  */
 final class BingoPinballModule implements GameModule
 {
@@ -41,7 +41,7 @@ final class BingoPinballModule implements GameModule
     public function clientSettings(): array
     {
         return [
-            'paytable' => 'required: the RTP version of the paytable this client plays, one of '.implode(', ', Paytables::VERSIONS),
+            'paytable' => 'optional: the RTP version of the paytable this client plays, one of '.implode(', ', Paytables::VERSIONS).'. Without it the server default applies (BINGO_DEFAULT_PAYTABLE, 90)',
             'limits' => 'optional: {"minBet": n, "maxBet": n} in minor units, narrowing the server limits for this game',
             'roundWebhooks' => 'optional, default false: also send a round.settled webhook for every play (a big.win webhook is sent for every big win)',
         ];

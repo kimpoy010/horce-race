@@ -371,7 +371,8 @@ class BingoPlayTest extends TestCase
 
     public function test_the_game_is_reachable_only_for_clients_that_have_it_and_the_launch_token_is_kept(): void
     {
-        $this->client('plain');                                                                          // no games list: the defaults, the horse race only
+        config(['games.settings.bingo-pinball.default_paytable' => 0]);                                  // (no usable server default: a client without a paytable of its own cannot play)
+        $this->client('plain', ['games' => ['horse-race']]);                                             // an operator left the game out of this client's list
         $this->client('unset', ['games' => ['horse-race', 'bingo-pinball']]);                           // has the game but no paytable
         $this->postJson(self::BASE.'/auth', ['token' => 'launch-p1', 'client' => 'plain'])->assertStatus(403)->assertJsonPath('error', 'GAME_NOT_ENABLED');
         $this->postJson(self::BASE.'/auth', ['token' => 'launch-p1', 'client' => 'unset'])->assertStatus(409)->assertJsonPath('error', 'GAME_NOT_CONFIGURED');
@@ -546,7 +547,7 @@ class BingoPlayTest extends TestCase
     public function test_a_platform_asks_which_games_it_can_offer(): void
     {
         $key = $this->reg->rotateKey('acme', 0)['apiKey'];
-        $plain = $this->client('plain');
+        $plain = $this->client('plain', ['games' => ['horse-race']]);
         $g = $this->getJson('/api/client/games', ['Authorization' => 'Bearer '.$key])->assertOk()->json('games');
         $this->assertSame([['horse-race', 'shared'], ['bingo-pinball', 'instant']], array_map(fn ($x) => [$x['id'], $x['kind']], $g));
         $base = rtrim(config('app.url'), '/');
@@ -562,5 +563,18 @@ class BingoPlayTest extends TestCase
         $this->postJson(self::BASE.'/auth', ['token' => 'launch-new', 'client' => 'acme'])->assertStatus(503)->assertJsonPath('error', 'GAME_NOT_CONFIGURED');
         $this->assertCount(0, $this->sent('/session/validate'), 'the platform was not asked to use up the launch token');
         $this->assertSame([0, 0, 0], [DB::table('player_seeds')->count(), DB::table('instant_rounds')->count(), DB::table('game_sessions')->count()], 'nothing was stored without protection');
+    }
+
+    public function test_every_client_plays_bingo_with_the_default_paytable_unless_it_has_its_own(): void
+    {
+        $this->client('everyone');                                                                       // no games list, no paytable: the server defaults
+        $this->client('own', ['gameSettings' => ['bingo-pinball' => ['paytable' => 94]]]);               // no games list, its own paytable
+        $this->balance = 100000;
+        $a = $this->postJson(self::BASE.'/auth', ['token' => 'launch-p1', 'client' => 'everyone'])->assertOk();
+        $this->assertSame([90, 'bp-v90-1'], [$a->json('paytable.version'), $a->json('paytable.id')]);
+        $b = $this->postJson(self::BASE.'/auth', ['token' => 'launch-p2', 'client' => 'own'])->assertOk();
+        $this->assertSame(94, $b->json('paytable.version'));
+        $round = $this->play($a->json('session'), 1000)->assertOk()->json('round');
+        $this->assertSame('bp-v90-1', $round['paytable']['id'], 'the play is paid under the default paytable');
     }
 }

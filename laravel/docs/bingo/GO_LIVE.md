@@ -1,6 +1,6 @@
 # Bingo Pinball - from staging to go-live (Phase 6)
 
-This is the runbook for certifying and switching on Bingo Pinball. The build is finished; **everything below that touches staging, the testing lab, a deploy or production is done by a person** (Kim, the operator, the client). Nothing in the code deploys or enables the game by itself: it ships **switched off for every client** (`config/games.php` default is `["horse-race"]`) and a client plays it only after an operator adds it to the client's games and chooses its paytable.
+This is the runbook for certifying and switching on Bingo Pinball. The build is finished; **everything below that touches staging, the testing lab, a deploy or production is done by a person** (Kim, the operator, the client). Nothing in the code deploys anything. **Bingo Pinball is on by default for every client** (`config/games.php`; `BINGO_DEFAULT_ON=false` switches the default off) with the default paytable `BINGO_DEFAULT_PAYTABLE` (90), so deploying the code makes the game available to every player at once. If you want a certified, staged launch instead, set `BINGO_DEFAULT_ON=false` in `.env` before the deploy and enable it per client later (admin console, client page, Games).
 
 Read together with [../DEPLOY_CHECKLIST.md](../DEPLOY_CHECKLIST.md) (backup, deploy, restore, roll back) and [../STAGING.md](../STAGING.md).
 
@@ -8,7 +8,7 @@ Read together with [../DEPLOY_CHECKLIST.md](../DEPLOY_CHECKLIST.md) (backup, dep
 |---|---|---|---|
 | 1. Load test on staging | engineer | `bin/bingo-loadtest.cjs`, `games:reconcile` | section 1 passes |
 | 2. Certification pack | engineer, then the lab | `php artisan bingo:cert-pack` | the lab's report names the commit |
-| 3. Deploy, switched off | Kim | DEPLOY_CHECKLIST.md | section 3 passes |
+| 3. Deploy (with the default decided) | Kim | DEPLOY_CHECKLIST.md | section 3 passes |
 | 4. Test accounts | Kim and the client | admin console | section 4 passes |
 | 5. Go live and watch | Kim | consoles, `/metrics`, alerts | section 5 passes |
 
@@ -41,12 +41,12 @@ A smoke run on a developer machine (SQLite, PHP's built-in server, 30 players, 2
 
 Things the pack does not decide for you: the licence or the regulator's own forms, the platform's integration tests, and the legal text around the game.
 
-## 3. Deploy, switched off
+## 3. Deploy
 
 Follow [../DEPLOY_CHECKLIST.md](../DEPLOY_CHECKLIST.md) exactly (backup, restore check, migrations first, watch for 24 hours). The Bingo migrations only add tables and columns, so the old code keeps working with the new database.
 
 * Before: `HORSE_CLIENTS_KEY` is set (the game refuses to run without it) and backed up. The round loop runs.
-* After: `/healthz` is ok; `php artisan games:reconcile` is clean; `php artisan bingo:cert-pack --verify=<pack>` says OK; the admin console's **Games** tab shows Bingo Pinball **off** for every client; the horse race plays as before (a bet and a win on a test account).
+* After: `/healthz` is ok; `php artisan games:reconcile` is clean; `php artisan bingo:cert-pack --verify=<pack>` says OK; the admin console's **Games** tab shows Bingo Pinball **on** or **off** for each client as you intended (on for all by default; off for all if you set `BINGO_DEFAULT_ON=false`); the horse race plays as before (a bet and a win on a test account).
 * Rolling back is a normal redeploy of the previous tag.
 
 ## 4. Enable for the client's test accounts
@@ -63,9 +63,9 @@ There is **no per-player switch**: the game is enabled per client. To let only t
 
 ## 5. Go live and watch
 
-1. Switch the game on for the live client (admin console). No deploy is needed.
+1. If you deployed with `BINGO_DEFAULT_ON=false`, switch the game on for the live client (admin console) or set `BINGO_DEFAULT_ON=true` and run `php artisan config:cache`. No new deploy is needed.
 2. For the first 24 hours watch: `/healthz`; wallet failure rate and p95 per client; pending credits and rollbacks (the alerts `bingo_credits_stuck` and `bingo_rollbacks_stuck` fire after `HORSE_ALERT_CREDIT_MIN` / `HORSE_ALERT_ROLLBACK_MIN` minutes); `horse_tick_age_seconds`; the Games tab.
 3. For the first weeks watch **per-game RTP**: the Games tab ("vs maths") and `horse_game_rtp_zscore{game="bingo-pinball"}`. The alert `rtp_drift:bingo-pinball` fires beyond 4 standard deviations after 1,000 plays. A single play has a standard deviation of 1.4x to 2.6x the stake depending on the version (see MATH.md), so a few hundred plays say little; do not react to a gap that is inside two standard deviations. A drift alert is a reason to run `games:reconcile`, check `bingo:cert-pack --verify` and look at the plays, not to change the paytable.
 4. Run `games:reconcile` daily for the first week, then weekly.
 
-**Switching the game off** (any problem with the game itself): admin console, client page, uncheck Bingo Pinball, save. New plays are refused within seconds (`GAME_NOT_ENABLED`; every call re-checks, the client list is cached briefly). Plays already made stay settled, and queued credits and rollbacks keep being delivered by the round loop (it does not depend on the game being enabled). The horse race is not affected.
+**Switching the game off** (any problem with the game itself): admin console, client page, uncheck Bingo Pinball, save. (To switch it off for everybody at once: `BINGO_DEFAULT_ON=false` in `.env`, `php artisan config:cache`, restart `php-fpm`; clients that have it in their own games list keep it until their list is edited.) New plays are refused within seconds (`GAME_NOT_ENABLED`; every call re-checks, the client list is cached briefly). Plays already made stay settled, and queued credits and rollbacks keep being delivered by the round loop (it does not depend on the game being enabled). The horse race is not affected.

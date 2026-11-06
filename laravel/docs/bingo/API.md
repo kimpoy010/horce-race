@@ -4,14 +4,14 @@ For the game's own page (Phase 4) and for platforms. The maths and the draw are 
 
 ## Switching it on for a client
 
-The game ships **switched off**. A client plays it only when an operator adds it to the client's games list **and** chooses its paytable (the RTP version is an operator's decision; there is no default). In the admin console (client settings) or with `POST /admin/api/clients/<id>`:
+Every client plays Bingo Pinball by default, with the server's default paytable (`BINGO_DEFAULT_PAYTABLE`, 90). `BINGO_DEFAULT_ON=false` takes it out of the defaults again, so that only clients with it in their own games list play it. An operator can give a client its own games list and paytable in the admin console (client settings, Games) or with `POST /admin/api/clients/<id>`:
 
 ```json
 { "client": { "games": ["horse-race", "bingo-pinball"],
               "gameSettings": { "bingo-pinball": { "paytable": 96, "limits": { "minBet": 500, "maxBet": 20000 }, "roundWebhooks": false } } } }
 ```
 
-* `paytable`: 88, 90, 92, 94 or 96 (required).
+* `paytable`: 88, 90, 92, 94 or 96 (optional: without it the server default applies).
 * `limits`: optional, narrows the server's minimum and maximum bet for this game. The client's other limits (including the daily loss limit) apply as for the horse race.
 * `roundWebhooks`: optional (default `false`): also send a `round.settled` webhook for every play. A `big.win` webhook is always sent for a win of at least the client's `bigWinMin`.
 

@@ -127,13 +127,14 @@ class GameReportsTest extends StaffTestCase
     {
         $this->staff('_operator', 'olga', 'viewer');
         $adm = $this->signIn('admin', null, 'olga')[0];
+        $this->reg->update('zeta', ['games' => ['horse-race']]);                                       // left out of zeta's own list
         $this->plays($this->bingoSession(), 4);
         $g = $this->getJson('/admin/api/games', $adm)->assertOk()->json();
         $this->assertSame(4, $g['games']['bingo-pinball']['plays']);
         $this->assertSame(4, $g['clients']['acme']['games']['bingo-pinball']['plays']);
         $this->assertSame(96, $g['clients']['acme']['paytables']['bingo-pinball']);
         $this->assertSame(['horse-race', 'bingo-pinball'], $g['clients']['acme']['enabled']);
-        $this->assertSame(['horse-race'], $g['clients']['zeta']['enabled'], 'switched off for clients that were not given the game');
+        $this->assertSame(['horse-race'], $g['clients']['zeta']['enabled'], 'a client whose own list leaves the game out has it off');
         $this->assertSame(['horse-race', 'bingo-pinball'], array_column($g['available'], 'id'));
     }
 
