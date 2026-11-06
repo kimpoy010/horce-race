@@ -4,14 +4,14 @@ namespace App\Games\FruitRing;
 
 /**
  * Fruit Ring: the fixed rules (docs/fruit/MATH.md). A ring of 24 cells; the player puts credits on any of 8 symbols; a light stops on one cell, drawn by the server by weight;
- * a Lucky stop lights two more cells; every lit cell pays the bets on its symbol; a x3 cell pays three times. After a win the player may double it (Small 1-7 / Big 8-14, a fair
+ * a Lucky stop gives free spins (3 of them, or one with 3 lit cells); every lit cell pays the bets on its symbol; a x3 cell pays three times. After a win the player may double it (Small 1-7 / Big 8-14, a fair
  * 50/50), up to three times in a row. Nothing here is ever changed once the game is certified: other pays or weights are a new version with a new id.
  */
 final class Rules
 {
     public const ID = 'fruit-ring';
 
-    public const PAYTABLE_ID = 'fr-v90-1';
+    public const PAYTABLE_ID = 'fr-v90-2';
 
     public const TOTAL_WEIGHT = 100000;
 
@@ -28,18 +28,19 @@ final class Rules
 
     public const DOUBLE_NUMBERS = 14;
 
-    /** the 24 cells clockwise from the top left: [symbol, multiplier, weight]. 'lucky' pays nothing and lights two more cells; 'bar3' and 'bar50' are the two BAR cells */
+    /** the 24 cells clockwise from the top left: [symbol, multiplier, weight]. The two Lucky cells pay nothing themselves: 'free3' gives 3 free spins (one lit cell each), 'light3' one free spin with 3 lit
+     *  cells; 'bar3' and 'bar50' are the two BAR cells */
     public const RING = [
-        ['orange', 1, 7721], ['bell', 1, 3088], ['bar50', 1, 1838], ['bar3', 1, 1838], ['apple', 1, 5515], ['apple', 3, 5515], ['lemon', 1, 3860],
-        ['watermelon', 1, 3860], ['watermelon', 3, 3860], ['lucky', 1, 3824], ['apple', 1, 5515], ['orange', 3, 7721],
-        ['orange', 1, 7721], ['bell', 1, 3088], ['seven', 3, 1930], ['seven', 1, 1930], ['apple', 1, 5515], ['lemon', 3, 3860], ['lemon', 1, 3860],
-        ['star', 3, 2757], ['star', 1, 2757], ['lucky', 1, 3824], ['apple', 1, 5515], ['bell', 3, 3088],
+        ['orange', 1, 8041], ['bell', 1, 3216], ['bar50', 1, 1914], ['bar3', 1, 1914], ['apple', 1, 5744], ['apple', 3, 5744], ['lemon', 1, 4020],
+        ['watermelon', 1, 4020], ['watermelon', 3, 4020], ['free3', 1, 1908], ['apple', 1, 5744], ['orange', 3, 8041],
+        ['orange', 1, 8041], ['bell', 1, 3216], ['seven', 3, 2010], ['seven', 1, 2010], ['apple', 1, 5744], ['lemon', 3, 4020], ['lemon', 1, 4020],
+        ['star', 3, 2872], ['star', 1, 2872], ['light3', 1, 1909], ['apple', 1, 5744], ['bell', 3, 3216],
     ];
 
     /** @return list<int> the cells that are Lucky */
     public static function luckyCells(): array
     {
-        return array_keys(array_filter(self::RING, fn ($c) => $c[0] === 'lucky'));
+        return array_keys(array_filter(self::RING, fn ($c) => in_array($c[0], ['free3', 'light3'], true)));
     }
 
     /** the symbol (one of SYMBOLS) a cell belongs to, or 'lucky' */
@@ -47,7 +48,7 @@ final class Rules
     {
         $c = self::RING[$cell][0];
 
-        return in_array($c, ['bar3', 'bar50'], true) ? 'bar' : $c;
+        return in_array($c, ['bar3', 'bar50'], true) ? 'bar' : (in_array($c, ['free3', 'light3'], true) ? 'lucky' : $c);
     }
 
     /** credits paid for one credit on the cell's symbol when this cell lights */
@@ -58,7 +59,7 @@ final class Rules
         return match ($c) {
             'bar3' => self::PAYS['bar'],
             'bar50' => self::BAR50,
-            'lucky' => 0,
+            'free3', 'light3' => 0,
             default => self::PAYS[$c] * $m,
         };
     }

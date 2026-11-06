@@ -13,8 +13,8 @@ use App\Game\RngStream;
  *   stream = HMAC-SHA256(key, label ":" counter), counter = 0, 1, 2 ...; four bytes (big endian) make one 32-bit number
  *            label of a spin "fruit-ring:" client seed ":" nonce; label of a double-up "fruit-double:" client seed ":" nonce
  *   int(n) = uniform in [0, n) by rejection sampling (reject v >= 2^32 - (2^32 mod n), the answer is v mod n)
- *   spin   = r = int(100000), mapped to a cell by the cumulative weights of the 24 cells in ring order. A Lucky stop lights two more cells: each is int(Wn) mapped over the non-Lucky
- *            cells in ring order (Wn = their total weight), drawn from the same stream after the first
+ *   spin   = r = int(100000), mapped to a cell by the cumulative weights of the 24 cells in ring order. A Lucky stop gives free spins: three numbers int(Wn), each mapped over the non-Lucky cells
+ *            in ring order (Wn = their total weight), drawn from the same stream after the first. 'free3' = three free spins of one lit cell each, 'light3' = one free spin with the three cells lit
  *   double = int(14) + 1: Small is 1-7, Big is 8-14
  * Every spin and every double-up takes the next nonce of the player's seed pair.
  */
@@ -57,18 +57,20 @@ final class Draw
         throw new \LogicException('weights do not add up');
     }
 
-    /** @return list<int> the cells that light, in order: [stop], or [Lucky stop, extra 1, extra 2] */
+    /** @return list<list<int>> the rounds of the play, each the cells that light: [[stop]], or [[stop],[a],[b],[c]] (3 free spins), or [[stop],[a,b,c]] (a free spin with 3 lit cells) */
     public static function spin(string $serverSeedHex, string $clientSeed, int $nonce): array
     {
         $s = self::stream('fruit-ring', $serverSeedHex, $clientSeed, $nonce);
         $stop = self::pick($s->int(Rules::TOTAL_WEIGHT), range(0, 23));
-        if (Rules::symbolOf($stop) !== 'lucky') {
-            return [$stop];
+        $kind = Rules::RING[$stop][0];
+        if (! in_array($kind, ['free3', 'light3'], true)) {
+            return [[$stop]];
         }
         $non = array_values(array_diff(range(0, 23), Rules::luckyCells()));
         $wn = array_sum(array_map(fn ($i) => Rules::RING[$i][2], $non));
+        $cells = [self::pick($s->int($wn), $non), self::pick($s->int($wn), $non), self::pick($s->int($wn), $non)];
 
-        return [$stop, self::pick($s->int($wn), $non), self::pick($s->int($wn), $non)];
+        return $kind === 'free3' ? [[$stop], [$cells[0]], [$cells[1]], [$cells[2]]] : [[$stop], $cells];
     }
 
     /** the number 1..14 of a double-up */

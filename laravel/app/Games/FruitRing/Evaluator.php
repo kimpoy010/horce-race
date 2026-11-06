@@ -6,13 +6,13 @@ namespace App\Games\FruitRing;
 final class Evaluator
 {
     /**
-     * @param  list<int>  $lit  the cells that lit (the same cell twice pays twice)
+     * @param  list<list<int>>  $rounds  the cells that lit in each round (the same cell twice pays twice)
      * @return array<string,int> credits paid for ONE credit on each symbol
      */
-    public static function payouts(array $lit): array
+    public static function payouts(array $rounds): array
     {
         $out = array_fill_keys(Rules::SYMBOLS, 0);
-        foreach ($lit as $cell) {
+        foreach (array_merge(...$rounds) as $cell) {
             $s = Rules::symbolOf($cell);
             if ($s !== 'lucky') {
                 $out[$s] += Rules::cellPay($cell);
@@ -23,13 +23,13 @@ final class Evaluator
     }
 
     /**
-     * @param  list<int>  $lit
+     * @param  list<list<int>>  $rounds
      * @param  array<string,int>  $bets  credits on each symbol (missing = 0)
      * @return int credits paid in total
      */
-    public static function pay(array $lit, array $bets): int
+    public static function pay(array $rounds, array $bets): int
     {
-        $p = self::payouts($lit);
+        $p = self::payouts($rounds);
         $total = 0;
         foreach (Rules::SYMBOLS as $s) {
             $total += ((int) ($bets[$s] ?? 0)) * $p[$s];
