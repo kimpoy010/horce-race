@@ -31,13 +31,9 @@
     for (i = 0; i < 16; i++) {
       var s = T.slots[i];
       svg('rect', { x: s.xl, y: T.RIM_Y, width: 22, height: 52, rx: 3, fill: C.slot, stroke: C.slotLine, 'stroke-width': 2 }, board);
-      var tx = svg('text', { x: s.x, y: 494, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 8, fill: C.slotLine }, board); tx.textContent = s.n;
+      var tx = svg('text', { x: s.x, y: 496, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 9, fill: C.slotLine }, board); tx.textContent = s.n;
     }
-    // the catch tray under the slots: a ball that falls through a gap between two slots rolls into it (a miss); it fills with one dot per missed ball
-    svg('rect', { x: 14, y: 500, width: 516, height: 16, rx: 8, fill: '#0F1535', stroke: C.wall, 'stroke-width': 2 }, board);
-    var cap = svg('text', { x: 26, y: 512, 'font-family': "'Press Start 2P', monospace", 'font-size': 7, fill: C.peg }, board); cap.textContent = 'MISSED';
-    var missDots = [], missText = svg('text', { x: 518, y: 512, 'text-anchor': 'end', 'font-family': "'Press Start 2P', monospace", 'font-size': 7, fill: C.gold, visibility: 'hidden' }, board);
-    for (i = 0; i < 16; i++) missDots.push(svg('circle', { cx: 100 + i * 24, cy: 508, r: 5, fill: C.ball, stroke: C.ballLine, 'stroke-width': 1, visibility: 'hidden' }, board));
+    var cap = svg('text', { x: 272, y: 514, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 8, fill: C.peg }, board); cap.textContent = 'GAPS DRAIN TO OUT';
     // balls resting in the slots (up to three show, stacked), and how many when there are more
     var rest = [], count = [];
     for (i = 0; i < 16; i++) {
@@ -90,8 +86,6 @@
           last['s' + k] = n;
         }
       }
-      var ms = scene.missed || 0;
-      if (last.miss !== ms) { for (j = 0; j < 16; j++) missDots[j].setAttribute('visibility', ms > j ? 'visible' : 'hidden'); missText.setAttribute('visibility', ms ? 'visible' : 'hidden'); missText.textContent = '×' + ms; last.miss = ms; }
       var pf = scene.pinFlash || {};
       for (k = 0; k < pegs.length; k++) {
         var hot = pf[k] > 0;
@@ -102,7 +96,7 @@
       for (k = 0; k < springLines.length; k++) { var sy = kneeY + 14 + k * 8 - pull * k * 2; springLines[k].setAttribute('y1', Math.min(sy, 506)); springLines[k].setAttribute('y2', Math.min(sy, 506) + 3); }
       if (power) power.style.width = Math.round(pull * 100) + '%';
       if (scene.ball) {
-        ball.setAttribute('cx', scene.ball.x); ball.setAttribute('cy', scene.ball.y); ball.setAttribute('visibility', scene.ball.y > 498 ? 'hidden' : 'visible');     // below the slots it drops into the tray
+        ball.setAttribute('cx', scene.ball.x); ball.setAttribute('cy', scene.ball.y - (scene.pull ? 0 : 0)); ball.setAttribute('visibility', 'visible');
         if (!hist.length || Math.hypot(hist[hist.length - 1].x - scene.ball.x, hist[hist.length - 1].y - scene.ball.y) > 14) { hist.push({ x: scene.ball.x, y: scene.ball.y }); if (hist.length > 3) hist.shift(); }
       } else { ball.setAttribute('visibility', 'hidden'); hist.length = 0; }
       for (k = 0; k < trail.length; k++) {
