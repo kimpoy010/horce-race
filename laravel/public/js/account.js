@@ -92,13 +92,6 @@
         else { play.disabled = false; if (r.status === 401) signedOut(text(r)); else show(out, 'err', text(r)); }
       }).catch(function () { play.disabled = false; show(out, 'err', 'Cannot reach the server.'); });
     } }, 'Play now');
-    var bingo = h('button', { class: 'primary play', style: 'display:none;background:#7a3aa0', onclick: function () {
-      bingo.disabled = true;
-      api('POST', 'launch', {}).then(function (r) {
-        if (r.status === 200 && r.data.token) location.href = '/games/bingo-pinball?token=' + encodeURIComponent(r.data.token) + '&client=' + encodeURIComponent(r.data.client);
-        else { bingo.disabled = false; if (r.status === 401) signedOut(text(r)); else show(out, 'err', text(r)); }
-      }).catch(function () { bingo.disabled = false; show(out, 'err', 'Cannot reach the server.'); });
-    } }, 'Play Bingo Pinball');
     var bingo16 = h('button', { class: 'primary play', style: 'display:none;background:#2a8aa8', onclick: function () {
       bingo16.disabled = true;
       api('POST', 'launch', {}).then(function (r) {
@@ -106,9 +99,9 @@
         else { bingo16.disabled = false; if (r.status === 401) signedOut(text(r)); else show(out, 'err', text(r)); }
       }).catch(function () { bingo16.disabled = false; show(out, 'err', 'Cannot reach the server.'); });
     } }, 'Play Bingo Pinball 16');
-    api('GET', 'games').then(function (r) { if (r.status === 200) { if (r.data.games.indexOf('bingo-pinball') >= 0) bingo.style.display = ''; if (r.data.games.indexOf('bingo-pinball-16') >= 0) bingo16.style.display = ''; } });          // only when the operator switched the game on
+    api('GET', 'games').then(function (r) { if (r.status === 200) { if (r.data.games.indexOf('bingo-pinball-16') >= 0) bingo16.style.display = ''; } });          // only when the operator switched the game on (the 5-ball Bingo Pinball has no button any more)
     var head = h('div', { class: 'box' }, h('div', { class: 'bal' }, h('div', null, h('div', { class: 'who' }, 'Balance'), h('div', { class: 'amt' }, (S.pay ? S.pay.currency : 'PHP') + ' ' + money(S.me.balance))),
-      h('div', { class: 'who' }, S.me.username, ' ', h('button', { style: 'margin-left:8px;padding:3px 10px', onclick: function () { api('POST', 'logout', {}).then(function () { S.mode = 'login'; signedOut(); }); } }, 'Sign out'))), play, bingo, bingo16, out);
+      h('div', { class: 'who' }, S.me.username, ' ', h('button', { style: 'margin-left:8px;padding:3px 10px', onclick: function () { api('POST', 'logout', {}).then(function () { S.mode = 'login'; signedOut(); }); } }, 'Sign out'))), play, bingo16, out);
     var seg = h('div', { class: 'seg' }, [['wallet', 'Deposit / Withdraw'], ['history', 'History'], ['account', 'Account']].map(function (t) {
       return h('button', { class: S.tab === t[0] ? 'on' : '', onclick: function () { S.tab = t[0]; signedIn(); } }, t[1]);
     }));
