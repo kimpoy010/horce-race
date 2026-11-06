@@ -5,7 +5,7 @@
   var T = window.BingoTable16, Api = window.Bingo16Api, Paths = window.Bingo16Paths, Fair = window.Bingo16Fair, Snd = window.BingoSound;
   var $ = function (id) { return document.getElementById(id); };
   var qs = new URLSearchParams(location.search);
-  var S = { state: null, stake: 0, steps: [], busy: false, balance: 0, shownBalance: 0, requestId: null, scene: null, sparks: [], pinFlash: {}, caught: [] };
+  var S = { manual: false, state: null, stake: 0, steps: [], busy: false, balance: 0, shownBalance: 0, requestId: null, scene: null, sparks: [], pinFlash: {}, caught: [] };
   var ERR = {
     SESSION_EXPIRED: 'Your session has ended. Open the game again from your account.', WRONG_GAME: 'This session belongs to another game.', GAME_NOT_ENABLED: 'This game is not available for your account.',
     GAME_NOT_CONFIGURED: 'This game is not set up yet.', PLAYER_BLOCKED: 'Your account cannot play right now.', BAD_BET: 'That stake is not allowed.', DAILY_LOSS_LIMIT: 'Your daily loss limit would be passed.',
@@ -14,7 +14,7 @@
     BAD_CLIENT_SEED: 'Seed: 1 to 64 letters, digits, - or _.', ERROR: 'Something went wrong.'
   };
   var el = {};
-  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound',
+  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound', 'btnMode',
     'rulesPays', 'rulesLimits', 'fairCommit', 'fairClient', 'fairPlays', 'fairNewSeed', 'fairRotate', 'fairOut', 'fairList'].forEach(function (k) { el[k] = $(k); });
   var view = window.Bingo16View.create({ board: el.board, card: el.card, jpRow: el.jpRow, power: el.power, pays: [el.pays, el.pstrip] });
 
@@ -51,7 +51,10 @@
     el.stakeDown.disabled = S.busy || i === 0; el.stakeUp.disabled = S.busy || i === S.steps.length - 1;
     try { localStorage.setItem('bp16.stake', String(S.stake)); } catch (e) { /* ignore */ }
   }
-  function lockControls(b) { S.busy = b; el.play.disabled = b || !S.state; setStake(S.stakeIdx || 0); }
+  function lockControls(b) { S.busy = b; el.play.disabled = b || !S.state; el.btnMode.disabled = b; setStake(S.stakeIdx || 0); }
+  // AUTO: the player pulls the plunger for the first ball and the other fifteen follow by themselves. MANUAL: the player pulls for every ball.
+  function modeUi() { el.btnMode.textContent = S.manual ? 'MANUAL' : 'AUTO'; el.btnMode.classList.toggle('manual', S.manual); }
+  try { S.manual = localStorage.getItem('bp16.mode') === 'manual'; } catch (e) { /* ignore */ }
 
   /* ---------- the scene ---------- */
   var scene = { paytable: null, lit: {}, jpNums: [], jpLit: {}, lineCells: [], winKey: '', slotCounts: [], ball: null, pull: 0, time: 0 };
@@ -77,7 +80,7 @@
 
   /* ---------- the plunger ---------- */
   // waits for the player to pull and let go (or for the ball to be launched by itself after a while); resolves with the power 0..1
-  function awaitLaunch(auto) {
+  function awaitLaunch(auto, idleMs) {
     return new Promise(function (resolve) {
       var holding = false, t0 = 0, done = false, pull = 0, raf = 0, idleTimer = null;
       function finish(p) {
@@ -102,7 +105,7 @@
       el.stage.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
       window.addEventListener('keydown', keyDown); window.addEventListener('keyup', keyUp);
       el.hint.hidden = !!auto;
-      idleTimer = setTimeout(function () { finish(0.35 + Math.random() * 0.5); }, auto ? 450 : 3500);
+      idleTimer = setTimeout(function () { finish(0.35 + Math.random() * 0.5); }, auto ? 450 : (idleMs || 3500));
       tick();
     });
   }
@@ -156,11 +159,12 @@
       var outcome = balls[i++], first = i === 1;
       ballsUi(total - i + 1, total);
       restOnPlunger(0);
-      if (first && !opts.fast) setMsg('Hold anywhere to pull, release to fire'); else setMsg('Ball ' + i + ' of ' + total);
-      // the player pulls the plunger for the first ball; the rest of the 16 follow by themselves, a little quicker
-      return (first && !opts.fast ? awaitLaunch(false) : wait(opts.fast ? 60 : 150).then(function () { return 0.25 + Math.random() * 0.7; })).then(function (power) {
+      var pull = !opts.fast && (first || S.manual);
+      if (pull) setMsg(S.manual ? 'Ball ' + i + ' of ' + total + ' · hold to pull' : 'Hold anywhere to pull, release to fire'); else setMsg('Ball ' + i + ' of ' + total);
+      // AUTO: the player pulls the plunger for the first ball, the rest of the 16 follow by themselves, a little quicker. MANUAL: every ball is pulled (a player who walks away after a minute has the ball launched, the play is already paid for)
+      return (pull ? awaitLaunch(false, S.manual ? 60000 : 3500) : wait(opts.fast ? 60 : 150).then(function () { return 0.25 + Math.random() * 0.7; })).then(function (power) {
         ballsUi(total - i, total, i);
-        return flyBall(outcome, power, opts.fast ? 2.4 : (first ? 1.15 : 1.6));
+        return flyBall(outcome, power, opts.fast ? 2.4 : (pull ? 1.15 : 1.6));
       }).then(function () { landBall(outcome); return wait(opts.fast ? 40 : 90); }).then(next);
     }
     return next().then(function () {
@@ -332,6 +336,8 @@
   el.stakeDown.addEventListener('click', function () { Snd.sfx.click(); setStake(S.stakeIdx - 1); });
   el.play.addEventListener('click', play);
   el.btnRules.addEventListener('click', function () { openSheet('rules'); });
+  el.btnMode.addEventListener('click', function () { S.manual = !S.manual; modeUi(); try { localStorage.setItem('bp16.mode', S.manual ? 'manual' : 'auto'); } catch (e) { /* ignore */ } note(S.manual ? 'MANUAL: you pull the plunger for every ball.' : 'AUTO: you pull once, the other balls follow by themselves.', true, 3500); });
+  modeUi();
   el.btnFair.addEventListener('click', function () { openSheet('fair'); });
   el.btnSound.addEventListener('click', function () {
     var on = !(Snd.isSfx() || Snd.isMusic()); Snd.setSfx(on); Snd.setMusic(on); Snd.unlock(); el.btnSound.classList.toggle('off', !on);
