@@ -48,7 +48,7 @@ class PlatformSchemaTest extends TestCase
 
     public function test_the_migration_can_be_undone_and_redone(): void
     {
-        $this->artisan('migrate:rollback', ['--step' => 3])->assertSuccessful();             // the Bingo Pinball 16 tables, the instant-game tables, then this one
+        $this->artisan('migrate:rollback', ['--step' => 4])->assertSuccessful();             // the pattern column, the Bingo Pinball 16 tables, the instant-game tables, then this one
         $this->assertFalse(Schema::hasColumn('bets', 'game_id'));
         $this->assertFalse(Schema::hasColumn('pending_ops', 'round_ref'));
         $this->artisan('migrate')->assertSuccessful();

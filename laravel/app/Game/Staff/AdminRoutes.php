@@ -91,7 +91,7 @@ final class AdminRoutes
                     $per[$c['id']] = ['name' => $c['name'], 'enabled' => $games->enabledFor($c), 'paytables' => array_map(fn ($s) => $s['paytable'] ?? null, (array) ($c['gameSettings'] ?? [])), 'games' => $reports->summary($c['id'])];
                 }
 
-                return $send(200, ['ok' => true, 'games' => $reports->summary(), 'clients' => (object) $per, 'defaults' => ['games' => $games->defaults(), 'paytable' => (int) config('games.settings.bingo-pinball.default_paytable')], 'available' => array_map(fn ($m) => ['id' => $m->id(), 'name' => $m->name(), 'kind' => $m->kind()], array_values($games->all()))]);
+                return $send(200, ['ok' => true, 'pools' => (object) $reports->pools(), 'games' => $reports->summary(), 'clients' => (object) $per, 'defaults' => ['games' => $games->defaults(), 'paytable' => (int) config('games.settings.bingo-pinball.default_paytable')], 'available' => array_map(fn ($m) => ['id' => $m->id(), 'name' => $m->name(), 'kind' => $m->kind()], array_values($games->all()))]);
             }
             if ($sub === 'rtp/preview' && $method === 'GET') {
                 try {

@@ -3,6 +3,7 @@
 namespace App\Games;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Checks each game's report (what the consoles and /metrics show, read from the database) against the hash-chained ledger (what was written as it happened).
@@ -16,7 +17,8 @@ final class Reconcile
     {
         $horse = ['settled' => 0, 'staked' => 0, 'paid' => 0];
         $bp = ['plays' => [], 'settled' => [], 'credits' => 0, 'voided' => []];
-        DB::table('ledger')->orderBy('seq')->chunkById(5000, function ($rows) use (&$horse, &$bp) {
+        $b16 = ['plays' => [], 'settled' => [], 'jackpotPaid' => 0, 'credits' => 0, 'add' => 0, 'win' => 0, 'seed' => 0];
+        DB::table('ledger')->orderBy('seq')->chunkById(5000, function ($rows) use (&$horse, &$bp, &$b16) {
             foreach ($rows as $row) {
                 $ev = json_decode($row->line, true);
                 switch ($ev['e'] ?? '') {
@@ -34,7 +36,26 @@ final class Reconcile
                     case 'bp.void':
                         $bp['voided'][$ev['roundId']] = true;
                         break;
+                    case 'b16.play':
+                        $b16['plays'][$ev['roundId']] = (int) $ev['stake'];
+                        break;
+                    case 'b16.settled':
+                        $b16['settled'][$ev['roundId']] = (int) $ev['payout'];
+                        $b16['jackpotPaid'] += (int) $ev['jackpotPaid'];
+                        break;
+                    case 'jackpot.add':
+                        $b16['add'] += (int) $ev['amount'];
+                        break;
+                    case 'jackpot.win':
+                        $b16['win'] += (int) $ev['amount'];
+                        break;
+                    case 'jackpot.seed':
+                        $b16['seed'] += (int) $ev['amount'];
+                        break;
                     case 'credit_due':
+                        if (($ev['game'] ?? null) === GameReports::BINGO16 && str_ends_with((string) $ev['txId'], ':win')) {
+                            $b16['credits'] += (int) $ev['amount'];
+                        }
                         if (($ev['game'] ?? null) === GameReports::BINGO && str_ends_with((string) $ev['txId'], ':win')) {
                             $bp['credits'] += (int) $ev['amount'];
                         }
@@ -51,6 +72,14 @@ final class Reconcile
             $bpStake += $bp['plays'][$ref] ?? 0;
         }
 
+        $settled16 = DB::table('instant_rounds')->where('game_id', GameReports::BINGO16)->where('status', 'settled');
+        $b16Stake = 0;
+        foreach ($b16['settled'] as $ref => $pay) {
+            $b16Stake += $b16['plays'][$ref] ?? 0;
+        }
+        $pools = Schema::hasTable('jackpot_pools') ? DB::table('jackpot_pools')->where('game_id', GameReports::BINGO16)->get() : collect();
+        $unbalanced = $pools->filter(fn ($p) => (int) $p->amount !== (int) $p->seeded + (int) $p->contributed - (int) $p->paid)->count();
+
         $games = [
             GameReports::HORSE => ['checks' => [
                 self::check('settled races', (int) (clone $rounds)->count(), $horse['settled']),
@@ -65,6 +94,19 @@ final class Reconcile
                 self::check('paid', (int) (clone $settled)->sum('payout'), array_sum($bp['settled'])),
                 self::check('wins queued for the wallet (credit_due)', (int) (clone $settled)->sum('payout'), $bp['credits']),
                 self::check('plays settled without a stake line', 0, count(array_diff_key($bp['settled'], $bp['plays']))),
+            ]],
+            GameReports::BINGO16 => ['checks' => [
+                self::check('settled plays', (int) (clone $settled16)->count(), count($b16['settled'])),
+                self::check('staked', (int) (clone $settled16)->sum('stake'), $b16Stake),
+                self::check('paid (pattern pays and jackpots)', (int) (clone $settled16)->sum('payout'), array_sum($b16['settled'])),
+                self::check('jackpots paid (plays) against the ledger', (int) (clone $settled16)->sum('jackpot_paid'), $b16['jackpotPaid']),
+                self::check('wins queued for the wallet (credit_due)', (int) (clone $settled16)->sum('payout'), $b16['credits']),
+                self::check('jackpot contributions (pool) against the ledger', (int) $pools->sum('contributed'), $b16['add']),
+                self::check('jackpots paid (pool) against the ledger', (int) $pools->sum('paid'), $b16['win']),
+                self::check('jackpots paid (pool) against the plays', (int) $pools->sum('paid'), (int) (clone $settled16)->sum('jackpot_paid')),
+                self::check('seed money (pool) against the ledger', (int) $pools->sum('seeded'), $b16['seed']),
+                self::check('pools that do not balance (pool = seed money + contributions - jackpots paid)', 0, $unbalanced),
+                self::check('plays settled without a stake line', 0, count(array_diff_key($b16['settled'], $b16['plays']))),
             ]],
         ];
         $all = true;

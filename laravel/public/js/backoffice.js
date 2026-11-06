@@ -145,7 +145,7 @@
 
 
   /* ---------- games: the figures of each game and the plays of Bingo Pinball ---------- */
-  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball' };
+  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball', 'bingo-pinball-16': 'Bingo Pinball 16' };
   function gameRounds(box, cur, player) {
     api('GET', 'rounds?game=bingo-pinball&limit=100' + (player ? '&player=' + encodeURIComponent(player) : '')).then(function (r) {
       if (handleAuth(r)) return; clear(box);
@@ -174,6 +174,52 @@
       modal('Play ' + x.ref, body);
     });
   }
+  function gameRounds16(box, cur, player) {
+    api('GET', 'rounds?game=bingo-pinball-16&limit=100' + (player ? '&player=' + encodeURIComponent(player) : '')).then(function (r) {
+      if (handleAuth(r)) return; clear(box);
+      var list = r.data.rounds || [];
+      if (!list.length) return box.appendChild(h('p', { class: 'mute' }, 'No plays yet.'));
+      box.appendChild(table([['Play'], ['Time'], ['Player'], ['Status'], ['Stake', 'right'], ['Paid', 'right'], ['Pattern'], ['Jackpot', 'right'], ['Lit']], list.map(function (x) {
+        return h('tr', { class: 'click', onclick: function () { gameRound16(x.id, cur); } }, td(x.ref), td(when(x.at), 'nowrap'), td(x.playerId), td(x.status), td(money(x.stake, cur), 'right'), td(money(x.payout, cur), 'right ' + (x.payout > 0 ? 'ok' : '')),
+          td(x.patternName || (x.status === 'void' ? 'void' : 'none')), td(x.jackpotPaid ? money(x.jackpotPaid, cur) : '-', 'right ' + (x.jackpotPaid ? 'ok' : '')), td(x.lit ? x.lit.length + ' of 16' : '-'));
+      })));
+    });
+  }
+  function gameRound16(id, cur) {
+    api('GET', 'games/bingo-pinball-16/rounds/' + id).then(function (r) {
+      if (handleAuth(r)) return;
+      var body = h('div');
+      if (r.status !== 200) { body.appendChild(msg('err', errText(r))); return modal('Play b16:' + id, body); }
+      var x = r.data.round, pr = r.data.proof;
+      body.appendChild(table([['Item'], ['Value']], [['Player', x.playerId], ['Time', when(x.at)], ['Status', x.status], ['Stake', money(x.stake, cur)], ['Paid', money(x.payout, cur) + (x.jackpotPaid ? ' (jackpot ' + money(x.jackpotPaid, cur) + ')' : '')],
+        ['Balls (slot 1-16, 0 = OUT)', x.balls ? x.balls.join(' ') : '-'], ['Slots lit', x.lit ? x.lit.join(', ') : '-'], ['Jackpot numbers', x.jackpotNumbers ? x.jackpotNumbers.join(', ') + ' (' + x.jackpotLit + ' lit)' : '-'],
+        ['Best pattern', x.patternName ? x.patternName + ' x' + x.multiple : 'none'], ['Paytable', x.paytable], ['Nonce', x.nonce == null ? '-' : x.nonce]].map(function (a) { return h('tr', null, td(a[0]), td(String(a[1]))); })));
+      if (pr) {
+        body.appendChild(h('h3', null, 'Proof'));
+        body.appendChild(h('p', { class: 'mute' }, 'The server seed was revealed, so the play can be re-run. The standalone verifier prints the balls, the jackpot numbers and the pattern pay; the jackpot amount is the pool of that moment, see the ledger (jackpot.win).'));
+        body.appendChild(h('pre', { class: 'mono', style: 'white-space:pre-wrap;word-break:break-all' }, pr.verify));
+        body.appendChild(table([['Item'], ['Value']], [['Server seed', pr.serverSeed], ['Commit (sha256 of the server seed)', pr.commit], ['Player seed', pr.clientSeed], ['Nonce', pr.nonce]].map(function (a) { return h('tr', null, td(a[0]), td(h('span', { class: 'mono', style: 'word-break:break-all' }, String(a[1])))); })));
+      } else body.appendChild(msg('note', r.data.proofNote || 'No proof yet.'));
+      modal('Play ' + x.ref, body);
+    });
+  }
+  function section16(view, d, cur) {
+    var g = d.games['bingo-pinball-16'], on = d.enabled.indexOf('bingo-pinball-16') >= 0;
+    if (!on && !g.plays) return;
+    view.appendChild(h('h2', null, 'Bingo Pinball 16'));
+    view.appendChild(h('div', { class: 'cards' }, card('Pattern return', pct(g.patternRtpActual) + ' (PAR ' + pct(g.patternRtpTheoretical) + ')'), card('Jackpots won', g.jackpotHits + ' (expected ' + g.jackpotExpected.toFixed(1) + ')'), card('Jackpot paid', money(g.jackpotPaid, cur)),
+      card('Pattern pays vs maths', (g.rtpZ >= 0 ? '+' : '') + g.rtpZ.toFixed(1) + ' sd')));
+    var pats = Object.keys(g.patterns);
+    if (g.plays && pats.length) view.appendChild(h('div', { class: 'panel' }, h('strong', null, 'Patterns against the PAR sheet'), table([['Pattern'], ['Pays', 'right'], ['Plays', 'right'], ['Expected', 'right'], ['Chance per play', 'right']], pats.map(function (k) {
+      var q = g.patterns[k]; return h('tr', null, td(q.name), td('x' + q.multiple, 'right'), td(q.count, 'right'), td(q.expected.toFixed(1), 'right'), td((q.probability * 100).toFixed(3) + '%', 'right'));
+    }))));
+    var pool = g.pools && g.pools.PHP;
+    if (pool) view.appendChild(h('p', { class: 'mute' }, 'Jackpot pool now: ' + money(pool.amount, cur) + ' (shared by the whole server); ' + pool.wins + ' won so far.'));
+    var q = h('input', { placeholder: 'player id (empty = everyone)', style: 'max-width:260px' }), box = h('div'), t;
+    view.appendChild(h('div', { class: 'bar' }, h('h3', { style: 'margin:0' }, 'Plays'), q, h('a', { href: '/bo/api/export/bingo16-rounds.csv', download: 'bingo16-rounds.csv' }, 'Download CSV')));
+    view.appendChild(box); gameRounds16(box, cur, '');
+    q.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { gameRounds16(box, cur, q.value.trim()); }, 250); });
+  }
   function games(view) {
     api('GET', 'games').then(function (r) {
       if (handleAuth(r)) return; clear(view);
@@ -185,6 +231,7 @@
           td(pct(g.rtpActual), 'right'), td(pct(g.rtpTheoretical), 'right'), td(g.hitFrequency == null ? '-' : pct(g.hitFrequency), 'right'));
       })));
       view.appendChild(h('p', { class: 'mute' }, 'Return = paid / staked so far; Expected is what the game\'s maths predicts for the plays made. With few plays they differ by chance; the gap closes as the number of plays grows.'));
+      section16(view, d, cur);
       if (d.enabled.indexOf('bingo-pinball') < 0 && !b.plays) return;
       view.appendChild(h('h2', null, 'Bingo Pinball'));
       var lines = Object.keys(b.byLine);

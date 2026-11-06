@@ -134,6 +134,25 @@ final class Metrics
             $out[] = self::line('horse_game_pending_rollbacks', $g['pending']['rollbacks']['count'], $l);
             $out[] = self::line('horse_game_pending_oldest_seconds', max($g['pending']['credits']['oldestSeconds'], $g['pending']['rollbacks']['oldestSeconds']), $l);
         }
+        // the progressive jackpot of Bingo Pinball 16 (one pool per currency for the whole server)
+        $b16 = $reports[\App\Games\GameReports::BINGO16];
+        $help('horse_jackpot_pool', 'the jackpot pool now (minor units), per game and currency');
+        $help('horse_jackpot_wins_total', 'jackpots won so far', 'counter');
+        $help('horse_jackpot_contributed_total', 'stake contributions put into the pool so far (minor units)', 'counter');
+        $help('horse_jackpot_paid_total', 'jackpots paid out so far (minor units)', 'counter');
+        $help('horse_jackpot_seeded_total', 'seed money put in by the operator so far (minor units): the first seed and every re-seed after a win', 'counter');
+        $help('horse_jackpot_balanced', '1 when pool = seed money + contributions - jackpots paid');
+        $help('horse_jackpot_zscore', 'how many standard deviations the number of jackpots won is from what the PAR sheet predicts');
+        foreach ((array) $b16['pools'] as $cur => $pl) {
+            $l = ['game' => $b16['game'], 'currency' => $cur];
+            $out[] = self::line('horse_jackpot_pool', $pl['amount'], $l);
+            $out[] = self::line('horse_jackpot_wins_total', $pl['wins'], $l);
+            $out[] = self::line('horse_jackpot_contributed_total', $pl['contributed'], $l);
+            $out[] = self::line('horse_jackpot_paid_total', $pl['paid'], $l);
+            $out[] = self::line('horse_jackpot_seeded_total', $pl['seeded'], $l);
+            $out[] = self::line('horse_jackpot_balanced', $pl['balanced'] ? 1 : 0, $l);
+        }
+        $out[] = self::line('horse_jackpot_zscore', $b16['jackpotZ'], ['game' => $b16['game']]);
         $help('horse_alert_firing', '1 for every active alert');
         foreach ($alerts as $a) {
             $out[] = self::line('horse_alert_firing', 1, ['name' => $a['name'], 'severity' => $a['severity']]);

@@ -86,7 +86,7 @@
 
 
   /* ---------- games: per game, in total and per client ---------- */
-  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball' };
+  var GAME_NAME = { 'horse-race': 'Horse race', 'bingo-pinball': 'Bingo Pinball', 'bingo-pinball-16': 'Bingo Pinball 16' };
   function z(v) { return v == null ? '-' : (v >= 0 ? '+' : '') + v.toFixed(1) + ' sd'; }
   function games(view) {
     function load() {
@@ -100,6 +100,16 @@
           return h('tr', null, td(GAME_NAME[id] || id), td(g.plays.toLocaleString(), 'right'), td(money(g.staked), 'right'), td(money(g.paid), 'right'), td(money(g.ggr), 'right ' + (g.ggr >= 0 ? 'ok' : 'bad')), td(pct(g.rtpActual), 'right'), td(pct(g.rtpTheoretical), 'right'),
             td(z(g.rtpZ), 'right ' + (g.rtpZ != null && Math.abs(g.rtpZ) > 4 ? 'bad' : '')), td(g.hitFrequency == null ? '-' : pct(g.hitFrequency), 'right'), td(g.pending.credits.count, 'right ' + (g.pending.credits.count ? 'bad' : '')), td(g.pending.rollbacks.count, 'right ' + (g.pending.rollbacks.count ? 'bad' : '')));
         })));
+        var b16 = d.games['bingo-pinball-16'], cur16 = Object.keys(d.pools || {});
+        if (cur16.length || b16.plays) {
+          view.appendChild(h('h2', null, 'Bingo Pinball 16: jackpot'));
+          view.appendChild(h('p', { class: 'mute' }, 'One pool per currency for the whole server. Books balance when the pool equals seed money + contributions - jackpots paid. Seed money is what the operator put in (the first seed and a re-seed after every win).'));
+          view.appendChild(table([['Currency'], ['Pool now', 'right'], ['Seed', 'right'], ['Contributed', 'right'], ['Paid out', 'right'], ['Seed money', 'right'], ['Won', 'right'], ['Last win'], ['Books']], cur16.map(function (c) {
+            var p = d.pools[c]; return h('tr', null, td(c), td(money(p.amount), 'right'), td(money(p.seed), 'right'), td(money(p.contributed), 'right'), td(money(p.paid), 'right'), td(money(p.seeded), 'right'), td(p.wins, 'right'), td(p.lastWinAt ? when(p.lastWinAt) : '-', 'nowrap'),
+              td(p.balanced ? 'balanced' : 'DOES NOT BALANCE', p.balanced ? 'ok' : 'bad'));
+          })));
+          view.appendChild(h('p', { class: 'mute' }, 'Jackpots won: ' + b16.jackpotHits + ' (the maths expects ' + b16.jackpotExpected.toFixed(1) + ' for these plays, 1 in ' + Math.round(1 / b16.jackpotProbability).toLocaleString() + ' per play). Pattern pays vs the PAR sheet: ' + z(b16.rtpZ) + '.'));
+        }
         var b = d.games['bingo-pinball'], lines = Object.keys(b.byLine);
         if (lines.length) {
           view.appendChild(h('h2', null, 'Bingo Pinball: winning plays by line'));

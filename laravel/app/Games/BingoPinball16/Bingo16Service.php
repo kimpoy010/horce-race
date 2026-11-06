@@ -195,7 +195,7 @@ final class Bingo16Service
             $details = ['balls' => $d['balls'], 'jackpotNumbers' => $d['jackpotNumbers'], 'lit' => $e['lit'], 'pattern' => $e['pattern'], 'lines' => $e['lines'], 'jackpotLit' => $e['jackpotLit'],
                 'jackpot' => $e['jackpot'], 'patternPay' => $patternPay, 'contribution' => $pool['contribution'], 'poolBefore' => $pool['poolBefore'], 'poolAfter' => $pool['poolAfter']];
             DB::table('instant_rounds')->where('id', $id)->update(['seed_id' => $seed->id, 'nonce' => $nonce, 'holes' => json_encode($d['balls']), 'best_lit' => count($e['lit']), 'multiple' => $e['multiple'],
-                'payout' => $payout, 'jackpot_paid' => $pool['paid'], 'details' => json_encode($details), 'status' => 'settled', 'settled_at' => $t]);
+                'payout' => $payout, 'jackpot_paid' => $pool['paid'], 'pattern' => $e['pattern'], 'details' => json_encode($details), 'status' => 'settled', 'settled_at' => $t]);
             $this->journal->log(['e' => 'b16.play', 'roundId' => $ref, 'playerId' => $s->player_key, 'stake' => $stake, 'currency' => $s->currency, 'txId' => $txId, 'seedId' => (int) $seed->id,
                 'commit' => $seed->commit, 'clientSeed' => $seed->client_seed, 'nonce' => $nonce, 'paytable' => Rules::PAYTABLE_ID], self::GAME);
             $this->journal->log(['e' => 'b16.settled', 'roundId' => $ref, 'playerId' => $s->player_key, 'balls' => $d['balls'], 'jackpotNumbers' => $d['jackpotNumbers'], 'pattern' => $e['pattern'], 'multiple' => $e['multiple'],

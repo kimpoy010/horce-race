@@ -4,7 +4,7 @@
  * demands (at least minIntervalMs per player, 3 s by default: 300 players make about 100 plays a second). It measures latency and errors, checks that repeating a
  * request id never makes a second play, and prints totals to compare with `php artisan games:reconcile` and the consoles afterwards.
  *
- *   node bin/bingo-loadtest.cjs --base http://127.0.0.1:8000 --client demo --players 100 --duration 120
+ *   node bin/bingo-loadtest.cjs --base http://127.0.0.1:8000 --client demo --players 100 --duration 120 [--game bingo-pinball-16]
  *   node bin/bingo-loadtest.cjs --base https://staging.example --client acme --tokens launch-tokens.txt --yes-this-is-not-production
  *
  * Players come from play-money tokens `demo-<name>` (the mock wallet), or from --tokens: a file with one launch token per line (the client's test wallet).
@@ -29,7 +29,7 @@ async function call(base, method, path, session, body, timeoutMs) {
 
 /** @returns {Promise<object>} the summary; opts: base, client, players, durationS, stake, tokens (array or null), repeatRate, rampS, log */
 async function run(opts) {
-  const base = opts.base.replace(/\/$/, ''), api = base + '/api/games/bingo-pinball';
+  const base = opts.base.replace(/\/$/, ''), api = base + '/api/games/' + (opts.game || 'bingo-pinball');
   const S = { plays: 0, errors: {}, status5xx: 0, latency: [], authLatency: [], staked: 0, paid: 0, wins: 0, repeats: 0, repeatViolations: 0, authFailed: 0, players: 0, timeouts: 0 };
   const end = Date.now() + opts.durationS * 1000, t0 = Date.now();
   const err = (code, status) => { S.errors[code] = (S.errors[code] || 0) + 1; if (status >= 500 || status === 0) S.status5xx++; if (code === 'TIMEOUT') S.timeouts++; };
@@ -76,8 +76,8 @@ async function main() {
   const base = arg(argv, 'base'), host = new URL(base).hostname;
   if (!isLocal(host) && !flag(argv, 'yes-this-is-not-production')) { console.error('Refusing to run against ' + host + ': it is not a local address. If this really is a staging server, add --yes-this-is-not-production.'); process.exit(2); }
   const tokensFile = arg(argv, 'tokens'), tokens = tokensFile ? require('fs').readFileSync(tokensFile, 'utf8').split(/\s+/).filter(Boolean) : null;
-  const opts = { base, client: arg(argv, 'client', 'demo'), players: +arg(argv, 'players', 50), durationS: +arg(argv, 'duration', 60), stake: +arg(argv, 'stake', 0), tokens, repeatRate: +arg(argv, 'repeat-rate', 0.05), rampS: +arg(argv, 'ramp', 10) };
-  console.error('load test: ' + opts.players + ' players for ' + opts.durationS + ' s against ' + base + ' (client ' + opts.client + ')');
+  const opts = { base, game: arg(argv, 'game', 'bingo-pinball'), client: arg(argv, 'client', 'demo'), players: +arg(argv, 'players', 50), durationS: +arg(argv, 'duration', 60), stake: +arg(argv, 'stake', 0), tokens, repeatRate: +arg(argv, 'repeat-rate', 0.05), rampS: +arg(argv, 'ramp', 10) };
+  console.error('load test of ' + opts.game + ': ' + opts.players + ' players for ' + opts.durationS + ' s against ' + base + ' (client ' + opts.client + ')');
   const sum = await run(opts);
   if (flag(argv, 'json')) console.log(JSON.stringify(sum, null, 2));
   else {

@@ -37,7 +37,9 @@ final class AlertManager
 
         $bingo = app(\App\Games\GameReports::class)->summary()[\App\Games\GameReports::BINGO];
 
-        return ['bingo' => $bingo, 'snapshot' => $snap, 'wallet' => $this->engine->walletWindow(300000), 'walletClients' => $perClient, 'tickAge' => $tick === null ? null : max(0, ($this->engine->now() - $tick) / 1000),
+        $bingo16 = app(\App\Games\GameReports::class)->summary()[\App\Games\GameReports::BINGO16];
+
+        return ['bingo' => $bingo, 'bingo16' => $bingo16, 'snapshot' => $snap, 'wallet' => $this->engine->walletWindow(300000), 'walletClients' => $perClient, 'tickAge' => $tick === null ? null : max(0, ($this->engine->now() - $tick) / 1000),
             'diskFreeMb' => ($f = @disk_free_space($dir)) === false ? null : $f / 1048576];
     }
 
@@ -86,6 +88,25 @@ final class AlertManager
             $br = $b['pending']['rollbacks'];
             $add('bingo_rollbacks_stuck', 'critical', $br['count'] > 0 && $br['oldestSeconds'] > $cfg['rollbackMinutes'] * 60,
                 $br['count'].' Bingo Pinball rollback(s) not confirmed by the wallet, the oldest for '.$min($br['oldestSeconds']).' min (a player may be charged for a play that did not happen)');
+        }
+        if (isset($ctx['bingo16'])) {                    // Bingo Pinball 16: its pattern pays against its PAR sheet, its jackpot, its pool's books and its queues
+            $b = $ctx['bingo16'];
+            $bz = (float) $b['rtpZ'];
+            $add('rtp_drift:bingo-pinball-16', 'warning', $b['plays'] >= ($cfg['bingoMinPlays'] ?? 1000) && abs($bz) > $cfg['rtpZ'],
+                'Bingo Pinball 16 pattern pays are '.number_format($bz, 1).' standard deviations '.($bz > 0 ? 'above' : 'below').' what its PAR sheet predicts ('.$b['plays'].' plays, actual '.round(($b['patternRtpActual'] ?? 0) * 100, 2).'%, expected '.round(($b['patternRtpTheoretical'] ?? 0) * 100, 2).'%)');
+            $jz = (float) $b['jackpotZ'];
+            $add('jackpot_drift:bingo-pinball-16', 'warning', $b['jackpotExpected'] >= ($cfg['jackpotMinExpected'] ?? 5) && abs($jz) > $cfg['rtpZ'],
+                'Bingo Pinball 16 jackpots: '.$b['jackpotHits'].' won, '.round($b['jackpotExpected'], 1).' expected by the PAR sheet ('.number_format($jz, 1).' standard deviations)');
+            foreach ((array) $b['pools'] as $cur => $pl) {
+                $add('jackpot_books:bingo-pinball-16:'.$cur, 'critical', ! $pl['balanced'], 'the Bingo Pinball 16 jackpot pool ('.$cur.') does not balance: it holds '.$pl['amount'].' but seed money + contributions - jackpots paid is '.($pl['seeded'] + $pl['contributed'] - $pl['paid']));
+                $add('jackpot_below_seed:bingo-pinball-16:'.$cur, 'critical', $pl['belowSeed'], 'the Bingo Pinball 16 jackpot pool ('.$cur.') is below its seed ('.$pl['amount'].' of '.$pl['seed'].')');
+            }
+            $bc = $b['pending']['credits'];
+            $add('bingo16_credits_stuck', 'critical', $bc['count'] > 0 && $bc['oldestSeconds'] > $cfg['creditMinutes'] * 60,
+                $bc['count'].' Bingo Pinball 16 win credit(s) not delivered to the wallet, the oldest for '.$min($bc['oldestSeconds']).' min (a jackpot may be among them)');
+            $br = $b['pending']['rollbacks'];
+            $add('bingo16_rollbacks_stuck', 'critical', $br['count'] > 0 && $br['oldestSeconds'] > $cfg['rollbackMinutes'] * 60,
+                $br['count'].' Bingo Pinball 16 rollback(s) not confirmed by the wallet, the oldest for '.$min($br['oldestSeconds']).' min (a player may be charged for a play that did not happen)');
         }
         if ($ctx['diskFreeMb'] !== null) {
             $add('disk_low', 'critical', $ctx['diskFreeMb'] < $cfg['diskFreeMb'], 'only '.round($ctx['diskFreeMb']).' MB free where the database and logs are kept');

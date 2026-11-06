@@ -329,16 +329,31 @@ final class BackOffice
             $reports = app(\App\Games\GameReports::class);
             $gameParam = $r->query('game');                  // without it everything below answers as it always did (the horse race)
             if ($isClient && $sub === 'rounds' && $method === 'GET') {
-                return $this->send(200, $gameParam === \App\Games\GameReports::BINGO ? $reports->bingoRounds($c, $r->query('limit'), $r->query('player')) : $eng->rounds($c, $r->query('limit')));
+                return $this->send(200, match ($gameParam) {
+                    \App\Games\GameReports::BINGO => $reports->bingoRounds($c, $r->query('limit'), $r->query('player')),
+                    \App\Games\GameReports::BINGO16 => $reports->bingo16Rounds($c, $r->query('limit'), $r->query('player')),
+                    default => $eng->rounds($c, $r->query('limit')),
+                });
             }
             if ($isClient && $sub === 'players' && $method === 'GET') {
-                return $this->send(200, $gameParam === \App\Games\GameReports::BINGO ? $reports->bingoPlayers($c, $r->query('query'), $r->query('limit'))
-                    : $eng->players($c, ['query' => $r->query('query'), 'limit' => $r->query('limit')]));
+                return $this->send(200, match ($gameParam) {
+                    \App\Games\GameReports::BINGO => $reports->bingoPlayers($c, $r->query('query'), $r->query('limit')),
+                    \App\Games\GameReports::BINGO16 => $reports->bingo16Players($c, $r->query('query'), $r->query('limit')),
+                    default => $eng->players($c, ['query' => $r->query('query'), 'limit' => $r->query('limit')]),
+                });
             }
             if ($isClient && $sub === 'games' && $method === 'GET') {            // every game of this client: stakes, payouts, RTP, hit frequency
                 $enabled = app(\App\Platform\Games\Games::class)->enabledFor($this->clients->get($c) ?? ['id' => $c]);
 
                 return $this->send(200, ['ok' => true, 'enabled' => $enabled, 'games' => $reports->summary($c)]);
+            }
+            if ($isClient && preg_match('#^games/bingo-pinball-16/rounds/([0-9]{1,18})$#', $sub, $gm) && $method === 'GET') {
+                $res = $reports->bingo16Round($c, (int) $gm[1]);
+                if (! $res) {
+                    throw self::err(404, 'NOT_FOUND');
+                }
+
+                return $this->send(200, $res);
             }
             if ($isClient && preg_match('#^games/bingo-pinball/rounds/([0-9]{1,18})$#', $sub, $gm) && $method === 'GET') {
                 $res = $reports->bingoRound($c, (int) $gm[1]);
@@ -364,6 +379,14 @@ final class BackOffice
                 }
 
                 return $this->send(200, ['ok' => true, 'closed' => $eng->closeSessions($pk)]);
+            }
+            if ($isClient && $sub === 'export/bingo16-rounds.csv' && $method === 'GET') {
+                $audit(['action' => 'export', 'target' => $sub]);
+                $csv = self::csv(['round', 'time', 'player', 'status', 'stake', 'paid', 'pattern_paid', 'jackpot_paid', 'pattern', 'multiple', 'lit', 'jackpot_lit', 'balls', 'jackpot_numbers', 'paytable', 'nonce'],
+                    array_map(fn ($x) => [$x['ref'], gmdate('c', intdiv($x['at'], 1000)), $x['playerId'], $x['status'], $x['stake'], $x['payout'], $x['payout'] - $x['jackpotPaid'], $x['jackpotPaid'], $x['pattern'] ?? '', $x['multiple'] ?? '',
+                        $x['lit'] ? implode(' ', $x['lit']) : '', $x['jackpotLit'] ?? '', $x['balls'] ? implode(' ', $x['balls']) : '', $x['jackpotNumbers'] ? implode(' ', $x['jackpotNumbers']) : '', $x['paytable'], $x['nonce'] ?? ''], $reports->bingo16Rounds($c, 300)['rounds']));
+
+                return response($csv, 200, ['Content-Type' => 'text/csv; charset=utf-8', 'Content-Disposition' => 'attachment; filename="bingo16-rounds.csv"', 'Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff']);
             }
             if ($isClient && in_array($sub, ['export/bingo-rounds.csv', 'export/games.csv'], true) && $method === 'GET') {
                 $audit(['action' => 'export', 'target' => $sub]);
