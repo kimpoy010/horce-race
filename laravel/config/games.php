@@ -9,14 +9,14 @@ return [
     // the games every client has unless its own list says otherwise
     'default' => array_values(array_filter(['horse-race', filter_var(env('BINGO_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'bingo-pinball' : null,
         filter_var(env('BINGO16_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'bingo-pinball-16' : null,
-        filter_var(env('FRUIT_DEFAULT_ON', false), FILTER_VALIDATE_BOOLEAN) ? 'fruit-ring' : null])),
+        filter_var(env('FRUIT_DEFAULT_ON', true), FILTER_VALIDATE_BOOLEAN) ? 'fruit-ring' : null])),
 
     // game id => the class of its module
     'modules' => [
         'horse-race' => App\Games\HorseRace\HorseRaceModule::class,
         'bingo-pinball' => App\Games\BingoPinball\BingoPinballModule::class,
         'bingo-pinball-16' => App\Games\BingoPinball16\Bingo16Module::class,          // ships switched off (BINGO16_DEFAULT_ON=true switches it on for every client)
-        'fruit-ring' => App\Games\FruitRing\FruitModule::class,                    // ships switched off (FRUIT_DEFAULT_ON=true switches it on for every client)
+        'fruit-ring' => App\Games\FruitRing\FruitModule::class,                    // on for every client (FRUIT_DEFAULT_ON=false takes it out again)
     ],
 
     // settings of the games themselves

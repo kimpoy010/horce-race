@@ -18,6 +18,7 @@
         </include>
     </source>
     <php>
+        <env name="FRUIT_DEFAULT_ON" value="false"/>   <!-- the registry tests count the default games; Fruit Game has its own tests with the game switched on per client -->
         <env name="BINGO_DEFAULT_ON" value="true"/>   <!-- the tests of the 5-ball game run with it switched on, as an operator who wants it would -->
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
