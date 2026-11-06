@@ -360,4 +360,29 @@ class HouseTest extends StaffTestCase
         $this->postJson("/admin/api/house/players/$pid/note", ['note' => 'called, ok'], $a)->assertOk();
         $this->assertSame('called, ok', $this->getJson("/admin/api/house/players/$pid", $a)->json('player.note'));
     }
+
+    public function test_the_account_page_offers_bingo_only_when_the_game_is_on_for_the_house(): void
+    {
+        $h = $this->register()[0] ?? null;
+        $this->assertNotNull($h);
+        $this->assertSame(['horse-race'], $this->getJson('/player/api/games', $h)->assertOk()->json('games'));
+        $this->reg->update('house', ['games' => ['horse-race', 'bingo-pinball'], 'gameSettings' => ['bingo-pinball' => ['paytable' => 96]]]);
+        $this->assertSame(['horse-race', 'bingo-pinball'], $this->getJson('/player/api/games', $h)->json('games'));
+        $this->getJson('/player/api/games')->assertStatus(401);
+    }
+
+    public function test_a_house_player_plays_bingo_with_the_account_balance_from_the_account_page_launch(): void
+    {
+        config(['games.settings.bingo-pinball.min_interval_ms' => 0]);
+        [$h] = $this->funded('maria', '09171234567', 100000);
+        $this->reg->update('house', ['games' => ['horse-race', 'bingo-pinball'], 'gameSettings' => ['bingo-pinball' => ['paytable' => 96]]]);
+        $launch = $this->postJson('/player/api/launch', [], $h)->assertOk()->json();
+        $auth = $this->postJson('/api/games/bingo-pinball/auth', ['token' => $launch['token'], 'client' => $launch['client']])->assertOk();
+        $b = ['Authorization' => 'Bearer '.$auth->json('session')];
+        $this->assertSame(100000, $auth->json('balance'));
+        $r = $this->postJson('/api/games/bingo-pinball/play', ['stake' => 1000, 'requestId' => 'house-play-0001'], $b)->assertOk()->json();
+        $this->assertSame(100000 - 1000 + $r['round']['payout'], $this->getJson('/player/api/me', $h)->json('player.balance'), 'the account balance is debited and credited by the play');
+        $this->assertSame($r['balance'], $this->getJson('/api/games/bingo-pinball/state', $b)->json('balance'));
+        $this->assertContains(['bet', -1000], collect($this->getJson('/player/api/wallet', $h)->json('tx'))->map(fn ($t) => [$t['type'], $t['amount']])->all(), 'the stake is in the player statement');
+    }
 }

@@ -191,6 +191,11 @@ final class PlayerApi
             if ($sub === 'launch' && $method === 'POST') {                  // a one-time token for POST /api/auth (client "house")
                 return $this->send(200, ['ok' => true, 'token' => $this->house->launchToken($p), 'client' => HouseWallet::CLIENT]);
             }
+            if ($sub === 'games' && $method === 'GET') {                   // the games the house client offers, so the account page shows a button for each
+                $house = app(\App\Game\Clients\ClientRegistry::class)->get(HouseWallet::CLIENT) ?? ['id' => HouseWallet::CLIENT];
+
+                return $this->send(200, ['ok' => true, 'games' => app(\App\Platform\Games\Games::class)->enabledFor($house)]);
+            }
             if ($sub === 'wallet' && $method === 'GET') {
                 return $this->send(200, ['ok' => true, 'balance' => (int) $p->balance, 'tx' => $this->house->txOf((int) $p->id, 30), 'deposits' => $this->house->depositsOf((int) $p->id, 20),
                     'withdrawals' => $this->house->withdrawalsOf((int) $p->id, 20)]);
