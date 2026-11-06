@@ -11,15 +11,15 @@
  *   key    = the 32 bytes of the server seed
  *   stream = HMAC-SHA256(key, "bingo-pinball-16:" clientSeed ":" nonce ":" counter), counter = 0, 1, 2 ...; read 4 bytes (big endian) at a time
  *   int(n) = uniform in [0, n): take 32-bit values v, throw away v >= 2^32 - (2^32 mod n), the answer is v mod n
- *   each of 16 balls: r = int(10000); slot = floor(r / 184) + 1 if r < 2944, otherwise it drained OUT (0)
+ *   each of 16 balls: r = int(10000); slot = floor(r / 625) + 1 (every ball lands in a slot)
  *   jackpot numbers: a = [1..16]; for i = 0..4: j = i + int(16 - i); swap a[i], a[j]; the numbers are a[0] .. a[4]
- * Slot k lights cell k of the 4 x 4 card (numbered 1-16 row by row). Best pattern pays (stake included): 2+ full lines 30x, the 4 corners 15x, one full line 5x,
- * a 2 x 2 square 2x, 3 lit cells on a line 2x. All 5 jackpot numbers lit wins the jackpot pool.
+ * Slot k lights cell k of the 4 x 4 card (numbered 1-16 row by row). The pattern is the number of complete lines (4 rows, 4 columns, 2 diagonals) and pays (stake included):
+ * 2 lines 1x, 3 lines 2x, 4 lines 5x, 5 lines 10x, 6-7 lines 20x, 8 or more lines 125x; one line pays nothing. The jackpot pool is won when each of the 5 jackpot numbers
+ * holds at least 2 balls.
  */
 
-const B16_PAYS = ['lines2' => 30, 'corners' => 15, 'fullline' => 5, 'square' => 2, 'three' => 2];
+const B16_PAYS = ['lines8' => 125, 'lines6' => 20, 'lines5' => 10, 'lines4' => 5, 'lines3' => 2, 'lines2' => 1];
 const B16_LINES = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15], [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [0, 5, 10, 15], [3, 6, 9, 12]];
-const B16_SQUARES = [[0, 1, 4, 5], [1, 2, 5, 6], [2, 3, 6, 7], [4, 5, 8, 9], [5, 6, 9, 10], [6, 7, 10, 11], [8, 9, 12, 13], [9, 10, 13, 14], [10, 11, 14, 15]];
 
 function b16_stream(string $key, string $label): Generator
 {
@@ -45,8 +45,7 @@ function b16_draw(string $serverSeedHex, string $clientSeed, int $nonce): array
     };
     $balls = [];
     for ($i = 0; $i < 16; $i++) {
-        $r = $below(10000);
-        $balls[] = $r < 2944 ? intdiv($r, 184) + 1 : 0;
+        $balls[] = intdiv($below(10000), 625) + 1;
     }
     $a = range(1, 16);
     for ($i = 0; $i < 5; $i++) {
@@ -61,30 +60,13 @@ function b16_evaluate(array $balls, array $jp): array
 {
     $lit = [];
     foreach ($balls as $b) {
-        if ($b > 0) {
-            $lit[$b - 1] = true;
-        }
+        $lit[$b - 1] = true;
     }
     $all = fn (array $cells) => count(array_filter($cells, fn ($c) => isset($lit[$c]))) === count($cells);
     $full = count(array_filter(B16_LINES, $all));
-    $key = null;
-    if ($full >= 2) {
-        $key = 'lines2';
-    } elseif ($all([0, 3, 12, 15])) {
-        $key = 'corners';
-    } elseif ($full === 1) {
-        $key = 'fullline';
-    } elseif (array_filter(B16_SQUARES, $all)) {
-        $key = 'square';
-    } else {
-        foreach (B16_LINES as $l) {
-            if (count(array_filter($l, fn ($c) => isset($lit[$c]))) >= 3) {
-                $key = 'three';
-                break;
-            }
-        }
-    }
-    $n = count(array_filter($jp, fn ($x) => isset($lit[$x - 1])));
+    $key = $full >= 8 ? 'lines8' : ($full >= 6 ? 'lines6' : ($full >= 2 ? 'lines'.$full : null));
+    $counts = array_count_values($balls);
+    $n = count(array_filter($jp, fn ($x) => ($counts[$x] ?? 0) >= 2));
     $cells = array_map(fn ($c) => $c + 1, array_keys($lit));
     sort($cells);
 

@@ -4,7 +4,7 @@
  * Builds the library of ball paths for Bingo Pinball 16 (public/js/bingo16/paths-data.js).
  *
  * It fires many simulated shots at the board (bin/lib-bingo16-sim.cjs, deterministic: the same options always give the same file) and keeps, for every outcome of a ball -
- * each of the 16 slots and OUT (the ball drains between the slots) - a handful of paths for each range of plunger power. The page never simulates: when the server has decided
+ * each of the 16 slots - a handful of paths for each range of plunger power. The page never simulates: when the server has decided
  * where the balls end, the page picks a stored path that ends there, at about the power the player pulled. The animation can therefore never disagree with the result.
  *
  *   node bin/bingo16-paths.cjs [--shots 300000] [--seed 20261101] [--out public/js/bingo16/paths-data.js]
@@ -46,7 +46,7 @@ function main() {
   }
   const chosen = {}, report = [];
   const different = (a, b) => [20, 35, 50, 65, 80].some((k) => k < a.frames.length && k < b.frames.length && Math.hypot(a.frames[k][0] - b.frames[k][0], a.frames[k][1] - b.frames[k][1]) > 12);
-  for (let s = 0; s <= 16; s++) {
+  for (let s = 1; s <= 16; s++) {
     const pick = [];
     for (const limit of [90, 120, 180, 270]) {                              // short paths first (a play has 16 balls); longer ones only where an outcome is hard to reach
       for (let b = 0; b < BUCKETS; b++) {
@@ -70,8 +70,8 @@ function main() {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, text);
   const total = report.reduce((n, r) => n + r.kept, 0);
-  console.log('paths kept: ' + total + ' for 16 slots and OUT (fewest ' + Math.min(...report.map((r) => r.kept)) + ', most ' + Math.max(...report.map((r) => r.kept)) + '), ' + (text.length / 1024).toFixed(0) + ' KB -> ' + OUT);
-  report.forEach((r) => console.log('  ' + (r.slot ? 'slot ' + String(r.slot).padStart(2) : 'OUT    ') + ': ' + String(r.found).padStart(6) + ' shots, ' + String(r.kept).padStart(2) + ' kept, avg ' + (r.frames / T.FPS).toFixed(1) + ' s, per power range ' + r.buckets.join('/')));
+  console.log('paths kept: ' + total + ' for 16 slots (fewest ' + Math.min(...report.map((r) => r.kept)) + ', most ' + Math.max(...report.map((r) => r.kept)) + '), ' + (text.length / 1024).toFixed(0) + ' KB -> ' + OUT);
+  report.forEach((r) => console.log('  ' + 'slot ' + String(r.slot).padStart(2) + ': ' + String(r.found).padStart(6) + ' shots, ' + String(r.kept).padStart(2) + ' kept, avg ' + (r.frames / T.FPS).toFixed(1) + ' s, per power range ' + r.buckets.join('/')));
   const thin = report.filter((r) => r.kept < MIN_PER_OUTCOME);
   if (thin.length) console.log('WARNING outcomes with fewer than ' + MIN_PER_OUTCOME + ' paths:', thin.map((r) => r.slot).join(','));
   return report;

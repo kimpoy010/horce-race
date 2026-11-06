@@ -33,9 +33,9 @@ const bouncesOf = (frames) => { let n = 0, prev = null; for (let i = 1; i < fram
 /* ---------- the board ---------- */
 assert.strictEqual(T.slots.length, 16);
 assert.strictEqual(T.pegs.length, 5 * 13 + 5 * 12, '10 staggered rows of 13 and 12 pegs');
-T.slots.forEach((s, i) => { assert.strictEqual(s.n, i + 1); assert.strictEqual(s.xr - s.xl, 22); assert.strictEqual(s.xl, 25 + 32 * i); });
+T.slots.forEach((s, i) => { assert.strictEqual(s.n, i + 1); assert.strictEqual(s.xr - s.xl, 33); assert.strictEqual(s.xl, 10 + 33 * i); });
 assert.ok(T.slots[15].xr < T.LANE.l, 'the slots end before the plunger lane');
-assert.ok(T.BALL_R * 2 < 32 - 22, 'a ball is narrower than the gap between two slots, so it can drain OUT');
+assert.ok(T.slots.every((s, i) => i === 0 || s.xl === T.slots[i - 1].xr), 'the slots touch: there is no gap, so every ball ends in a slot');
 assert.ok(T.pegs.every((p) => p.x > 8 && p.x < T.LANE.l && p.y > 14 && p.y < T.RIM_Y), 'every peg is inside the field');
 
 /* ---------- the library of ball paths ---------- */
@@ -44,10 +44,10 @@ const lib = loadPaths(file);
 assert.strictEqual(lib.v, 1); assert.strictEqual(lib.fps, T.FPS);
 assert.ok(fs.statSync(file).size < 250 * 1024, 'the library stays small (a phone downloads it): ' + fs.statSync(file).size);
 let total = 0, longest = 0;
-for (let s = 0; s <= 16; s++) {
+for (let s = 1; s <= 16; s++) {
   const list = lib.slots[s];
-  assert.ok(list && list.length >= 30, (s ? 'slot ' + s : 'OUT') + ' has at least 30 paths, has ' + (list ? list.length : 0));
-  assert.strictEqual(new Set(list.map((p) => Math.min(4, Math.floor(p.p / 20)))).size, 5, (s ? 'slot ' + s : 'OUT') + ' has paths for every range of plunger power');
+  assert.ok(list && list.length >= 30, ('slot ' + s) + ' has at least 30 paths, has ' + (list ? list.length : 0));
+  assert.strictEqual(new Set(list.map((p) => Math.min(4, Math.floor(p.p / 20)))).size, 5, ('slot ' + s) + ' has paths for every range of plunger power');
   for (const p of list) {
     total++;
     const f = decode(p);
@@ -55,26 +55,20 @@ for (let s = 0; s <= 16; s++) {
     assert.ok(f.length >= 25 && f.length <= 270, 'a path has between 0.8 and 9 seconds of flight');
     assert.ok(Math.abs(f[0][0] - T.LANE.x) <= 1 && Math.abs(f[0][1] - T.LANE.startY) <= 1, 'every ball starts in the plunger lane');
     const last = f[f.length - 1];
-    if (s > 0) {
-      const slot = T.slots[s - 1];
-      assert.ok(last[0] > slot.xl && last[0] < slot.xr && last[1] > T.RIM_Y && last[1] <= T.SLOT_BOTTOM, 'slot ' + s + ': the path ends inside the slot (' + last + ')');
-    } else {
-      assert.ok(last[1] >= T.OUT_Y && last[0] < T.LANE.l, 'OUT: the path ends below the board (' + last + ')');
-      const crossing = f.find((q) => q[1] > T.RIM_Y + 8);
-      assert.ok(crossing && !T.slots.some((q) => crossing[0] > q.xl + 2 && crossing[0] < q.xr - 2), 'OUT: the ball passes the rim between two slots');
-    }
+    const slot = T.slots[s - 1];
+    assert.ok(last[0] > slot.xl && last[0] < slot.xr && last[1] > T.RIM_Y && last[1] <= T.SLOT_BOTTOM, 'slot ' + s + ': the path ends inside the slot (' + last + ')');
     for (let i = 1; i < f.length; i++) {
       assert.ok(f[i][0] >= 0 && f[i][0] <= T.W && f[i][1] >= 0 && f[i][1] <= T.H + 20, 'inside the board');
       assert.ok(Math.hypot(f[i][0] - f[i - 1][0], f[i][1] - f[i - 1][1]) < 64, 'no jumps between frames');
     }
-    assert.ok(bouncesOf(f) >= 3, (s ? 'slot ' + s : 'OUT') + ': every path hits at least three pegs or walls on the way');
-    if (s > 0) for (const other of T.slots) {                          // a ball bound for a slot never passes down through another slot
+    assert.ok(bouncesOf(f) >= 3, ('slot ' + s) + ': every path hits at least three pegs or walls on the way');
+    for (const other of T.slots) {                          // a ball bound for a slot never passes down through another slot
       if (other.n === s) continue;
       assert.ok(!f.some((q) => q[1] > T.RIM_Y + 10 && q[0] > other.xl + 2 && q[0] < other.xr - 2), 'slot ' + s + ': a path falls into slot ' + other.n);
     }
   }
 }
-assert.strictEqual(total, 510);
+assert.strictEqual(total, 480);
 
 /* ---------- the generator is deterministic ---------- */
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'b16paths-'));
@@ -87,7 +81,7 @@ const lp = require('vm');
 const ctx = { window: { B16_PATHS: lib }, atob: (s) => Buffer.from(s, 'base64').toString('binary') };
 lp.runInNewContext(fs.readFileSync(path.join(root, 'public', 'js', 'bingo16', 'paths.js'), 'utf8'), ctx);
 const P = ctx.window.Bingo16Paths;
-for (const outcome of [0, 1, 8, 16]) for (const power of [0, 0.5, 1]) {
+for (const outcome of [1, 8, 16]) for (const power of [0, 0.5, 1]) {
   const pk = P.pick(outcome, power);
   assert.ok(pk && pk.frames.length > 25 && Math.abs(pk.power - power) <= 0.3, 'a path for outcome ' + outcome + ' at power ' + power);
   const end = P.at(pk.frames, P.duration(pk.frames));
@@ -110,6 +104,6 @@ for (const outcome of [0, 1, 8, 16]) for (const power of [0, 0.5, 1]) {
     assert.ok(!bad.ok, 'a wrong payout is found');
   }
   console.log('fairness check in the browser: ' + vectors.length + ' known-answer plays agree with the server and the Python reference');
-console.log('path library: ' + total + ' paths, 16 slots + OUT, longest ' + (longest / T.FPS).toFixed(1) + ' s, ' + (fs.statSync(file).size / 1024).toFixed(0) + ' KB');
+console.log('path library: ' + total + ' paths, 16 slots, longest ' + (longest / T.FPS).toFixed(1) + ' s, ' + (fs.statSync(file).size / 1024).toFixed(0) + ' KB');
   console.log('bingo16 tests passed');
 })().catch((e) => { console.error(e); process.exit(1); });

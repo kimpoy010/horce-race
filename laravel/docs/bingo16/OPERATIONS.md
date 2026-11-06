@@ -4,7 +4,7 @@ Everything here only **adds**; the horse race's and Bingo Pinball's endpoints, m
 
 ## Back office (`/backoffice`, one client)
 
-**Games** tab: the game's row (plays, staked, paid, GGR, return, expected, win rate) and a **Bingo Pinball 16** section: pattern return against the PAR sheet, jackpots won against the number the maths expects, jackpot paid, how far the pattern pays are from the maths ("sd"), the **patterns against the PAR sheet** (plays and expected plays for each of the five), the current jackpot pool, and the latest plays. Click a play for the **round viewer**: balls (slot 1-16, 0 = OUT), slots lit, the five jackpot numbers and how many are lit, the best pattern, the jackpot paid, and - once the player's seed pair has been revealed - the server seed, the commit and the `php bin/bingo16-verify.php ...` command that re-runs the play.
+**Games** tab: the game's row (plays, staked, paid, GGR, return, expected, win rate) and a **Bingo Pinball 16** section: pattern return against the PAR sheet, jackpots won against the number the maths expects, jackpot paid, how far the pattern pays are from the maths ("sd"), the **patterns against the PAR sheet** (plays and expected plays for each of the six), the current jackpot pool, and the latest plays. Click a play for the **round viewer**: balls (slot 1-16), slots lit, the five jackpot numbers and how many are lit, the line pattern, the jackpot paid, and - once the player's seed pair has been revealed - the server seed, the commit and the `php bin/bingo16-verify.php ...` command that re-runs the play.
 
 API (viewer and up; a client sees only its own plays): `GET /bo/api/games`, `GET /bo/api/rounds?game=bingo-pinball-16[&player=][&limit=]`, `GET /bo/api/players?game=bingo-pinball-16`, `GET /bo/api/games/bingo-pinball-16/rounds/{id}`, CSV `GET /bo/api/export/bingo16-rounds.csv` (audited; pattern pay and jackpot paid in separate columns).
 
@@ -20,7 +20,7 @@ The game appears in the `horse_game_*` family (`game="bingo-pinball-16"`: plays,
 
 | Alert | Severity | Fires when |
 |---|---|---|
-| `rtp_drift:bingo-pinball-16` | warning | after `HORSE_ALERT_BINGO_MIN_PLAYS` plays (1000), the pattern pays are more than `HORSE_ALERT_RTP_Z` (4) standard deviations from the PAR sheet (the standard deviation of one play is 1.635 x the stake) |
+| `rtp_drift:bingo-pinball-16` | warning | after `HORSE_ALERT_BINGO_MIN_PLAYS` plays (1000), the pattern pays are more than `HORSE_ALERT_RTP_Z` (4) standard deviations from the PAR sheet (the standard deviation of one play is 1.994 x the stake) |
 | `jackpot_drift:bingo-pinball-16` | warning | once the maths expects at least `HORSE_ALERT_JACKPOT_MIN_EXPECTED` (5) jackpots in the plays made, the number won is more than 4 standard deviations (Poisson) away from expected: too many jackpots is a liability, too few means players are being shortchanged |
 | `jackpot_books:bingo-pinball-16:<currency>` | critical | the pool does not equal seed money + contributions - jackpots paid |
 | `jackpot_below_seed:bingo-pinball-16:<currency>` | critical | the pool is below its seed |

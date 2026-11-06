@@ -1,7 +1,7 @@
 'use strict';
 /*
  * Bingo Pinball 16: a small deterministic ball simulation on the board of public/js/bingo16/table.js. Used offline (bin/bingo16-paths.cjs) to build the library of ball
- * paths the page replays. The page never simulates: the server decides where each ball ends (a slot, or OUT) before the first ball is launched, and the page only
+ * paths the page replays. The page never simulates: the server decides where each ball ends (a slot) before the first ball is launched, and the page only
  * picks a stored path that ends there.
  */
 const DT = 1 / 480;
@@ -73,7 +73,7 @@ function hitPeg(b, p, r, e) {
 
 /**
  * One ball. power 0..1 is how hard the plunger was pulled; `jitter` a small random sideways speed in the lane.
- * @return {{ok:boolean, slot?:number, frames?:number[][], reason?:string}} slot 1..16, or 0 when the ball drained OUT between the slots; frames are [x, y] at FPS per second
+ * @return {{ok:boolean, slot?:number, frames?:number[][], reason?:string}} slot 1..16 (the slots fill the floor: every ball ends in one); frames are [x, y] at FPS per second
  */
 function simulate(T, power, jitter) {
   const b = { x: T.LANE.x, y: T.LANE.startY, vx: jitter, vy: -(T.V_MIN + power * (T.V_MAX - T.V_MIN)) };
@@ -87,16 +87,15 @@ function simulate(T, power, jitter) {
     if (ws) for (const w of ws) hitSegment(b, w, r, E_WALL);
     const ps = S.pegs.get(k);
     if (ps) for (const p of ps) hitPeg(b, p, r, E_PEG);
-    if (outcome === null && b.y > T.RIM_Y + 8 && b.x < T.LANE.l - 4) {            // below the rim: inside a slot, or between two slots (OUT)
+    if (outcome === null && b.y > T.RIM_Y + 8 && b.x < T.LANE.l - 4) {            // below the rim: inside a slot
       const s = T.slots.find((q) => b.x > q.xl + 2 && b.x < q.xr - 2);
-      outcome = s ? s.n : 0;
+      outcome = s ? s.n : null;
       if (s) {                                                                    // the ball settles in the slot
         for (let f = 1; f <= 3; f++) frames.push([b.x + (s.x - b.x) * f / 3, b.y + (T.SLOT_BOTTOM - 12 - b.y) * f / 3]);
         return { ok: true, slot: s.n, frames };
       }
     }
     if (step % STEPS_PER_FRAME === 0) frames.push([b.x, b.y]);
-    if (outcome === 0 && b.y > T.OUT_Y) { frames.push([b.x, b.y]); return { ok: true, slot: 0, frames }; }       // drained out of the bottom
     if (b.y > T.LANE.startY + 30 && b.x > T.LANE.l) return { ok: false, reason: 'fell back' };
   }
   return { ok: false, reason: 'stuck' };

@@ -3,7 +3,7 @@
  * the path generator (bin/bingo16-paths.cjs) simulates balls on it, and the tests check it. UMD: window.BingoTable16, or require() in Node.
  *
  * The board: a rounded box with a plunger lane on the right (x 540..592) up which the ball is shot; at the top it turns left and falls through staggered rows of round
- * pegs towards 16 slots (rects 22 wide, 32 apart). The gaps between the slots are open: a ball that falls through one drains OUT and counts for nothing.
+ * pegs towards 16 slots, side by side across the whole floor (33 wide): there are no gaps, so every ball ends in a slot.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(); else root.BingoTable16 = factory();
@@ -13,10 +13,10 @@
   var BALL_R = 4.5, PEG_R = 3, GRAVITY = 700, FPS = 30;
   var V_MIN = 835, V_MAX = 1150;                     // launch speed up the lane (units/s) for the weakest and the strongest pull of the plunger
   var LANE = { l: 540, r: 592, x: 566, startY: 448, floorY: 510 };
-  var RIM_Y = 420, SLOT_BOTTOM = 472, SLOT_W = 22, SLOT_STEP = 32, OUT_Y = 512;
+  var RIM_Y = 420, SLOT_BOTTOM = 472, SLOT_W = 33, SLOT_STEP = 33, SLOT_X0 = 10;
 
   var slots = [], i, j;
-  for (i = 0; i < 16; i++) slots.push({ n: i + 1, xl: 25 + SLOT_STEP * i, xr: 25 + SLOT_STEP * i + SLOT_W, x: 25 + SLOT_STEP * i + SLOT_W / 2 });
+  for (i = 0; i < 16; i++) slots.push({ n: i + 1, xl: SLOT_X0 + SLOT_STEP * i, xr: SLOT_X0 + SLOT_STEP * i + SLOT_W, x: SLOT_X0 + SLOT_STEP * i + SLOT_W / 2 });
 
   var pegs = [];                                      // 10 staggered rows, every 32 units, 40 apart (13 and 12 pegs alternately)
   for (j = 0; j < 10; j++) {
@@ -42,5 +42,5 @@
   walls.push([540, 510, 592, 510]);                   // the lane's floor
   for (i = 0; i < 16; i++) { walls.push([slots[i].xl, RIM_Y, slots[i].xl, SLOT_BOTTOM]); walls.push([slots[i].xr, RIM_Y, slots[i].xr, SLOT_BOTTOM]); walls.push([slots[i].xl, SLOT_BOTTOM, slots[i].xr, SLOT_BOTTOM]); }
 
-  return { W: W, H: H, BALL_R: BALL_R, PEG_R: PEG_R, GRAVITY: GRAVITY, FPS: FPS, V_MIN: V_MIN, V_MAX: V_MAX, LANE: LANE, RIM_Y: RIM_Y, SLOT_BOTTOM: SLOT_BOTTOM, SLOT_W: SLOT_W, OUT_Y: OUT_Y, slots: slots, pegs: pegs, walls: walls };
+  return { W: W, H: H, BALL_R: BALL_R, PEG_R: PEG_R, GRAVITY: GRAVITY, FPS: FPS, V_MIN: V_MIN, V_MAX: V_MAX, LANE: LANE, RIM_Y: RIM_Y, SLOT_BOTTOM: SLOT_BOTTOM, SLOT_W: SLOT_W, slots: slots, pegs: pegs, walls: walls };
 });

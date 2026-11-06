@@ -9,10 +9,8 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   var LINES = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15], [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [0, 5, 10, 15], [3, 6, 9, 12]];
-  var CORNERS = [0, 3, 12, 15];
-  var SQUARES = [[0, 1, 4, 5], [1, 2, 5, 6], [2, 3, 6, 7], [4, 5, 8, 9], [5, 6, 9, 10], [6, 7, 10, 11], [8, 9, 12, 13], [9, 10, 13, 14], [10, 11, 14, 15]];
-  var PAYS = { lines2: 30, corners: 15, fullline: 5, square: 2, three: 2 };
-  var NAMES = { lines2: '2+ LINES', corners: '4 CORNERS', fullline: 'FULL LINE', square: '2x2 SQUARE', three: '3 ON LINE' };
+  var PAYS = { lines2: 1, lines3: 2, lines4: 5, lines5: 10, lines6: 20, lines8: 125 };
+  var NAMES = { lines2: '2 LINES', lines3: '3 LINES', lines4: '4 LINES', lines5: '5 LINES', lines6: '6-7 LINES', lines8: '8+ LINES' };
 
   function subtle() { return crypto.subtle; }
   function utf8(text) { return new TextEncoder().encode(text); }
@@ -20,7 +18,7 @@
   function toHex(buf) { var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i++) s += (b[i] < 16 ? '0' : '') + b[i].toString(16); return s; }
   function sha256Hex(text) { return subtle().digest('SHA-256', utf8(text)).then(toHex); }
 
-  /** the 16 balls (slot 1-16, 0 = drained OUT) and the five jackpot numbers of a play */
+  /** the 16 balls (slot 1-16) and the five jackpot numbers of a play */
   function draw(serverSeedHex, clientSeed, nonce) {
     var label = 'bingo-pinball-16:' + clientSeed + ':' + nonce, counter = 0, block = null, pos = 32, key = null;
     function nextByte() {
@@ -39,31 +37,23 @@
     return subtle().importKey('raw', hexToBytes(serverSeedHex), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']).then(function (k) {
       key = k;
       var balls = [], step = Promise.resolve(), i;
-      for (i = 0; i < 16; i++) step = step.then(function () { return nextInt(10000); }).then(function (r) { balls.push(r < 184 * 16 ? Math.floor(r / 184) + 1 : 0); });
+      for (i = 0; i < 16; i++) step = step.then(function () { return nextInt(10000); }).then(function (r) { balls.push(Math.floor(r / 625) + 1); });
       var a = []; for (i = 1; i <= 16; i++) a.push(i);
       for (i = 0; i < 5; i++) (function (n) { step = step.then(function () { return nextInt(16 - n); }).then(function (r) { var j = n + r, t = a[n]; a[n] = a[j]; a[j] = t; }); })(i);
       return step.then(function () { return { balls: balls, jackpotNumbers: a.slice(0, 5) }; });
     });
   }
 
-  /** the lit cells, the best pattern (and the cells that make it), and how many jackpot numbers are lit */
+  /** the lit cells, the pattern (by complete lines, and the cells that make it), and how many jackpot numbers hold two balls */
   function evaluate(balls, jackpotNumbers) {
     var lit = {}, i, k;
-    balls.forEach(function (b) { if (b > 0) lit[b - 1] = true; });
+    balls.forEach(function (b) { lit[b - 1] = true; });
     var has = function (cells) { return cells.every(function (c) { return lit[c]; }); };
     var full = []; LINES.forEach(function (l, n) { if (has(l)) full.push(n); });
-    var pattern = null, cells = [];
-    if (full.length >= 2) { pattern = 'lines2'; full.forEach(function (n) { cells = cells.concat(LINES[n]); }); }
-    else if (has(CORNERS)) { pattern = 'corners'; cells = CORNERS.slice(); }
-    else if (full.length === 1) { pattern = 'fullline'; cells = LINES[full[0]].slice(); }
-    else {
-      for (i = 0; i < SQUARES.length && !pattern; i++) if (has(SQUARES[i])) { pattern = 'square'; cells = SQUARES[i].slice(); }
-      for (i = 0; i < LINES.length && !pattern; i++) {
-        var on = LINES[i].filter(function (c) { return lit[c]; });
-        if (on.length >= 3) { pattern = 'three'; cells = on; }
-      }
-    }
-    var jp = 0; jackpotNumbers.forEach(function (n) { if (lit[n - 1]) jp++; });
+    var pattern = full.length >= 8 ? 'lines8' : full.length >= 6 ? 'lines6' : full.length >= 2 ? 'lines' + full.length : null, cells = [];
+    if (pattern) full.forEach(function (n) { LINES[n].forEach(function (c) { if (cells.indexOf(c) < 0) cells.push(c); }); });
+    var counts = {}; balls.forEach(function (b) { counts[b] = (counts[b] || 0) + 1; });
+    var jp = 0; jackpotNumbers.forEach(function (n) { if ((counts[n] || 0) >= 2) jp++; });
     var litCells = []; for (k in lit) litCells.push(+k + 1); litCells.sort(function (a, b) { return a - b; });
     return { lit: litCells, pattern: pattern, name: pattern ? NAMES[pattern] : null, multiple: pattern ? PAYS[pattern] : 0, cells: cells, lines: full, jackpotLit: jp, jackpot: jp === 5 };
   }
@@ -91,5 +81,5 @@
     });
   }
 
-  return { LINES: LINES, CORNERS: CORNERS, SQUARES: SQUARES, NAMES: NAMES, draw: draw, evaluate: evaluate, verify: verify, sha256Hex: sha256Hex };
+  return { LINES: LINES, NAMES: NAMES, draw: draw, evaluate: evaluate, verify: verify, sha256Hex: sha256Hex };
 });

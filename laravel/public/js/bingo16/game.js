@@ -1,5 +1,5 @@
 /* Bingo Pinball 16: the page's logic. The server decides the result (POST /play: 16 balls and 5 jackpot numbers); this shows it: the balls are fired one after another and travel
-   along stored paths to the slot (or the drain) the server chose. The plunger changes how the launch looks and which stored path is used; it never changes the result. */
+   along stored paths to the slot the server chose. The plunger changes how the launch looks and which stored path is used; it never changes the result. */
 (function () {
   'use strict';
   var T = window.BingoTable16, Api = window.Bingo16Api, Paths = window.Bingo16Paths, Fair = window.Bingo16Fair, Snd = window.BingoSound;
@@ -133,7 +133,7 @@
       scene.slotCounts[outcome] = (scene.slotCounts[outcome] || 0) + 1;
       scene.lit[outcome - 1] = true;
       S.caught.push({ x: slot.x, y: T.RIM_Y + 24, t: 0 });
-      if (scene.jpNums.indexOf(outcome) >= 0 && !scene.jpLit[outcome]) { scene.jpLit[outcome] = true; jpUi(Object.keys(scene.jpLit).length); Snd.sfx.lit(Object.keys(scene.jpLit).length); }
+      if (scene.jpNums.indexOf(outcome) >= 0 && scene.slotCounts[outcome] >= 2 && !scene.jpLit[outcome]) { scene.jpLit[outcome] = true; jpUi(Object.keys(scene.jpLit).length); Snd.sfx.lit(Object.keys(scene.jpLit).length); }
       Snd.sfx.drop();
     }
   }
@@ -143,9 +143,7 @@
   var ROWNAMES = ['Row', 'Row', 'Row', 'Row', 'Column', 'Column', 'Column', 'Column', 'Diagonal', 'Diagonal'];
   function describe(e) {                                       // "Row 5-6-7-8", "Cells 1-4-13-16": the cells that made the pattern, numbered as on the card
     var nums = e.cells.slice().sort(function (a, b) { return a - b; }).filter(function (c, i, a) { return a.indexOf(c) === i; }).map(function (c) { return c + 1; }).join('-');
-    if (e.pattern === 'fullline') return ROWNAMES[e.lines[0]] + ' ' + nums;
-    if (e.pattern === 'lines2') return e.lines.length + ' lines';
-    return 'Cells ' + nums;
+    return e.lines.length + ' full lines';
   }
   function showRound(round, opts) {
     opts = opts || {};
@@ -272,7 +270,7 @@
   function fillPays(pt) {
     var h = '<div class="pt">PAYS × STAKE</div>';
     pt.pays.forEach(function (p) { h += '<div class="prow" data-key="' + p.key + '"><span>' + p.name + '</span><span>' + p.multiple + '×</span></div>'; });
-    h += '<div class="note2">BEST PATTERN PAYS. ALL 5 JP NUMBERS LIT WIN THE JACKPOT TOO</div>';
+    h += '<div class="note2">FULL LINES PAY. 2 BALLS ON ALL 5 JP NUMBERS WIN THE JACKPOT</div>';
     el.pays.innerHTML = h; el.pays.removeAttribute('data-win');
   }
   function fillRules() {

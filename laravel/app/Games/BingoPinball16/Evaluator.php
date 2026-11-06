@@ -2,11 +2,11 @@
 
 namespace App\Games\BingoPinball16;
 
-/** What a play pays: the lit cells, the best pattern and the jackpot numbers that are lit. Pure functions of (balls, jackpot numbers). */
+/** What a play pays: the lit cells, the pattern (complete lines) and the jackpot numbers that hold two balls. Pure functions of (balls, jackpot numbers). */
 final class Evaluator
 {
     /**
-     * @param  list<int>  $balls  the slot of each ball (1-16) or 0 for OUT
+     * @param  list<int>  $balls  the slot of each ball (1-16)
      * @param  list<int>  $jackpotNumbers  five numbers 1-16
      * @return array{lit:list<int>, pattern:?string, multiple:int, jackpotLit:int, jackpot:bool, lines:list<int>}
      */
@@ -14,43 +14,25 @@ final class Evaluator
     {
         $cells = [];
         foreach ($balls as $b) {
-            if ($b > 0) {
-                $cells[$b - 1] = true;
-            }
+            $cells[$b - 1] = true;
         }
-        $has = fn (array $set) => ! array_diff_key(array_flip($set), $cells);
         $fullLines = [];
         foreach (Rules::LINES as $i => $line) {
-            if ($has($line)) {
+            if (! array_diff_key(array_flip($line), $cells)) {
                 $fullLines[] = $i;
             }
         }
         $pattern = null;
-        if (count($fullLines) >= 2) {
-            $pattern = 'lines2';
-        } elseif ($has(Rules::CORNERS)) {
-            $pattern = 'corners';
-        } elseif (count($fullLines) === 1) {
-            $pattern = 'fullline';
-        } else {
-            foreach (Rules::SQUARES as $q) {
-                if ($has($q)) {
-                    $pattern = 'square';
-                    break;
-                }
-            }
-            if ($pattern === null) {
-                foreach (Rules::LINES as $line) {
-                    if (count(array_intersect_key(array_flip($line), $cells)) >= 3) {
-                        $pattern = 'three';
-                        break;
-                    }
-                }
+        foreach (Rules::PATTERNS as $key => [, , $least]) {
+            if (count($fullLines) >= $least) {
+                $pattern = $key;
+                break;
             }
         }
+        $counts = array_count_values($balls);
         $jackpotLit = 0;
         foreach ($jackpotNumbers as $n) {
-            if (isset($cells[$n - 1])) {
+            if (($counts[$n] ?? 0) >= Rules::JACKPOT_MIN_BALLS) {
                 $jackpotLit++;
             }
         }

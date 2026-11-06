@@ -6,13 +6,13 @@ use App\Game\Rng;
 use App\Game\RngStream;
 
 /**
- * The outcome of one play: where each of the 16 balls ends (a slot 1-16, or 0 = drained OUT) and the five jackpot numbers. It depends only on (server seed, client seed, nonce),
+ * The outcome of one play: where each of the 16 balls ends (a slot 1-16) and the five jackpot numbers. It depends only on (server seed, client seed, nonce),
  * so anyone who is shown the server seed afterwards can re-run it (bin/bingo16-verify.php and docs/bingo16/verify_play.py do exactly this, on their own).
  *
  *   key    = the 32 bytes of the server seed (64 hex characters)
  *   stream = HMAC-SHA256(key, "bingo-pinball-16:" client seed ":" nonce ":" counter), counter = 0, 1, 2 ...; consumed 4 bytes (big endian) at a time
  *   int(n) = uniform in [0, n) by rejection sampling on the 32-bit value (no modulo bias): reject v >= 2^32 - (2^32 mod n), return v mod n
- *   balls  = for each of the 16 balls in order: r = int(10000); slot = floor(r / 184) + 1 when r < 2944, else 0 (OUT)
+ *   balls  = for each of the 16 balls in order: r = int(10000); slot = floor(r / 625) + 1
  *   jackpot numbers = a = [1..16]; for i = 0..4: j = i + int(16 - i); swap(a[i], a[j]); the numbers are a[0] .. a[4] (drawn after the balls, from the same stream)
  */
 final class Draw
@@ -50,8 +50,7 @@ final class Draw
         $s = new RngStream($serverSeedHex, self::label($clientSeed, $nonce));
         $balls = [];
         for ($i = 0; $i < Rules::BALLS; $i++) {
-            $r = $s->int(Rules::TOTAL_WEIGHT);
-            $balls[] = $r < Rules::SLOT_WEIGHT * Rules::SLOTS ? intdiv($r, Rules::SLOT_WEIGHT) + 1 : 0;
+            $balls[] = intdiv($s->int(Rules::TOTAL_WEIGHT), Rules::SLOT_WEIGHT) + 1;
         }
         $a = range(1, Rules::SLOTS);
         for ($i = 0; $i < Rules::JACKPOT_NUMBERS; $i++) {

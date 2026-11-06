@@ -1,4 +1,4 @@
-/* Bingo Pinball 16: playback of the stored ball paths (paths-data.js, made by bin/bingo16-paths.cjs). The server decides where each of the 16 balls ends (a slot 1-16, or 0 = OUT); this picks, for an
+/* Bingo Pinball 16: playback of the stored ball paths (paths-data.js, made by bin/bingo16-paths.cjs). The server decides where each of the 16 balls ends (a slot 1-16); this picks, for an
    outcome, a stored path that ends there at about the power the plunger was pulled, and says where the ball is at any moment. Nothing here decides a result. */
 (function () {
   'use strict';

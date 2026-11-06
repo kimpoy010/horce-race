@@ -70,7 +70,7 @@ class GameReports16Test extends StaffTestCase
         for ($i = 1; $i <= $n; $i++) {
             $jp = $jackpotEvery && $i % $jackpotEvery === 0 ? 5000 : $jackpotPaid;
             $rows[] = ['game_id' => 'bingo-pinball-16', 'player_key' => 'acme:x', 'client_id' => 'acme', 'stake' => 1000, 'currency' => 'PHP', 'paytable_id' => 'b16-v90-1', 'paytable_version' => 1, 'best_lit' => 4,
-                'multiple' => $multiple, 'payout' => 1000 * $multiple + $jp, 'jackpot_paid' => $jp, 'pattern' => $multiple === 2 ? 'three' : null, 'status' => 'settled', 'request_id' => 'bulk'.$i, 'created_at' => $at, 'settled_at' => $at];
+                'multiple' => $multiple, 'payout' => 1000 * $multiple + $jp, 'jackpot_paid' => $jp, 'pattern' => $multiple === 2 ? 'lines3' : null, 'status' => 'settled', 'request_id' => 'bulk'.$i, 'created_at' => $at, 'settled_at' => $at];
         }
         foreach (array_chunk($rows, 500) as $c) {
             DB::table('instant_rounds')->insert($c);
@@ -89,7 +89,7 @@ class GameReports16Test extends StaffTestCase
         $this->assertEqualsWithDelta($par['hit'], $g['hitFrequencyTheoretical'], 1e-9);
         $counted = array_sum(array_column((array) $g['patterns'], 'count'));
         $this->assertSame(count(array_filter($rounds, fn ($r) => $r['pattern'] !== null)), $counted);
-        $this->assertEqualsWithDelta(40 * $par['patterns']['three'], ((array) $g['patterns'])['three']['expected'], 1e-9);
+        $this->assertEqualsWithDelta(40 * $par['patterns']['lines3'], ((array) $g['patterns'])['lines3']['expected'], 1e-9);
         $pool = ((array) $g['pools'])['PHP'];
         $this->assertTrue($pool['balanced']);
         $this->assertGreaterThanOrEqual(10000, $pool['amount']);
@@ -105,9 +105,9 @@ class GameReports16Test extends StaffTestCase
         $this->assertLessThan(-15, $z);
         $this->assertContains('rtp_drift:bingo-pinball-16', array_column($alerts->current(), 'name'));
         DB::table('instant_rounds')->where('game_id', 'bingo-pinball-16')->delete();
-        $this->bulk(12000, 2, 0, 400);                                                          // 30 jackpots in 12,000 plays (the maths expects 8)
+        $this->bulk(30000, 2, 0, 750);                                                          // 40 jackpots in 30,000 plays (the maths expects 6)
         $g = app(GameReports::class)->summary()['bingo-pinball-16'];
-        $this->assertSame(30, $g['jackpotHits']);
+        $this->assertSame(40, $g['jackpotHits']);
         $this->assertGreaterThan(4, $g['jackpotZ']);
         $names = array_column($alerts->current(), 'name');
         $this->assertContains('jackpot_drift:bingo-pinball-16', $names);

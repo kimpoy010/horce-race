@@ -3,7 +3,7 @@
  * so a ball can only be where the physics put it); the card is a 4 x 4 grid; the five jackpot numbers are a row of boxes.
  * window.Bingo16View.create(parts) -> { draw(scene) }. draw() is cheap: it only touches what changed.
  *
- * scene: { paytable, lit:{cellIndex:true}, jpNums:[5 numbers], jpLit:{number:true}, lineCells:[cell...], winKey:'fullline'|..., slotCounts:[n per slot, index 1-16],
+ * scene: { paytable, lit:{cellIndex:true}, jpNums:[5 numbers], jpLit:{number:true}, lineCells:[cell...], winKey:'lines3'|..., slotCounts:[n per slot, index 1-16],
  *          ball:{x,y}|null, pull:0..1, sparks:[{x,y,dx,dy,t}], pinFlash:{index:t}, caught:[{x,y,t}], time:ms }
  */
 (function () {
@@ -30,10 +30,9 @@
     // the 16 slots, each with its number under it
     for (i = 0; i < 16; i++) {
       var s = T.slots[i];
-      svg('rect', { x: s.xl, y: T.RIM_Y, width: 22, height: 52, rx: 3, fill: C.slot, stroke: C.slotLine, 'stroke-width': 2 }, board);
+      svg('rect', { x: s.xl, y: T.RIM_Y, width: T.SLOT_W, height: 52, rx: 2, fill: C.slot, stroke: C.slotLine, 'stroke-width': 2 }, board);
       var tx = svg('text', { x: s.x, y: 496, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 9, fill: C.slotLine }, board); tx.textContent = s.n;
     }
-    var cap = svg('text', { x: 272, y: 514, 'text-anchor': 'middle', 'font-family': "'Press Start 2P', monospace", 'font-size': 8, fill: C.peg }, board); cap.textContent = 'GAPS DRAIN TO OUT';
     // balls resting in the slots (up to three show, stacked), and how many when there are more
     var rest = [], count = [];
     for (i = 0; i < 16; i++) {
