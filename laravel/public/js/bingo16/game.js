@@ -59,6 +59,10 @@
     if (u && !/^(https?:\/\/|\/(?!\/))/i.test(u)) u = '';
     el.btnLobby.hidden = !u; if (u) el.btnLobby.setAttribute('href', u);
   }
+  // a player signed in on this site (the account cookie) can always go back to the account page, whichever way the game was opened and even when the launch carried no return address
+  function lobbyProbe() {
+    fetch('/player/api/me', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { if (r.status === 200 && !S.lobby) { S.lobby = '/account'; lobbyUi(); } }, function () { /* ignore */ });
+  }
   function modeUi() { el.btnMode.textContent = S.manual ? 'MANUAL' : 'AUTO'; el.btnMode.classList.toggle('manual', S.manual); }
   try { S.manual = localStorage.getItem('bp16.mode') === 'manual'; } catch (e) { /* ignore */ }
 
@@ -343,7 +347,7 @@
   el.play.addEventListener('click', play);
   el.btnRules.addEventListener('click', function () { openSheet('rules'); });
   el.btnMode.addEventListener('click', function () { S.manual = !S.manual; modeUi(); try { localStorage.setItem('bp16.mode', S.manual ? 'manual' : 'auto'); } catch (e) { /* ignore */ } note(S.manual ? 'MANUAL: you pull the plunger for every ball.' : 'AUTO: you pull once, the other balls follow by themselves.', true, 3500); });
-  modeUi();
+  modeUi(); lobbyProbe();
   el.btnFair.addEventListener('click', function () { openSheet('fair'); });
   el.btnSound.addEventListener('click', function () {
     var on = !(Snd.isSfx() || Snd.isMusic()); Snd.setSfx(on); Snd.setMusic(on); Snd.unlock(); el.btnSound.classList.toggle('off', !on);
@@ -369,7 +373,7 @@
     var token = qs.get('token'), first;
     if (token) {
       history.replaceState(null, '', location.pathname + (qs.get('start') === '0' ? '?start=0' : ''));      // never leave the launch token in the address bar
-      first = Api.auth(token, qs.get('client')).then(function (res) { S.lobby = res.returnUrl || ''; lobbyUi(); Api.setSession(res.session); applyState(res); return res; });
+      first = Api.auth(token, qs.get('client')).then(function (res) { S.lobby = res.returnUrl || S.lobby || ''; lobbyUi(); Api.setSession(res.session); applyState(res); return res; });
     } else if (Api.hasSession()) {
       first = refresh(true).catch(function (e) { if (e && e.error === 'SESSION_EXPIRED') { Api.clearSession(); return viaAccount(); } throw e; });      // the saved session ended: a signed-in account starts a new one
     } else {
