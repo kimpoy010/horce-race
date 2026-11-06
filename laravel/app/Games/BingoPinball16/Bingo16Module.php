@@ -29,8 +29,8 @@ final class Bingo16Module implements GameModule
 
     public function rules(): array
     {
-        return ['balls' => Rules::BALLS, 'slots' => Rules::SLOTS, 'card' => '4 x 4', 'patterns' => array_map(fn ($p) => ['name' => $p[0], 'multiple' => $p[1]], array_values(Rules::PATTERNS)),
-            'jackpot' => 'one progressive pool for the whole server (PHP): all '.Rules::JACKPOT_NUMBERS.' random jackpot numbers lit win the pool',
+        return ['balls' => Rules::BALLS, 'slots' => Rules::SLOTS, 'card' => '4 x 4', 'patterns' => array_map(fn ($p) => ['name' => $p[0], 'multiple' => $p[1] / 2], array_values(Rules::PATTERNS)),
+            'jackpot' => 'one progressive pool for the whole server (PHP): each of the '.Rules::JACKPOT_NUMBERS.' random jackpot numbers needs '.Rules::JACKPOT_MIN_BALLS.' balls to win the pool',
             'plunger' => 'cosmetic: how hard the plunger is pulled never changes the result', 'paytable' => Rules::PAYTABLE_ID];
     }
 

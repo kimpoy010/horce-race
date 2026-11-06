@@ -50,7 +50,7 @@ final class Par
         $rtp = 0.0;
         $second = 0.0;
         foreach ($patterns as $k => $pr) {
-            $m = Rules::PATTERNS[$k][1];
+            $m = Rules::PATTERNS[$k][1] / 2;
             $rtp += $pr * $m;
             $second += $pr * $m * $m;
         }

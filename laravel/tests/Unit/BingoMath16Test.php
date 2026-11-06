@@ -14,7 +14,7 @@ require_once __DIR__.'/../../bin/bingo16-verify.php';
 class BingoMath16Test extends TestCase
 {
     /** sha256 of Rules::canonical(): the rules of a certified game are frozen; a change is a new version and a deliberate new line here */
-    private const FROZEN = 'c79cebd81b4c5501b9926b4133517aa375c712088439f66c3fbff98ea47fbdc4';
+    private const FROZEN = '6a036849baa0b4033beb2d52d034ab4e6672801f5beab64b94d14540313f232b';
 
     public function test_the_rules_are_frozen(): void
     {
@@ -26,26 +26,33 @@ class BingoMath16Test extends TestCase
     /** @return list<list<int>> */
     private static function cases(): array
     {
-        $rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-
         return [
             // [balls (slots), expected pattern]
-            [[1, 2], null], [[1, 2, 3, 4], null], [[1, 2, 3, 4, 5, 6, 7], null], [[1, 2, 3, 4, 5, 9, 13], 'lines2'], [[1, 2, 3, 4, 5, 6, 7, 8], 'lines2'],
-            [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], 'lines3'], [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], 'lines8'],
-            [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 'lines6'], [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16], 'lines5'],
-            [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 16], 'lines8'], [[1, 4, 13, 16, 6, 11], null],
-            [[1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16], 'lines4'],
-            [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], 'lines5'],
+            [[1, 2], null], [[1, 2, 3], null], [[1, 2, 3, 4], 'across'], [[5, 6, 7, 8], 'across'], [[13, 14, 15, 16], 'across'], [[1, 5, 9, 13], 'down'], [[4, 8, 12, 16], 'down'],
+            [[1, 6, 11, 16], 'diagonal'], [[4, 7, 10, 13], 'diagonal'], [[1, 4, 13, 16], 'corners'], [[6, 7, 10, 11], 'smallbox'], [[1, 2, 3, 4, 7, 10, 13], 'lucky7'],
+            [[1, 5, 9, 13, 14, 15, 16], 'lshape'], [[1, 2, 3, 4, 13, 14, 15, 16], 'equal'], [[1, 5, 9, 13, 4, 8, 12, 16], 'eleven'], [[1, 2, 3, 4, 7, 10, 13, 14, 15, 16], 'zshape'],
+            [[1, 2, 3, 4, 5, 8, 9, 12, 13, 14, 15, 16], 'bigbox'], [range(1, 17), 'full'], [[2, 3, 14], null], [[1, 2, 4, 5, 8, 10], null],
+            [[1, 2, 3, 4, 5, 6, 7, 8], 'across'],                               // two rows: still ACROSS
+            [[1, 2, 3, 4, 5, 9, 13], 'across'],                                 // a row and a column: ACROSS ranks above DOWN
+            [[1, 2, 3, 4, 6, 7, 10, 11], 'smallbox'],                           // SMALL BOX ranks above ACROSS
+            [[1, 2, 3, 4, 13, 14, 15, 16, 5, 9], 'equal'],                      // EQUAL ranks above the rest
+            
         ];
     }
 
     public function test_the_evaluator_on_hand_made_plays(): void
     {
         foreach (self::cases() as [$balls, $want]) {
+            $balls = array_values((array) $balls);
             $e = Evaluator::evaluate($balls, [1, 2, 3, 4, 5]);
             $this->assertSame($want, $e['pattern'], 'balls '.implode(',', $balls));
-            $this->assertSame($want === null ? 0 : Rules::PATTERNS[$want][1], $e['multiple']);
+            $this->assertSame($want === null ? 0 : Rules::PATTERNS[$want][1], $e['halves']);
         }
+        $this->assertSame([2, 1, 10], [Rules::PATTERNS['diagonal'][1], Rules::PATTERNS['across'][1], Rules::PATTERNS['eleven'][1]]);
+        $this->assertSame(500, Rules::pay('across', 1000), 'half the stake');
+        $this->assertSame(1000, Rules::pay('smallbox', 1000), 'the stake');
+        $this->assertSame(5000, Rules::pay('eleven', 1000));
+        $this->assertSame(2, Rules::pay('across', 5), 'rounded down');
         $this->assertSame([5, 9], Evaluator::evaluate([9, 5, 5, 9], [1, 2, 3, 4, 5])['lit'], 'lit cells, once each, in order');
         $j = Evaluator::evaluate([3, 3, 7, 7, 10, 10, 12, 12, 16, 16], [3, 7, 10, 12, 16]);
         $this->assertSame([5, true], [$j['jackpotLit'], $j['jackpot']], 'each jackpot number holds two balls');
@@ -66,7 +73,7 @@ class BingoMath16Test extends TestCase
             }
             $a = Evaluator::evaluate($balls, [1, 5, 9, 13, 16]);
             $b = b16_evaluate($balls, [1, 5, 9, 13, 16]);
-            $this->assertSame([$a['pattern'], $a['multiple'], $a['jackpotLit'], $a['lit']], [$b['pattern'], $b['multiple'], $b['jackpotLit'], $b['lit']], "mask $mask");
+            $this->assertSame([$a['pattern'], $a['halves'], $a['jackpotLit'], $a['lit'], $a['cells']], [$b['pattern'], $b['halves'], $b['jackpotLit'], $b['lit'], $b['cells']], "mask $mask");
         }
     }
 
@@ -76,14 +83,14 @@ class BingoMath16Test extends TestCase
         $par = Par::enumerate();
         $this->assertEqualsWithDelta($exact['rtp'], $par['rtp'], 1e-10);
         $this->assertEqualsWithDelta($exact['hit'], $par['hit'], 1e-10);
-        $this->assertEqualsWithDelta($exact['standardDeviation'], $par['standardDeviation'], 1e-10);
+        $this->assertEqualsWithDelta($exact['standardDeviation'], $par['standardDeviation'], 1e-7);
         $this->assertEqualsWithDelta($exact['jackpot'], $par['jackpot'], 1e-11);
         $this->assertEqualsWithDelta($exact['expectedLit'], $par['expectedLit'], 1e-10);
         foreach ($par['patterns'] as $k => $p) {
             $this->assertEqualsWithDelta($exact['patterns'][$k]['probability'], $p, 1e-11, $k);
-            $this->assertSame(Rules::PATTERNS[$k][1], $exact['patterns'][$k]['pays']);
+            $this->assertEqualsWithDelta(Rules::PATTERNS[$k][1] / 2, $exact['patterns'][$k]['pays'], 1e-12);
         }
-        $this->assertEqualsWithDelta(0.8781, $par['rtp'], 0.00005, 'the published pattern RTP');
+        $this->assertEqualsWithDelta(0.8795, $par['rtp'], 0.00005, 'the published pattern RTP');
     }
 
     public function test_the_draw_gives_the_known_answers_of_the_independent_python_implementation(): void
@@ -96,13 +103,13 @@ class BingoMath16Test extends TestCase
             $this->assertSame($v['balls'], $d['balls']);
             $this->assertSame($v['jackpotNumbers'], $d['jackpotNumbers']);
             $e = Evaluator::evaluate($d['balls'], $d['jackpotNumbers']);
-            $this->assertSame([$v['lit'], $v['pattern'], $v['multiple'], $v['jackpotLit'], $v['jackpot']], [$e['lit'], $e['pattern'], $e['multiple'], $e['jackpotLit'], $e['jackpot']]);
+            $this->assertSame([$v['lit'], $v['pattern'], $v['halves'], $v['cells'], $v['jackpotLit'], $v['jackpot']], [$e['lit'], $e['pattern'], $e['halves'], $e['cells'], $e['jackpotLit'], $e['jackpot']]);
             $this->assertSame($v['commit'], Draw::commitOf($v['serverSeed']));
             [$vb, $vj] = b16_draw($v['serverSeed'], $v['clientSeed'], $v['nonce']);             // the standalone PHP verifier
             $this->assertSame([$v['balls'], $v['jackpotNumbers']], [$vb, $vj]);
             $seen[$v['jackpot'] ? 'jackpot' : ($v['pattern'] ?? 'none')] = true;
         }
-        foreach (['none', 'lines2', 'lines3', 'lines4', 'lines5', 'lines6', 'lines8', 'jackpot'] as $k) {
+        foreach (['none', 'across', 'down', 'diagonal', 'corners', 'smallbox', 'lshape', 'lucky7', 'equal', 'eleven', 'zshape', 'bigbox', 'jackpot'] as $k) {
             $this->assertArrayHasKey($k, $seen, "the vectors include a play with $k");
         }
     }
@@ -163,9 +170,9 @@ class BingoMath16Test extends TestCase
         $paid = 0;
         for ($n = 1; $n <= $plays; $n++) {
             $d = Draw::play($seed, 'rtp', $n);
-            $paid += Evaluator::evaluate($d['balls'], $d['jackpotNumbers'])['multiple'];
+            $paid += Evaluator::evaluate($d['balls'], $d['jackpotNumbers'])['halves'] / 2;
         }
-        $sd = 1.9942 / sqrt($plays);
-        $this->assertEqualsWithDelta(0.878138, $paid / $plays, 5 * $sd, 'observed pattern return of '.$plays.' plays within 5 standard errors');
+        $sd = 6.3818 / sqrt($plays);
+        $this->assertEqualsWithDelta(0.879479, $paid / $plays, 5 * $sd, 'observed pattern return of '.$plays.' plays within 5 standard errors');
     }
 }

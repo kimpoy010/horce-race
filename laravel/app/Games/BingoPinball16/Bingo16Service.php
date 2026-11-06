@@ -188,17 +188,17 @@ final class Bingo16Service
             $nonce = $this->seeds->take($seed);
             $d = Draw::play($this->seeds->serverSeed($seed), $seed->client_seed, $nonce);
             $e = Evaluator::evaluate($d['balls'], $d['jackpotNumbers']);
-            $patternPay = $stake * $e['multiple'];
+            $patternPay = $e['pattern'] === null ? 0 : Rules::pay($e['pattern'], $stake);
             $pool = $this->pool->settle($ref, $stake, $s->currency, $e['jackpot']);          // locks the pool row; the whole pool when all five numbers are lit
             $payout = $patternPay + $pool['paid'];
             $t = $this->now();
             $details = ['balls' => $d['balls'], 'jackpotNumbers' => $d['jackpotNumbers'], 'lit' => $e['lit'], 'pattern' => $e['pattern'], 'lines' => $e['lines'], 'jackpotLit' => $e['jackpotLit'],
                 'jackpot' => $e['jackpot'], 'patternPay' => $patternPay, 'contribution' => $pool['contribution'], 'poolBefore' => $pool['poolBefore'], 'poolAfter' => $pool['poolAfter']];
-            DB::table('instant_rounds')->where('id', $id)->update(['seed_id' => $seed->id, 'nonce' => $nonce, 'holes' => json_encode($d['balls']), 'best_lit' => count($e['lit']), 'multiple' => $e['multiple'],
+            DB::table('instant_rounds')->where('id', $id)->update(['seed_id' => $seed->id, 'nonce' => $nonce, 'holes' => json_encode($d['balls']), 'best_lit' => count($e['lit']), 'multiple' => $e['halves'],
                 'payout' => $payout, 'jackpot_paid' => $pool['paid'], 'pattern' => $e['pattern'], 'details' => json_encode($details), 'status' => 'settled', 'settled_at' => $t]);
             $this->journal->log(['e' => 'b16.play', 'roundId' => $ref, 'playerId' => $s->player_key, 'stake' => $stake, 'currency' => $s->currency, 'txId' => $txId, 'seedId' => (int) $seed->id,
                 'commit' => $seed->commit, 'clientSeed' => $seed->client_seed, 'nonce' => $nonce, 'paytable' => Rules::PAYTABLE_ID], self::GAME);
-            $this->journal->log(['e' => 'b16.settled', 'roundId' => $ref, 'playerId' => $s->player_key, 'balls' => $d['balls'], 'jackpotNumbers' => $d['jackpotNumbers'], 'pattern' => $e['pattern'], 'multiple' => $e['multiple'],
+            $this->journal->log(['e' => 'b16.settled', 'roundId' => $ref, 'playerId' => $s->player_key, 'balls' => $d['balls'], 'jackpotNumbers' => $d['jackpotNumbers'], 'pattern' => $e['pattern'], 'multiple' => $e['halves'] / 2,
                 'patternPay' => $patternPay, 'jackpotPaid' => $pool['paid'], 'payout' => $payout], self::GAME);
             if ($payout > 0) {
                 $this->gateway->queueCredit($ref.':win', $s->player_key, $payout, null, 'win', array_filter(['currency' => $s->currency, 'brandId' => $s->brand_id]), self::GAME, $ref);
@@ -218,7 +218,7 @@ final class Bingo16Service
     private function announce(object $s, array $client, string $ref, int $stake, int $payout, array $e, int $jackpotPaid, int $nonce): void
     {
         $raw = PlayerKey::split($s->player_key)[1];
-        $common = ['roundId' => $ref, 'gameId' => self::GAME, 'playerId' => $raw, 'brandId' => $s->brand_id, 'currency' => $s->currency, 'stake' => $stake, 'payout' => $payout, 'multiple' => $e['multiple'],
+        $common = ['roundId' => $ref, 'gameId' => self::GAME, 'playerId' => $raw, 'brandId' => $s->brand_id, 'currency' => $s->currency, 'stake' => $stake, 'payout' => $payout, 'multiple' => $e['halves'] / 2,
             'pattern' => $e['pattern'], 'jackpotPaid' => $jackpotPaid, 'paytable' => Rules::PAYTABLE_ID];
         if ($payout > 0 && ($jackpotPaid > 0 || $payout >= ($client['bigWinMin'] ?? $this->bigWinMin))) {
             $this->webhooks->emit('big.win', 'win:'.$ref, $common, $s->client_id, self::GAME);
@@ -258,7 +258,7 @@ final class Bingo16Service
 
         return ['id' => (int) $r->id, 'ref' => $ref, 'status' => $r->status, 'stake' => (int) $r->stake, 'currency' => $r->currency, 'paytable' => ['id' => $r->paytable_id],
             'balls' => $d['balls'] ?? null, 'jackpotNumbers' => $d['jackpotNumbers'] ?? null, 'lit' => $d['lit'] ?? null, 'pattern' => $pattern, 'patternName' => $pattern ? Rules::PATTERNS[$pattern][0] : null,
-            'lines' => $d['lines'] ?? null, 'multiple' => $r->multiple === null ? null : (int) $r->multiple, 'jackpotLit' => $d['jackpotLit'] ?? null, 'jackpot' => $d['jackpot'] ?? false,
+            'lines' => $d['lines'] ?? null, 'multiple' => $r->multiple === null ? null : (int) $r->multiple / 2, 'jackpotLit' => $d['jackpotLit'] ?? null, 'jackpot' => $d['jackpot'] ?? false,
             'patternPay' => $d['patternPay'] ?? 0, 'jackpotPaid' => (int) $r->jackpot_paid, 'payout' => (int) $r->payout, 'nonce' => $r->nonce === null ? null : (int) $r->nonce,
             'seedId' => $r->seed_id === null ? null : (int) $r->seed_id, 'createdAt' => (int) $r->created_at, 'settledAt' => $r->settled_at === null ? null : (int) $r->settled_at, 'seen' => $r->seen_at !== null,
             'creditPending' => (int) $r->payout > 0 && DB::table('pending_ops')->where('tx_id', $ref.':win')->exists()];

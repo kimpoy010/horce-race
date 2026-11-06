@@ -48,7 +48,7 @@ class GameReports16Test extends StaffTestCase
     private function jackpotVector(): array
     {
         foreach (json_decode(file_get_contents(__DIR__.'/../../docs/bingo16/test-vectors.json'), true) as $v) {
-            if ($v['jackpot'] && $v['multiple'] > 0) {
+            if ($v['jackpot'] && $v['halves'] > 0) {
                 return $v;
             }
         }
@@ -69,8 +69,8 @@ class GameReports16Test extends StaffTestCase
         $rows = [];
         for ($i = 1; $i <= $n; $i++) {
             $jp = $jackpotEvery && $i % $jackpotEvery === 0 ? 5000 : $jackpotPaid;
-            $rows[] = ['game_id' => 'bingo-pinball-16', 'player_key' => 'acme:x', 'client_id' => 'acme', 'stake' => 1000, 'currency' => 'PHP', 'paytable_id' => 'b16-v90-1', 'paytable_version' => 1, 'best_lit' => 4,
-                'multiple' => $multiple, 'payout' => 1000 * $multiple + $jp, 'jackpot_paid' => $jp, 'pattern' => $multiple === 2 ? 'lines3' : null, 'status' => 'settled', 'request_id' => 'bulk'.$i, 'created_at' => $at, 'settled_at' => $at];
+            $rows[] = ['game_id' => 'bingo-pinball-16', 'player_key' => 'acme:x', 'client_id' => 'acme', 'stake' => 1000, 'currency' => 'PHP', 'paytable_id' => 'b16-v90-2', 'paytable_version' => 1, 'best_lit' => 4,
+                'multiple' => $multiple * 2, 'payout' => 1000 * $multiple + $jp, 'jackpot_paid' => $jp, 'pattern' => $multiple === 2 ? 'lshape' : null, 'status' => 'settled', 'request_id' => 'bulk'.$i, 'created_at' => $at, 'settled_at' => $at];
         }
         foreach (array_chunk($rows, 500) as $c) {
             DB::table('instant_rounds')->insert($c);
@@ -89,7 +89,7 @@ class GameReports16Test extends StaffTestCase
         $this->assertEqualsWithDelta($par['hit'], $g['hitFrequencyTheoretical'], 1e-9);
         $counted = array_sum(array_column((array) $g['patterns'], 'count'));
         $this->assertSame(count(array_filter($rounds, fn ($r) => $r['pattern'] !== null)), $counted);
-        $this->assertEqualsWithDelta(40 * $par['patterns']['lines3'], ((array) $g['patterns'])['lines3']['expected'], 1e-9);
+        $this->assertEqualsWithDelta(40 * $par['patterns']['lshape'], ((array) $g['patterns'])['lshape']['expected'], 1e-9);
         $pool = ((array) $g['pools'])['PHP'];
         $this->assertTrue($pool['balanced']);
         $this->assertGreaterThanOrEqual(10000, $pool['amount']);
@@ -100,7 +100,7 @@ class GameReports16Test extends StaffTestCase
     {
         $alerts = new AlertManager($this->engine, config('horse.alerts'), null, fn () => $this->t);
         $this->assertSame([], array_column($alerts->current(), 'name'));
-        $this->bulk(2000, 0);                                                                   // 2,000 plays that never win: far below the PAR sheet
+        $this->bulk(20000, 0);                                                                  // 20,000 plays that never win: far below the PAR sheet
         $z = app(GameReports::class)->summary()['bingo-pinball-16']['rtpZ'];
         $this->assertLessThan(-15, $z);
         $this->assertContains('rtp_drift:bingo-pinball-16', array_column($alerts->current(), 'name'));

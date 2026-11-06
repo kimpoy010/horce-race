@@ -2,17 +2,23 @@ Bingo Pinball 16 - paytable b16-v90-2: exact PAR sheet
 
 Each ball lands in slot k with probability 625/10000 (every ball lands in a slot, there is no OUT). 16 balls per play.
 
-Pattern          pays   probability   1 in       share of RTP
-8+ LINES         125x   0.00006919    14,453.4    0.865%
-6-7 LINES         20x   0.00236551       422.7    4.731%
-5 LINES           10x   0.00920837       108.6    9.208%
-4 LINES            5x   0.04097412        24.4   20.487%
-3 LINES            2x   0.12504441         8.0   25.009%
-2 LINES            1x   0.27513567         3.6   27.514%
+Pattern            pays   probability   1 in         share of RTP (best pattern only)
+FULL CARD         5000x   0.00000113     881,658.0    0.567%
+BIG BOX            150x   0.00049995       2,000.2    7.499%
+Z SHAPE             15x   0.00303820         329.1    4.557%
+EQUAL                5x   0.01017647          98.3    5.088%
+NUMBER ELEVEN        5x   0.01321467          75.7    6.607%
+LUCKY SEVEN          2x   0.02299526          43.5    4.599%
+L SHAPE              2x   0.02086604          47.9    4.173%
+4 CORNERS            1x   0.10468521           9.6   10.469%
+SMALL BOX            1x   0.13168309           7.6   13.168%
+DIAGONAL             1x   0.11889507           8.4   11.890%
+ACROSS             0.5x   0.25353813           3.9   12.677%
+DOWN               0.5x   0.13306236           7.5    6.653%
 
-Pattern RTP (best pattern only)  87.8138%   exact 126552962055154635/144115188075855872
-Win frequency (any pattern)      45.280%
-Standard deviation of a play     1.9942 x stake
+Pattern RTP  87.9479%   exact 506985152978611131/576460752303423488
+Win frequency (any pattern)      81.266%
+Standard deviation of a play     6.3818 x stake
 Expected lit slots per play      10.303 of 16
 Jackpot (all 5 jackpot numbers hold at least 2 balls)  probability 0.000209  1 in 4,791
 

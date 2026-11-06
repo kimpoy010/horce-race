@@ -9,8 +9,23 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   var LINES = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15], [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [0, 5, 10, 15], [3, 6, 9, 12]];
-  var PAYS = { lines2: 1, lines3: 2, lines4: 5, lines5: 10, lines6: 20, lines8: 125 };
-  var NAMES = { lines2: '2 LINES', lines3: '3 LINES', lines4: '4 LINES', lines5: '5 LINES', lines6: '6-7 LINES', lines8: '8+ LINES' };
+  var ROWS = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]], COLS = [[0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15]];
+  /** the twelve patterns, best first: [key, name, pay in half stakes, the ways to make it] */
+  var PATTERNS = [
+    ['full', 'FULL CARD', 10000, [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]]],
+    ['bigbox', 'BIG BOX', 300, [[0, 1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15]]],
+    ['zshape', 'Z SHAPE', 30, [[0, 1, 2, 3, 6, 9, 12, 13, 14, 15]]],
+    ['equal', 'EQUAL', 10, [[0, 1, 2, 3, 12, 13, 14, 15]]],
+    ['eleven', 'NUMBER ELEVEN', 10, [[0, 4, 8, 12, 3, 7, 11, 15]]],
+    ['lucky7', 'LUCKY SEVEN', 4, [[0, 1, 2, 3, 6, 9, 12]]],
+    ['lshape', 'L SHAPE', 4, [[0, 4, 8, 12, 13, 14, 15]]],
+    ['corners', '4 CORNERS', 2, [[0, 3, 12, 15]]],
+    ['smallbox', 'SMALL BOX', 2, [[5, 6, 9, 10]]],
+    ['diagonal', 'DIAGONAL', 2, [[0, 5, 10, 15], [3, 6, 9, 12]]],
+    ['across', 'ACROSS', 1, ROWS],
+    ['down', 'DOWN', 1, COLS]
+  ];
+  var NAMES = {}; PATTERNS.forEach(function (p) { NAMES[p[0]] = p[1]; });
 
   function subtle() { return crypto.subtle; }
   function utf8(text) { return new TextEncoder().encode(text); }
@@ -50,12 +65,12 @@
     balls.forEach(function (b) { lit[b - 1] = true; });
     var has = function (cells) { return cells.every(function (c) { return lit[c]; }); };
     var full = []; LINES.forEach(function (l, n) { if (has(l)) full.push(n); });
-    var pattern = full.length >= 8 ? 'lines8' : full.length >= 6 ? 'lines6' : full.length >= 2 ? 'lines' + full.length : null, cells = [];
-    if (pattern) full.forEach(function (n) { LINES[n].forEach(function (c) { if (cells.indexOf(c) < 0) cells.push(c); }); });
+    var pattern = null, cells = [], halves = 0;
+    PATTERNS.some(function (p) { return p[3].some(function (w) { if (has(w)) { pattern = p[0]; cells = w.slice(); halves = p[2]; return true; } return false; }); });
     var counts = {}; balls.forEach(function (b) { counts[b] = (counts[b] || 0) + 1; });
     var jp = 0; jackpotNumbers.forEach(function (n) { if ((counts[n] || 0) >= 2) jp++; });
     var litCells = []; for (k in lit) litCells.push(+k + 1); litCells.sort(function (a, b) { return a - b; });
-    return { lit: litCells, pattern: pattern, name: pattern ? NAMES[pattern] : null, multiple: pattern ? PAYS[pattern] : 0, cells: cells, lines: full, jackpotLit: jp, jackpot: jp === 5 };
+    return { lit: litCells, pattern: pattern, name: pattern ? NAMES[pattern] : null, multiple: halves / 2, halves: halves, cells: cells, lines: full, jackpotLit: jp, jackpot: jp === 5 };
   }
 
   /**
@@ -74,7 +89,7 @@
       var e = evaluate(d.balls, d.jackpotNumbers);
       if (e.pattern !== round.pattern) problems.push('the pattern is not what the balls give (' + (e.pattern || 'none') + ')');
       if (e.jackpot !== !!round.jackpot || e.jackpotLit !== round.jackpotLit) problems.push('the jackpot numbers lit are not what the balls give');
-      if (e.multiple * round.stake !== round.patternPay) problems.push('the pattern pay is not what the paytable gives (' + e.multiple * round.stake + ')');
+      var want = Math.floor(round.stake * e.halves / 2); if (want !== round.patternPay) problems.push('the pattern pay is not what the paytable gives (' + want + ')');
       if (round.patternPay + round.jackpotPaid !== round.payout) problems.push('the payout is not the pattern pay plus the jackpot');
       if (!round.jackpot && round.jackpotPaid !== 0) problems.push('a jackpot was paid without all five numbers lit');
       return { ok: problems.length === 0, problems: problems };

@@ -95,9 +95,9 @@ for (const outcome of [1, 8, 16]) for (const power of [0, 0.5, 1]) {
     const d = await Fair.draw(v.serverSeed, v.clientSeed, v.nonce);
     same(d.balls, v.balls, 'balls of ' + v.clientSeed); same(d.jackpotNumbers, v.jackpotNumbers, 'jackpot numbers of ' + v.clientSeed);
     const e = Fair.evaluate(d.balls, d.jackpotNumbers);
-    same([e.lit, e.pattern, e.multiple, e.jackpotLit, e.jackpot], [v.lit, v.pattern, v.multiple, v.jackpotLit, v.jackpot], 'evaluation of ' + v.clientSeed);
+    same([e.lit, e.pattern, e.halves, e.cells.map((c) => c + 1).sort((a, b) => a - b), e.jackpotLit, e.jackpot], [v.lit, v.pattern, v.halves, v.cells, v.jackpotLit, v.jackpot], 'evaluation of ' + v.clientSeed);
     assert.strictEqual(await Fair.sha256Hex(v.serverSeed), v.commit);
-    const stake = 1000, round = { balls: v.balls, jackpotNumbers: v.jackpotNumbers, pattern: v.pattern, jackpotLit: v.jackpotLit, jackpot: v.jackpot, stake, patternPay: v.multiple * stake, jackpotPaid: v.jackpot ? 5000 : 0, payout: v.multiple * stake + (v.jackpot ? 5000 : 0) };
+    const stake = 1000, round = { balls: v.balls, jackpotNumbers: v.jackpotNumbers, pattern: v.pattern, jackpotLit: v.jackpotLit, jackpot: v.jackpot, stake, patternPay: Math.floor(v.halves * stake / 2), jackpotPaid: v.jackpot ? 5000 : 0, payout: Math.floor(v.halves * stake / 2) + (v.jackpot ? 5000 : 0) };
     const ok = await Fair.verify(round, { serverSeed: v.serverSeed, commit: v.commit, clientSeed: v.clientSeed, nonce: v.nonce });
     assert.ok(ok.ok, 'verify ' + v.clientSeed + ': ' + ok.problems.join('; '));
     const bad = await Fair.verify(Object.assign({}, round, { payout: round.payout + 1 }), { serverSeed: v.serverSeed, commit: v.commit, clientSeed: v.clientSeed, nonce: v.nonce });

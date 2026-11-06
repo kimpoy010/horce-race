@@ -13,13 +13,28 @@
  *   int(n) = uniform in [0, n): take 32-bit values v, throw away v >= 2^32 - (2^32 mod n), the answer is v mod n
  *   each of 16 balls: r = int(10000); slot = floor(r / 625) + 1 (every ball lands in a slot)
  *   jackpot numbers: a = [1..16]; for i = 0..4: j = i + int(16 - i); swap a[i], a[j]; the numbers are a[0] .. a[4]
- * Slot k lights cell k of the 4 x 4 card (numbered 1-16 row by row). The pattern is the number of complete lines (4 rows, 4 columns, 2 diagonals) and pays (stake included):
- * 2 lines 1x, 3 lines 2x, 4 lines 5x, 5 lines 10x, 6-7 lines 20x, 8 or more lines 125x; one line pays nothing. The jackpot pool is won when each of the 5 jackpot numbers
- * holds at least 2 balls.
- */
+ * Slot k lights cell k of the 4 x 4 card (numbered 1-16 row by row). The best complete pattern pays (stake included, in half stakes: 1 = 0.5x, 2 = 1x): FULL CARD 10000, BIG BOX 300,
+ * Z SHAPE 30, EQUAL 10, NUMBER ELEVEN 10, LUCKY SEVEN 4, L SHAPE 4, 4 CORNERS 2, SMALL BOX 2, DIAGONAL 2, ACROSS 1, DOWN 1 (the shapes: docs/bingo16/MATH.md); the payout is floor(stake x halves / 2).
+ * The jackpot pool is won when each of the 5 jackpot numbers holds at least 2 balls. */
 
-const B16_PAYS = ['lines8' => 125, 'lines6' => 20, 'lines5' => 10, 'lines4' => 5, 'lines3' => 2, 'lines2' => 1];
+const B16_ROWS = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]];
+const B16_COLS = [[0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15]];
 const B16_LINES = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15], [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [0, 5, 10, 15], [3, 6, 9, 12]];
+/** best first: key => [half stakes, the ways to make it] */
+const B16_PATTERNS = [
+    'full' => [10000, [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]]],
+    'bigbox' => [300, [[0, 1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15]]],
+    'zshape' => [30, [[0, 1, 2, 3, 6, 9, 12, 13, 14, 15]]],
+    'equal' => [10, [[0, 1, 2, 3, 12, 13, 14, 15]]],
+    'eleven' => [10, [[0, 4, 8, 12, 3, 7, 11, 15]]],
+    'lucky7' => [4, [[0, 1, 2, 3, 6, 9, 12]]],
+    'lshape' => [4, [[0, 4, 8, 12, 13, 14, 15]]],
+    'corners' => [2, [[0, 3, 12, 15]]],
+    'smallbox' => [2, [[5, 6, 9, 10]]],
+    'diagonal' => [2, [[0, 5, 10, 15], [3, 6, 9, 12]]],
+    'across' => [1, B16_ROWS],
+    'down' => [1, B16_COLS],
+];
 
 function b16_stream(string $key, string $label): Generator
 {
@@ -63,14 +78,25 @@ function b16_evaluate(array $balls, array $jp): array
         $lit[$b - 1] = true;
     }
     $all = fn (array $cells) => count(array_filter($cells, fn ($c) => isset($lit[$c]))) === count($cells);
-    $full = count(array_filter(B16_LINES, $all));
-    $key = $full >= 8 ? 'lines8' : ($full >= 6 ? 'lines6' : ($full >= 2 ? 'lines'.$full : null));
+    $key = null;
+    $made = [];
+    foreach (B16_PATTERNS as $k => [, $ways]) {
+        foreach ($ways as $w) {
+            if ($all($w)) {
+                $key = $k;
+                $made = $w;
+                break 2;
+            }
+        }
+    }
     $counts = array_count_values($balls);
     $n = count(array_filter($jp, fn ($x) => ($counts[$x] ?? 0) >= 2));
     $cells = array_map(fn ($c) => $c + 1, array_keys($lit));
     sort($cells);
+    $made = array_map(fn ($c) => $c + 1, $made);
+    sort($made);
 
-    return ['lit' => $cells, 'pattern' => $key, 'multiple' => $key ? B16_PAYS[$key] : 0, 'jackpotLit' => $n, 'jackpot' => $n === 5];
+    return ['lit' => $cells, 'pattern' => $key, 'halves' => $key ? B16_PATTERNS[$key][0] : 0, 'cells' => $made, 'jackpotLit' => $n, 'jackpot' => $n === 5];
 }
 
 if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
@@ -81,7 +107,7 @@ if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE
     }
     [$balls, $jp] = b16_draw($o['server-seed'], $o['client-seed'], (int) $o['nonce']);
     $e = b16_evaluate($balls, $jp);
-    $res = ['commit' => hash('sha256', $o['server-seed']), 'balls' => $balls, 'jackpotNumbers' => $jp] + $e + ['patternPay' => $e['multiple'] * (int) ($o['stake'] ?? 0)];
+    $res = ['commit' => hash('sha256', $o['server-seed']), 'balls' => $balls, 'jackpotNumbers' => $jp] + $e + ['patternPay' => intdiv($e['halves'] * (int) ($o['stake'] ?? 0), 2)];
     $bad = isset($o['commit']) && strtolower($o['commit']) !== $res['commit'];
     if (isset($o['json'])) {
         echo json_encode($res + ['commitOk' => ! $bad], JSON_UNESCAPED_SLASHES), "\n";

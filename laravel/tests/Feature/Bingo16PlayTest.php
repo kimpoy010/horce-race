@@ -7,6 +7,7 @@ use App\Game\Engine;
 use App\Game\Ledger;
 use App\Games\BingoPinball16\Draw;
 use App\Games\BingoPinball16\Evaluator;
+use App\Games\BingoPinball16\Rules;
 use App\Game\Clients\SecretBox;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
@@ -220,7 +221,7 @@ class Bingo16PlayTest extends TestCase
         $this->assertCount(16, $round['balls']);
         $this->assertCount(5, $round['jackpotNumbers']);
         $e = Evaluator::evaluate($round['balls'], $round['jackpotNumbers']);
-        $this->assertSame([$e['pattern'], $e['multiple'] * 1000 + $round['jackpotPaid']], [$round['pattern'], $round['payout']]);
+        $this->assertSame([$e['pattern'], ($e['pattern'] === null ? 0 : Rules::pay($e['pattern'], 1000)) + $round['jackpotPaid']], [$round['pattern'], $round['payout']]);
         $this->assertSame([$ref.':bet'], array_column($this->sent('/wallet/debit'), 'txId'));
         $this->assertSame(['b16.play', 'b16.settled'], array_values(array_filter(array_column($this->ledger(), 'e'), fn ($x) => str_starts_with($x, 'b16.'))));
         $this->assertSame(10014, $this->pool()->amount, 'a 1.48% share of the stake (14 of 1,000) went into the pool unless the play won it');
@@ -239,7 +240,7 @@ class Bingo16PlayTest extends TestCase
 
     public function test_a_jackpot_pays_the_whole_pool_on_top_of_the_pattern_and_the_pool_restarts_from_its_seed(): void
     {
-        $v = $this->vector(fn ($x) => $x['jackpot'] && $x['multiple'] > 0);
+        $v = $this->vector(fn ($x) => $x['jackpot'] && $x['halves'] > 0);
         $this->rigNextPlay('p1', $v);
         $s = $this->auth('p1');
         $r = $this->play($s, 2000)->assertOk()->json('round');
@@ -247,7 +248,7 @@ class Bingo16PlayTest extends TestCase
         $this->assertTrue($r['jackpot']);
         $contribution = intdiv(2000 * 148, 10000);
         $this->assertSame(10000 + $contribution, $r['jackpotPaid'], 'the whole pool, including this stake\'s share');
-        $this->assertSame(2000 * $v['multiple'] + 10000 + $contribution, $r['payout']);
+        $this->assertSame(intdiv(2000 * $v['halves'], 2) + 10000 + $contribution, $r['payout']);
         $this->assertSame(10000, $this->pool()->amount, 'the pool restarts from the seed');
         $p = $this->pool();
         $this->assertSame((int) $p->amount, (int) $p->seeded + (int) $p->contributed - (int) $p->paid, 'pool = seed money + contributions - jackpots paid');

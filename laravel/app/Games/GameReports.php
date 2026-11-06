@@ -253,10 +253,10 @@ final class GameReports
         foreach ($this->settled16($client)->selectRaw('currency, sum(stake) as s, sum(payout) as p')->groupBy('currency')->get() as $c) {
             $byCurrency[$c->currency] = ['staked' => (int) $c->s, 'paid' => (int) $c->p];
         }
-        $multiples = (int) $this->settled16($client)->sum('multiple');
+        $multiples = (int) $this->settled16($client)->sum('multiple') / 2;                  // the column holds half stakes
         $patterns = [];
-        foreach (\App\Games\BingoPinball16\Rules::PATTERNS as $k => [$name, $m]) {
-            $patterns[$k] = ['name' => $name, 'multiple' => $m, 'count' => 0, 'expected' => $plays * $par['patterns'][$k], 'probability' => $par['patterns'][$k]];
+        foreach (\App\Games\BingoPinball16\Rules::PATTERNS as $k => [$name, $halves]) {
+            $patterns[$k] = ['name' => $name, 'multiple' => $halves / 2, 'count' => 0, 'expected' => $plays * $par['patterns'][$k], 'probability' => $par['patterns'][$k]];
         }
         foreach ($this->settled16($client)->whereNotNull('pattern')->selectRaw('pattern, count(*) as n')->groupBy('pattern')->get() as $g) {
             if (isset($patterns[$g->pattern])) {
@@ -283,7 +283,7 @@ final class GameReports
 
         return ['id' => (int) $r->id, 'ref' => 'b16:'.$r->id, 'playerId' => \App\Game\Engine::splitPk($r->player_key)[1], 'status' => $r->status, 'at' => (int) ($r->settled_at ?? $r->created_at), 'stake' => (int) $r->stake,
             'payout' => (int) $r->payout, 'jackpotPaid' => (int) $r->jackpot_paid, 'currency' => $r->currency, 'pattern' => $r->pattern, 'patternName' => $r->pattern ? \App\Games\BingoPinball16\Rules::PATTERNS[$r->pattern][0] : null,
-            'multiple' => $r->multiple === null ? null : (int) $r->multiple, 'balls' => $d['balls'] ?? null, 'jackpotNumbers' => $d['jackpotNumbers'] ?? null, 'lit' => $d['lit'] ?? null, 'jackpotLit' => $d['jackpotLit'] ?? null,
+            'multiple' => $r->multiple === null ? null : (int) $r->multiple / 2, 'balls' => $d['balls'] ?? null, 'jackpotNumbers' => $d['jackpotNumbers'] ?? null, 'lit' => $d['lit'] ?? null, 'jackpotLit' => $d['jackpotLit'] ?? null,
             'paytable' => $r->paytable_id, 'nonce' => $r->nonce === null ? null : (int) $r->nonce];
     }
 

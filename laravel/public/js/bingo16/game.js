@@ -143,7 +143,7 @@
   var ROWNAMES = ['Row', 'Row', 'Row', 'Row', 'Column', 'Column', 'Column', 'Column', 'Diagonal', 'Diagonal'];
   function describe(e) {                                       // "Row 5-6-7-8", "Cells 1-4-13-16": the cells that made the pattern, numbered as on the card
     var nums = e.cells.slice().sort(function (a, b) { return a - b; }).filter(function (c, i, a) { return a.indexOf(c) === i; }).map(function (c) { return c + 1; }).join('-');
-    return e.lines.length + ' full lines';
+    return 'Cells ' + nums;
   }
   function showRound(round, opts) {
     opts = opts || {};
@@ -269,8 +269,12 @@
   /* ---------- rules and fairness screens ---------- */
   function fillPays(pt) {
     var h = '<div class="pt">PAYS × STAKE</div>';
-    pt.pays.forEach(function (p) { h += '<div class="prow" data-key="' + p.key + '"><span>' + p.name + '</span><span>' + p.multiple + '×</span></div>'; });
-    h += '<div class="note2">FULL LINES PAY. 2 BALLS ON ALL 5 JP NUMBERS WIN THE JACKPOT</div>';
+    pt.pays.forEach(function (p) {
+      var on = {}, mini = '', c; (p.cells || []).forEach(function (x) { on[x - 1] = true; });
+      for (c = 0; c < 16; c++) mini += '<b' + (on[c] ? ' class="on"' : '') + '></b>';
+      h += '<div class="prow" data-key="' + p.key + '"><i class="mini">' + mini + '</i><span class="pn">' + p.name + '</span><span>' + p.multiple + '×</span></div>';
+    });
+    h += '<div class="note2">BEST PATTERN PAYS. 2 BALLS ON ALL 5 JP NUMBERS WIN THE JACKPOT</div>';
     el.pays.innerHTML = h; el.pays.removeAttribute('data-win');
   }
   function fillRules() {

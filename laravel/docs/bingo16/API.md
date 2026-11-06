@@ -10,9 +10,9 @@ The game ships **switched off**. A client plays it when it is in the client's ga
 
 `POST /auth {token, client}`, `GET /state`, `POST /play {stake, requestId}`, `GET /round/{id}`, `GET /history`, `POST /round/{id}/seen`, `POST /seed/rotate`, `GET /proof/{id}`; errors as in Bingo Pinball.
 
-`/state`: balance, limits, `paytable` (`id b16-v90-2`, 16 balls, 16 slots, the six line pays and their multiples), `jackpot` (`{amount, currency, wins, contributionBp}`, null when the player's currency has no jackpot), the seed commit, and the latest round with `unseen` / `unfinished`.
+`/state`: balance, limits, `paytable` (`id b16-v90-2`, 16 balls, 16 slots, the twelve patterns and their multiples (a multiple can be 0.5)), `jackpot` (`{amount, currency, wins, contributionBp}`, null when the player's currency has no jackpot), the seed commit, and the latest round with `unseen` / `unfinished`.
 
-A play answers `{"ok": true, "round": {...}, "balance": n, "repeat": false}`. A round has `id`, `ref` (`b16:<id>`), `status`, `stake`, `balls` (16 numbers: the slot 1-16 each ball ended in, every ball lands in a slot), `jackpotNumbers` (5), `lit` (the lit cells), `pattern` / `patternName`, `multiple`, `jackpotLit` (0-5), `jackpot` (true when each of the five holds at least two balls), `patternPay`, `jackpotPaid`, `payout` (patternPay + jackpotPaid), `nonce`, `creditPending`, `seen`.
+A play answers `{"ok": true, "round": {...}, "balance": n, "repeat": false}`. A round has `id`, `ref` (`b16:<id>`), `status`, `stake`, `balls` (16 numbers: the slot 1-16 each ball ended in, every ball lands in a slot), `jackpotNumbers` (5), `lit` (the lit cells), `pattern` / `patternName`, `multiple` (0.5 for the half-stake patterns), `jackpotLit` (0-5), `jackpot` (true when each of the five holds at least two balls), `patternPay`, `jackpotPaid`, `payout` (patternPay + jackpotPaid), `nonce`, `creditPending`, `seen`.
 
 ## Money
 
