@@ -54,7 +54,7 @@
   function lockControls(b) { S.busy = b; el.play.disabled = b || !S.state; setStake(S.stakeIdx || 0); }
 
   /* ---------- the scene ---------- */
-  var scene = { paytable: null, lit: {}, jpNums: [], jpLit: {}, lineCells: [], winKey: '', slotCounts: [], ball: null, pull: 0, time: 0 };
+  var scene = { paytable: null, lit: {}, jpNums: [], jpLit: {}, lineCells: [], winKey: '', slotCounts: [], missed: 0, ball: null, pull: 0, time: 0 };
   function render(now) {
     scene.time = now; scene.sparks = S.sparks; scene.pinFlash = S.pinFlash; scene.caught = S.caught;
     view.draw(scene);
@@ -65,7 +65,7 @@
     requestAnimationFrame(render);
   }
   function resetBoard() {
-    scene.lit = {}; scene.jpNums = []; scene.jpLit = {}; scene.lineCells = []; scene.winKey = ''; scene.slotCounts = []; scene.ball = null; scene.pull = 0;
+    scene.lit = {}; scene.jpNums = []; scene.jpLit = {}; scene.lineCells = []; scene.winKey = ''; scene.slotCounts = []; scene.missed = 0; scene.ball = null; scene.pull = 0;
     ballsUi(16, 16); jpUi(0);
   }
   function nearestPeg(p) {
@@ -135,6 +135,9 @@
       S.caught.push({ x: slot.x, y: T.RIM_Y + 24, t: 0 });
       if (scene.jpNums.indexOf(outcome) >= 0 && !scene.jpLit[outcome]) { scene.jpLit[outcome] = true; jpUi(Object.keys(scene.jpLit).length); Snd.sfx.lit(Object.keys(scene.jpLit).length); }
       Snd.sfx.drop();
+    } else {
+      scene.missed = (scene.missed || 0) + 1;                      // a ball that missed every slot is caught in the tray under the board (looks only: the server decided it)
+      S.caught.push({ x: T.slots[0].x + 15 * 32, y: 508, t: 0 });
     }
   }
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
