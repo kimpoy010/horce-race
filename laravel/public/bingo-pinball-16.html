@@ -52,7 +52,6 @@
     <button id="stakeDown" type="button" class="sq" aria-label="Lower stake">-</button>
     <button id="stakeUp" type="button" class="sq" aria-label="Raise stake">+</button>
     <button id="btnRules" type="button" class="small">PAYS</button>
-    <button id="btnFair" type="button" class="small">FAIR</button>
     <button id="btnSound" type="button" class="small" aria-label="Sound">SND</button>
     <button id="play" class="play" type="button" disabled>PLAY</button>
   </div>
@@ -76,26 +75,10 @@
       <p class="warn"><b>The plunger is for show.</b> The result of every play is decided by the server before the first ball is launched. How hard or how long you pull the plunger never changes where the balls go or what you win.</p>
       <p id="rulesLimits"></p>
       <p>There are at least 3 seconds between two plays. The balance shown is the one of your account. Win paid is added to your balance as soon as the platform confirms it.</p>
-      <p>Every play is provably fair: press FAIR to see the commitment to the next draws and to check past plays yourself.</p>
-      <p class="small">18+. Gambling can be addictive. Play only what you can afford to lose.</p>
+            <p class="small">18+. Gambling can be addictive. Play only what you can afford to lose.</p>
     </div>
   </section>
 
-  <section class="sheet" id="fair" hidden>
-    <div class="sheetBox">
-      <button class="close" type="button" data-close="fair">CLOSE</button>
-      <h2>FAIR PLAY</h2>
-      <p>Before your first play the server committed to a secret number (the <b>server seed</b>) by showing you its fingerprint. Every result comes from that secret, your own <b>client seed</b> and a play counter, so the server cannot change a result after seeing your stake. When you start a new seed, the old secret is shown and you can check every play made with it, here in your browser.</p>
-      <div class="kv"><span>COMMITMENT</span><code id="fairCommit">-</code></div>
-      <div class="kv"><span>YOUR CLIENT SEED</span><code id="fairClient">-</code></div>
-      <div class="kv"><span>PLAYS WITH THIS PAIR</span><code id="fairPlays">-</code></div>
-      <div class="row"><input id="fairNewSeed" maxlength="64" placeholder="your own seed (optional)" autocomplete="off" autocapitalize="off" spellcheck="false"><button id="fairRotate" type="button">NEW SEED</button></div>
-      <p class="small">Starting a new seed shows the old server seed. Letters, digits, - and _ only.</p>
-      <div id="fairOut"></div>
-      <h3>YOUR LAST PLAYS</h3>
-      <div id="fairList" class="list"></div>
-    </div>
-  </section>
 
 </div></div>
 </div>

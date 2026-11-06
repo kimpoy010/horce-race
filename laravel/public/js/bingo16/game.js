@@ -14,8 +14,8 @@
     BAD_CLIENT_SEED: 'Seed: 1 to 64 letters, digits, - or _.', ERROR: 'Something went wrong.'
   };
   var el = {};
-  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'btnRules', 'btnFair', 'btnSound', 'btnMode', 'btnLobby',
-    'rulesPays', 'rulesLimits', 'fairCommit', 'fairClient', 'fairPlays', 'fairNewSeed', 'fairRotate', 'fairOut', 'fairList'].forEach(function (k) { el[k] = $(k); });
+  ['board', 'card', 'jpRow', 'power', 'pays', 'pstrip', 'jackpot', 'sub', 'ballsLeft', 'jpCount', 'msg', 'lastWin', 'balLbl', 'balance', 'stake', 'stakeUp', 'stakeDown', 'play', 'hint', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'btnRules', 'btnSound', 'btnMode', 'btnLobby',
+    'rulesPays', 'rulesLimits'].forEach(function (k) { el[k] = $(k); });
   var view = window.Bingo16View.create({ board: el.board, card: el.card, jpRow: el.jpRow, power: el.power, pays: [el.pays, el.pstrip] });
 
   /* ---------- money ---------- */
@@ -255,7 +255,7 @@
     var idx = S.steps.indexOf(want); if (idx < 0) { idx = Math.max(0, S.steps.findIndex(function (v) { return v >= Math.max(min, want || min); })); }
     if (S.stakeIdx === undefined || S.stake < min || S.stake > max) setStake(idx); else setStake(S.stakeIdx);
     el.play.disabled = S.busy;
-    fillRules(); fillFair();
+    fillRules();
   }
   function refresh(quiet) {
     return Api.state().then(function (st) { applyState(st); return st; }).catch(function (e) {
@@ -280,7 +280,7 @@
     return Promise.resolve();
   }
 
-  /* ---------- rules and fairness screens ---------- */
+  /* ---------- rules screen ---------- */
   function fillPays(pt) {
     var h = '<div class="pt">PAYS × STAKE</div>', strip = '';
     pt.pays.forEach(function (p) {
@@ -300,46 +300,8 @@
     el.rulesLimits.textContent = 'Stake from ' + money(l.minBet || 0) + ' to ' + money(l.maxBet || 0) + '. Published return to player: about ' + st.paytable.rtp + '% (paytable ' + st.paytable.id + ').' +
       (st.jackpot ? ' The jackpot pool now holds ' + money(st.jackpot.amount) + '; ' + (st.jackpot.contributionBp / 100) + '% of every stake is added to it.' : ' The jackpot is not available in your currency.');
   }
-  function fillFair() {
-    var sd = S.state && S.state.seed; if (!sd) return;
-    el.fairCommit.textContent = sd.commit; el.fairClient.textContent = sd.clientSeed; el.fairPlays.textContent = sd.plays + ' of ' + sd.rotatesAfter;
-  }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function loadHistory() {
-    el.fairList.innerHTML = '<span class="mute">...</span>';
-    Api.history(30).then(function (h) {
-      if (!h.rounds.length) { el.fairList.innerHTML = '<span class="mute">No plays yet.</span>'; return; }
-      el.fairList.innerHTML = h.rounds.map(function (r) {
-        return '<div class="item"><span>#' + r.id + '</span><span>' + (r.status === 'void' ? 'VOID' : (r.jackpot ? 'JACKPOT' : (r.patternName || 'NO WIN'))) + '</span><span>' + fmt(r.stake) + ' &rarr; ' + fmt(r.payout) + '</span>' +
-          (r.status === 'settled' ? '<span class="r"><button type="button" data-check="' + r.id + '">CHECK</button></span>' : '') + '</div>';
-      }).join('');
-      S.history = h.rounds;
-    }).catch(function (e) { el.fairList.innerHTML = '<span class="bad">' + esc(errText(e)) + '</span>'; });
-  }
-  function check(id) {
-    var r = (S.history || []).filter(function (x) { return x.id === id; })[0];
-    el.fairOut.innerHTML = '<div class="box mute">Checking play #' + id + '...</div>';
-    Api.proof(id).then(function (p) {
-      return Fair.verify(r, p.proof).then(function (v) {
-        el.fairOut.innerHTML = '<div class="box ' + (v.ok ? 'ok' : 'bad') + '"><b>PLAY #' + id + ': ' + (v.ok ? 'CHECKED, THE RESULT IS FAIR' : 'DOES NOT MATCH') + '</b><br>' +
-          (v.problems.length ? esc(v.problems.join('; ')) + '<br>' : '') + 'server seed ' + esc(p.proof.serverSeed) + '<br>commit ' + esc(p.proof.commit) + '<br>client seed ' + esc(p.proof.clientSeed) + ' nonce ' + p.proof.nonce + '</div>';
-      });
-    }).catch(function (e) {
-      el.fairOut.innerHTML = '<div class="box ' + (e && e.error === 'SEED_NOT_REVEALED' ? 'mute' : 'bad') + '">' +
-        (e && e.error === 'SEED_NOT_REVEALED' ? 'The server seed of this play is still secret. Start a new seed to reveal it, then check again.' : esc(errText(e))) + '</div>';
-    });
-  }
-  function rotate() {
-    var seed = el.fairNewSeed.value.trim();
-    el.fairRotate.disabled = true;
-    Api.rotate(seed || null).then(function (res) {
-      el.fairNewSeed.value = ''; fillFair();
-      el.fairOut.innerHTML = '<div class="box ok">New seed started. The old server seed was revealed: ' + esc(res.revealed.serverSeed) + '</div>';
-      return refresh().then(loadHistory);
-    }).catch(function (e) { el.fairOut.innerHTML = '<div class="box bad">' + esc(errText(e)) + '</div>'; }).then(function () { el.fairRotate.disabled = false; });
-  }
-
-  function openSheet(name) { el[name].hidden = false; Snd.sfx.click(); if (name === 'fair') { fillFair(); loadHistory(); } }
+  function openSheet(name) { el[name].hidden = false; Snd.sfx.click(); }
 
   /* ---------- wiring ---------- */
   el.stakeUp.addEventListener('click', function () { Snd.sfx.click(); setStake(S.stakeIdx + 1); });
@@ -348,16 +310,13 @@
   el.btnRules.addEventListener('click', function () { openSheet('rules'); });
   el.btnMode.addEventListener('click', function () { S.manual = !S.manual; modeUi(); try { localStorage.setItem('bp16.mode', S.manual ? 'manual' : 'auto'); } catch (e) { /* ignore */ } note(S.manual ? 'MANUAL: you pull the plunger for every ball.' : 'AUTO: you pull once, the other balls follow by themselves.', true, 3500); });
   modeUi(); lobbyProbe();
-  el.btnFair.addEventListener('click', function () { openSheet('fair'); });
   el.btnSound.addEventListener('click', function () {
     var on = !(Snd.isSfx() || Snd.isMusic()); Snd.setSfx(on); Snd.setMusic(on); Snd.unlock(); el.btnSound.classList.toggle('off', !on);
   });
   el.btnSound.classList.toggle('off', !(Snd.isSfx() || Snd.isMusic()));
   document.addEventListener('click', function (ev) {
     var c = ev.target.closest && ev.target.closest('[data-close]'); if (c) { el[c.getAttribute('data-close')].hidden = true; return; }
-    var k = ev.target.closest && ev.target.closest('[data-check]'); if (k) check(parseInt(k.getAttribute('data-check'), 10));
   });
-  el.fairRotate.addEventListener('click', rotate);
   var startEl = $('start');
   if (startEl) startEl.addEventListener('click', function () { Snd.unlock(); });
   document.addEventListener('pointerdown', function () { Snd.unlock(); }, { once: true });

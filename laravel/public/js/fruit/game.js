@@ -2,7 +2,7 @@
    the ring and stops on the cells the server chose. Nothing here decides a result. */
 (function () {
   'use strict';
-  var T = window.FruitTable, A = window.FruitArt, Anim = window.FruitAnim, Api = window.FruitApi, Fair = window.FruitFair, Snd = window.FruitSound;
+  var T = window.FruitTable, A = window.FruitArt, Anim = window.FruitAnim, Api = window.FruitApi, Snd = window.FruitSound;
   var $ = function (id) { return document.getElementById(id); };
   var qs = new URLSearchParams(location.search);
   var S = { take: 0, bonusBase: 0, shown: 0, sc: 1, state: null, bets: {}, credit: 0, creditIdx: 0, steps: [], busy: false, balance: 0, requestId: null, round: null, cursor: 0, lobby: '', history: [] };
@@ -15,8 +15,7 @@
   };
   var el = {};
   ['ring', 'center', 'cLabel', 'cValue', 'cSub', 'cBtns', 'btnSmall', 'btnBig', 'btnCollect', 'bets', 'balance', 'total', 'lastWin', 'creditVal', 'creditDown', 'creditUp', 'btnClear', 'btnRepeat',
-    'btnRules', 'btnFair', 'btnSound', 'btnHelp', 'btnLeft', 'btnRight', 'bonus', 'balLbl', 'dBonus', 'tour', 'tourHole', 'tourText', 'tourArrow', 'tourSkip', 'btnLobby', 'play', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'fair', 'rulesPays', 'rulesLimits',
-    'fairCommit', 'fairClient', 'fairPlays', 'fairNewSeed', 'fairRotate', 'fairOut', 'fairList'].forEach(function (k) { el[k] = $(k); });
+    'btnRules', 'btnSound', 'btnHelp', 'btnLeft', 'btnRight', 'bonus', 'balLbl', 'dBonus', 'tour', 'tourHole', 'tourText', 'tourArrow', 'tourSkip', 'btnLobby', 'play', 'banner', 'note', 'gate', 'gateTitle', 'gateText', 'gateLink', 'stage', 'rules', 'rulesPays', 'rulesLimits'].forEach(function (k) { el[k] = $(k); });
   var view = window.FruitView.create(el.ring);
   var scene = { lights: [], lit: {}, wins: {}, bets: {}, flash: null, time: 0 };
 
@@ -256,7 +255,7 @@
     var idx = S.steps.indexOf(want);
     if (idx < 0) idx = Math.max(0, S.steps.findIndex(function (v) { return v >= Math.max(min, 1); }));
     if (!S.credit || S.steps.indexOf(S.credit) < 0) setCredit(idx); else setCredit(S.creditIdx);
-    fillRules(); fillFair();
+    fillRules();
   }
   function refresh(quiet) {
     return Api.state().then(function (st) { applyState(st); return st; }).catch(function (e) {
@@ -287,7 +286,7 @@
     return Promise.resolve();
   }
 
-  /* ---------- rules and fairness screens ---------- */
+  /* ---------- rules screen ---------- */
   function fillRules() {
     var st = S.state; if (!st) return;
     var pays = st.paytable.pays, rows = '';
@@ -297,44 +296,7 @@
     var l = st.limits || {};
     el.rulesLimits.textContent = 'Stake from ' + money(l.minBet || 0) + ' to ' + money(l.maxBet || 0) + ', up to ' + l.maxCreditsPerSymbol + ' credits on a fruit and ' + l.maxCredits + ' in all. Published return to player: about ' + st.paytable.rtp + '% (paytable ' + st.paytable.id + '). The double-up is an even chance and does not change it.';
   }
-  function fillFair() {
-    var sd = S.state && S.state.seed; if (!sd) return;
-    el.fairCommit.textContent = sd.commit; el.fairClient.textContent = sd.clientSeed; el.fairPlays.textContent = sd.plays + ' of ' + sd.rotatesAfter;
-  }
-  function loadHistory() {
-    el.fairList.innerHTML = '<span class="mute">...</span>';
-    Api.history(30).then(function (h) {
-      if (!h.rounds.length) { el.fairList.innerHTML = '<span class="mute">No plays yet.</span>'; return; }
-      el.fairList.innerHTML = h.rounds.map(function (r) {
-        return '<div class="item"><span>#' + r.id + '</span><span>' + (r.status === 'void' ? 'VOID' : (r.doubles.length ? r.doubles.length + ' DOUBLE' + (r.doubles.length > 1 ? 'S' : '') : (r.payout ? 'WIN' : 'NO WIN'))) + '</span><span>' + fmt(r.stake) + ' &rarr; ' + fmt(r.payout) + '</span>' +
-          (r.status === 'settled' ? '<span class="r"><button type="button" data-check="' + r.id + '">CHECK</button></span>' : '') + '</div>';
-      }).join('');
-      S.history = h.rounds;
-    }).catch(function (e) { el.fairList.innerHTML = '<span class="bad">' + esc(errText(e)) + '</span>'; });
-  }
-  function check(id) {
-    var r = (S.history || []).filter(function (x) { return x.id === id; })[0];
-    el.fairOut.innerHTML = '<div class="box mute">Checking play #' + id + '...</div>';
-    Api.proof(id).then(function (p) {
-      return Fair.verify(r, p.proof).then(function (v) {
-        el.fairOut.innerHTML = '<div class="box ' + (v.ok ? 'ok' : 'bad') + '"><b>PLAY #' + id + ': ' + (v.ok ? 'CHECKED, THE RESULT IS FAIR' : 'DOES NOT MATCH') + '</b><br>' +
-          (v.problems.length ? esc(v.problems.join('; ')) + '<br>' : '') + 'server seed ' + esc(p.proof.serverSeed) + '<br>commit ' + esc(p.proof.commit) + '<br>client seed ' + esc(p.proof.clientSeed) + ' nonce ' + p.proof.nonce + '</div>';
-      });
-    }).catch(function (e) {
-      el.fairOut.innerHTML = '<div class="box ' + (e && e.error === 'SEED_NOT_REVEALED' ? 'mute' : 'bad') + '">' +
-        (e && e.error === 'SEED_NOT_REVEALED' ? 'The server seed of this play is still secret. Start a new seed to reveal it, then check again.' : esc(errText(e))) + '</div>';
-    });
-  }
-  function rotate() {
-    var seed = el.fairNewSeed.value.trim();
-    el.fairRotate.disabled = true;
-    Api.rotate(seed || null).then(function (res) {
-      el.fairNewSeed.value = ''; fillFair();
-      el.fairOut.innerHTML = '<div class="box ok">New seed started. The old server seed was revealed: ' + esc(res.revealed.serverSeed) + '</div>';
-      return refresh().then(loadHistory);
-    }).catch(function (e) { el.fairOut.innerHTML = '<div class="box bad">' + esc(errText(e)) + '</div>'; }).then(function () { el.fairRotate.disabled = false; });
-  }
-  function openSheet(name) { el[name].hidden = false; Snd.click(); if (name === 'fair') { fillFair(); loadHistory(); } }
+  function openSheet(name) { el[name].hidden = false; Snd.click(); }
 
   /* ---------- the way back to the lobby ---------- */
   function lobbyUi() {
@@ -399,15 +361,12 @@
   el.btnBig.addEventListener('click', function () { double('big'); });
   el.btnCollect.addEventListener('click', collect);
   el.btnRules.addEventListener('click', function () { openSheet('rules'); });
-  el.btnFair.addEventListener('click', function () { openSheet('fair'); });
   el.btnHelp.addEventListener('click', function () { startTour(true); });
   el.btnSound.addEventListener('click', function () { Snd.setOn(!Snd.isOn()); Snd.unlock(); el.btnSound.classList.toggle('off', !Snd.isOn()); });
   el.btnSound.classList.toggle('off', !Snd.isOn());
   document.addEventListener('click', function (ev) {
     var c = ev.target.closest && ev.target.closest('[data-close]'); if (c) { el[c.getAttribute('data-close')].hidden = true; return; }
-    var k = ev.target.closest && ev.target.closest('[data-check]'); if (k) check(parseInt(k.getAttribute('data-check'), 10));
   });
-  el.fairRotate.addEventListener('click', rotate);
   var startEl = $('start');
   if (startEl) startEl.addEventListener('click', function () { Snd.unlock(); });
   document.addEventListener('pointerdown', function () { Snd.unlock(); }, { once: true });

@@ -62,7 +62,6 @@
   </div>
   <div class="btns util">
     <button id="btnRules" type="button" class="small">PAYS</button>
-    <button id="btnFair" type="button" class="small">FAIR</button>
     <button id="btnSound" type="button" class="small" aria-label="Sound">SND</button>
     <button id="btnHelp" type="button" class="small" aria-label="Show the help again">HELP</button>
   </div>
@@ -92,26 +91,10 @@
       <p class="warn"><b>The result is decided by the server</b> before the light starts running. The animation is only for show.</p>
       <p id="rulesLimits"></p>
       <p>The balance shown is the one of your account. A win is added to your balance when you collect it.</p>
-      <p>Every spin and every double-up is provably fair: press FAIR to see the commitment to the next draws and to check past plays yourself.</p>
-      <p class="small">18+. Gambling can be addictive. Play only what you can afford to lose.</p>
+            <p class="small">18+. Gambling can be addictive. Play only what you can afford to lose.</p>
     </div>
   </section>
 
-  <section class="sheet" id="fair" hidden>
-    <div class="sheetBox">
-      <button class="close" type="button" data-close="fair">CLOSE</button>
-      <h2>FAIR PLAY</h2>
-      <p>Before your first spin the server committed to a secret number (the <b>server seed</b>) by showing you its fingerprint. Every spin and every double-up comes from that seed, your own <b>client seed</b> and a counter, so the server cannot change a result after seeing your bet. When you start a new seed the old server seed is shown and you can check every play made with it. The check below runs in your browser.</p>
-      <div class="kv"><span>COMMITMENT</span><code id="fairCommit">-</code></div>
-      <div class="kv"><span>YOUR CLIENT SEED</span><code id="fairClient">-</code></div>
-      <div class="kv"><span>DRAWS WITH THIS PAIR</span><code id="fairPlays">-</code></div>
-      <div class="row"><input id="fairNewSeed" maxlength="64" placeholder="your own seed (optional)" autocomplete="off" autocapitalize="off" spellcheck="false"><button id="fairRotate" type="button">NEW SEED</button></div>
-      <p class="small">Starting a new seed shows the old server seed. Letters, digits, - and _ only. Not possible while a win is waiting to be collected.</p>
-      <div id="fairOut"></div>
-      <h3>YOUR LAST PLAYS</h3>
-      <div id="fairList" class="list"></div>
-    </div>
-  </section>
 
 </div></div>
 </div>
@@ -129,7 +112,6 @@
 <script src="/js/fruit/art.js"></script>
 <script src="/js/fruit/anim.js"></script>
 <script src="/js/fruit/view.js"></script>
-<script src="/js/fruit/fair.js"></script>
 <script src="/js/fruit/api.js"></script>
 <script src="/js/fruit/sound.js"></script>
 <script src="/js/fruit/game.js"></script>
