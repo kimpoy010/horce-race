@@ -146,15 +146,19 @@
     }
     limb(24, 22, 18, 31, 21, 27, 10, 8, 'C');                                 // solid croup / thigh
     limb(26, 21, 21, 27, 24, 24, 6, 6, 'C');
-    // long tail. Standing: it arches back from the rump and hangs down. Galloping: the wind and the speed stream it out behind the horse, nearly level, and it ripples
-    // along the stride (the tip lags behind the root), with a second, lower strand so it reads as a mass of hair rather than a single stick
-    var tail;
+    // long tail. Standing: it arches back from the rump and hangs down. Galloping: one solid plume streams out behind the horse - narrow at the dock, fullest about a third of
+    // the way along, tapering to a point - drooping a little and rippling in an S along the stride (the tip lags behind the root)
+    var tail = [];
     if (standing) tail = [[23, 19, 4, 25, 11, 14, 5, 4], [4, 25, -3, 45, -1, 33, 4, 1]];
-    else {
-      var ph = step / STEPS * Math.PI * 2, f1 = Math.sin(ph + 1.2), f2 = Math.sin(ph + 0.2), f3 = Math.sin(ph - 0.8);
-      var mx = 8, my = 18 + Math.round(2 * f1), tx = -15, ty = 21 + Math.round(5 * f3), lx = 4, ly = 22 + Math.round(2 * f2), ex = -10, ey = 26 + Math.round(3 * f3);
-      tail = [[23, 19, mx, my, 15, 14, 7, 6], [mx, my, tx, ty, -4, 16 + Math.round(4 * f2), 6, 1], [21, 20, lx, ly, 12, 21, 5, 4], [lx, ly, ex, ey, -3, 24 + Math.round(2 * f1), 4, 1]];
-    }
+    var plume = function (ch, grow) {
+      var ph = step / STEPS * Math.PI * 2, n = 90, i, t, x, y, w;
+      for (i = 0; i <= n; i++) {
+        t = i / n; x = 22 - 34 * t; y = 19 + 7 * t + 5.2 * t * Math.sin(ph + t * 3.4);
+        w = t < 0.3 ? 5 + 5 * (t / 0.3) : Math.max(2, 10 * Math.pow(1 - (t - 0.3) / 0.7, 0.6));
+        stamp(out, PADX + x, PADY + bob + y, Math.round(w) + grow, Math.round(w) + grow, ch);
+      }
+    };
+    if (!standing) { plume('K', 2); plume('C', 0); }
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6] + 2, t[7] + 2, 'K'); });
     tail.forEach(function (t) { limb(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], 'C'); });
     limb(22, 22, 11, 28, 16, 23, 7, 4, 'C');                                  // rounded rump: closes the wedge between the tail root and the hind leg
