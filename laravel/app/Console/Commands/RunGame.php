@@ -92,7 +92,7 @@ class RunGame extends Command
     private function recoverInstantGames(): void
     {
         try {
-            $n = app(BingoPinballService::class)->recoverStuck();
+            $n = app(BingoPinballService::class)->recoverStuck() + app(\App\Games\BingoPinball16\Bingo16Service::class)->recoverStuck();
             if ($n) {
                 $this->info("game:run: $n instant play(s) that never finished were cancelled and their debit is being rolled back");
             }

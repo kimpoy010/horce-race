@@ -135,7 +135,7 @@ class GameReportsTest extends StaffTestCase
         $this->assertSame(96, $g['clients']['acme']['paytables']['bingo-pinball']);
         $this->assertSame(['horse-race', 'bingo-pinball'], $g['clients']['acme']['enabled']);
         $this->assertSame(['horse-race'], $g['clients']['zeta']['enabled'], 'a client whose own list leaves the game out has it off');
-        $this->assertSame(['horse-race', 'bingo-pinball'], array_column($g['available'], 'id'));
+        $this->assertSame(['horse-race', 'bingo-pinball', 'bingo-pinball-16'], array_column($g['available'], 'id'));
     }
 
     public function test_metrics_carry_a_game_label_and_the_old_names_stay(): void

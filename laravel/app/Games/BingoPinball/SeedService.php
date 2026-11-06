@@ -22,7 +22,7 @@ final class SeedService
     public const GAME = 'bingo-pinball';
 
     /** @param Closure(): int $now the clock in milliseconds */
-    public function __construct(private Journal $journal, private Closure $now, private string $clientsKey, private int $rotateEvery = 1000) {}
+    public function __construct(private Journal $journal, private Closure $now, private string $clientsKey, private int $rotateEvery = 1000, private string $game = self::GAME) {}
 
     /** the seeds cannot be kept secret without the key: refuse to run (checked before a launch token is used up) */
     public function assertReady(): void
@@ -40,10 +40,10 @@ final class SeedService
             throw new GameError(400, 'BAD_CLIENT_SEED', 'The client seed is 1 to 64 letters, digits, "-" or "_".');
         }
         $seed = Draw::newServerSeed();
-        $id = DB::table('player_seeds')->insertGetId(['player_key' => $playerKey, 'game_id' => self::GAME, 'server_seed' => SecretBox::encrypt($seed, $this->clientsKey), 'commit' => Draw::commitOf($seed),
+        $id = DB::table('player_seeds')->insertGetId(['player_key' => $playerKey, 'game_id' => $this->game, 'server_seed' => SecretBox::encrypt($seed, $this->clientsKey), 'commit' => Draw::commitOf($seed),
             'client_seed' => $clientSeed, 'next_nonce' => 1, 'status' => 'active', 'created_at' => ($this->now)()]);
         $row = DB::table('player_seeds')->where('id', $id)->first();
-        $this->journal->log(['e' => 'seed.commit', 'playerId' => $playerKey, 'seedId' => $id, 'commit' => $row->commit, 'clientSeed' => $clientSeed], self::GAME);
+        $this->journal->log(['e' => 'seed.commit', 'playerId' => $playerKey, 'seedId' => $id, 'commit' => $row->commit, 'clientSeed' => $clientSeed], $this->game);
 
         return $row;
     }
@@ -51,7 +51,7 @@ final class SeedService
     /** the player's current pair; the first call makes one */
     public function active(string $playerKey): object
     {
-        return DB::table('player_seeds')->where('player_key', $playerKey)->where('game_id', self::GAME)->where('status', 'active')->orderByDesc('id')->first() ?? $this->newPair($playerKey, null);
+        return DB::table('player_seeds')->where('player_key', $playerKey)->where('game_id', $this->game)->where('status', 'active')->orderByDesc('id')->first() ?? $this->newPair($playerKey, null);
     }
 
     /** what the player may see of a pair that is still secret */
@@ -107,7 +107,7 @@ final class SeedService
         DB::table('player_seeds')->where('id', $seed->id)->update(['status' => 'revealed', 'revealed_at' => ($this->now)()]);
         $server = $this->serverSeed($seed);
         $plays = (int) $seed->next_nonce - 1;
-        $this->journal->log(['e' => 'seed.reveal', 'playerId' => $seed->player_key, 'seedId' => (int) $seed->id, 'commit' => $seed->commit, 'serverSeed' => $server, 'plays' => $plays], self::GAME);
+        $this->journal->log(['e' => 'seed.reveal', 'playerId' => $seed->player_key, 'seedId' => (int) $seed->id, 'commit' => $seed->commit, 'serverSeed' => $server, 'plays' => $plays], $this->game);
 
         return ['seedId' => (int) $seed->id, 'serverSeed' => $server, 'commit' => $seed->commit, 'clientSeed' => $seed->client_seed, 'plays' => $plays];
     }

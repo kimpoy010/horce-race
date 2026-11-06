@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Bingo16Controller;
 use App\Http\Controllers\BingoPinballController;
 use App\Http\Controllers\ClientAdminController;
 use App\Http\Controllers\ClientApiController;
@@ -27,6 +28,18 @@ Route::prefix('games/bingo-pinball')->group(function () {
     Route::get('/history', [BingoPinballController::class, 'history']);
     Route::post('/seed/rotate', [BingoPinballController::class, 'rotate']);
     Route::get('/proof/{id}', [BingoPinballController::class, 'proof'])->whereNumber('id');
+});
+
+// Bingo Pinball 16 (16 balls, 16 slots, progressive jackpot; an instant game with its own games-list entry)
+Route::prefix('games/bingo-pinball-16')->group(function () {
+    Route::post('/auth', [Bingo16Controller::class, 'auth']);
+    Route::get('/state', [Bingo16Controller::class, 'state']);
+    Route::post('/play', [Bingo16Controller::class, 'play']);
+    Route::get('/round/{id}', [Bingo16Controller::class, 'round'])->whereNumber('id');
+    Route::post('/round/{id}/seen', [Bingo16Controller::class, 'seen'])->whereNumber('id');
+    Route::get('/history', [Bingo16Controller::class, 'history']);
+    Route::post('/seed/rotate', [Bingo16Controller::class, 'rotate']);
+    Route::get('/proof/{id}', [Bingo16Controller::class, 'proof'])->whereNumber('id');
 });
 
 // the client API: a platform with its own API key, limited to its own players (docs/CLIENT_API.md)

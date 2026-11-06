@@ -12,6 +12,9 @@ use App\Game\Staff\BackOffice;
 use App\Game\Staff\UserStore;
 use App\Game\Ledger;
 use App\Games\BingoPinball\BingoPinballService;
+use App\Games\BingoPinball16\Bingo16Service;
+use App\Games\BingoPinball16\JackpotPool;
+use App\Games\BingoPinball16\Rules as Rules16;
 use App\Games\BingoPinball\SeedService;
 use App\Platform\Games\Games;
 use App\Game\Wallet\HttpWallet;
@@ -79,6 +82,16 @@ class AppServiceProvider extends ServiceProvider
 
             return new BingoPinballService($e->sessions(), $e->gateway(), $e->limits(), $e->directory(), $e->journal(), $e->webhooks(), $app->make(SeedService::class), $app->make(Games::class), fn () => $e->now(),
                 (array) config('games.settings.bingo-pinball'), (int) $e->cfg('big_win_min'));
+        });
+        // Bingo Pinball 16: its own seed pairs (game id), the jackpot pool and the play service
+        $this->app->singleton('bingo16.seeds', fn ($app) => new SeedService($app->make(Engine::class)->journal(), fn () => $app->make(Engine::class)->now(), (string) config('horse.clients_key'),
+            (int) config('games.settings.bingo-pinball-16.rotate_every', 1000), Rules16::ID));
+        $this->app->singleton(JackpotPool::class, fn ($app) => new JackpotPool($app->make(Engine::class)->journal(), fn () => $app->make(Engine::class)->now(), (array) config('games.settings.bingo-pinball-16')));
+        $this->app->singleton(Bingo16Service::class, function ($app) {
+            $e = $app->make(Engine::class);
+
+            return new Bingo16Service($e->sessions(), $e->gateway(), $e->limits(), $e->directory(), $e->journal(), $e->webhooks(), $app->make('bingo16.seeds'), $app->make(JackpotPool::class),
+                $app->make(Games::class), fn () => $e->now(), (array) config('games.settings.bingo-pinball-16'), (int) $e->cfg('big_win_min'));
         });
         $this->app->singleton(AlertManager::class, fn ($app) => new AlertManager($app->make(Engine::class), (array) config('horse.alerts'), config('horse.alert_webhook_url')));
         $this->app->singleton(Ledger::class);
